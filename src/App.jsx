@@ -259,11 +259,11 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
                     Approve & Commit All {stagedData.length > 0 && `(${stagedData.length})`}
                 </button>
                 <button
-                    onClick={handleClearAll}
-                    className="w-full bg-amber-700/50 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed"
-                >
-                    Reject and Clear
-                </button>
+    onClick={handleClearAll}
+    className="w-full bg-amber-700/50 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed"
+>
+    Reject and Clear All {stagedData.length > 0 && `(${stagedData.length})`}
+</button>
             </div>
         </div>
     );
