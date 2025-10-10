@@ -137,7 +137,7 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
                     </p>
                 )}
             </div>
-            // ...inside MigrationPanel in App.jsx...
+            {/* ...inside MigrationPanel in App.jsx... */}
 <div className="mt-6 flex flex-col sm:flex-row gap-4">
     <button
         onClick={handleCommitAll}
@@ -211,11 +211,10 @@ function App() {
                 </div>
                 <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
                 <div>{renderContent()}</div>
-                {/* <SystemLog logs={logs} /> */}
+                <SystemLog logs={logs} />
             </div>
         </div>
     );
 }
 
 export default App;
-

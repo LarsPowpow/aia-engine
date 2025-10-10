@@ -1,302 +1,110 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, doc, deleteDoc, writeBatch } from "firebase/firestore";
+import React, { useState } from 'react';
+import { doc, setDoc } from "firebase/firestore";
 
-// --- MASTER CONFIG & SCHEMAS ---
-const COLLECTIONS = ['perks', 'weapon_mastery', 'game_constants', 'status_effects', 'attribute_bonuses', 'builds', 'effects', 'abilities', 'raw_data_archive'];
-const UKB_SCHEMAS = {
-    perks: {
-        type: { filterable: true, type: 'select' },
-        perk_bucket: { filterable: true, type: 'select' },
-    },
-    weapon_mastery: {
-        type: { filterable: true, type: 'select' },
-        mastery_tree: { filterable: true, type: 'select' },
-    },
-    abilities: {
-        type: { filterable: true, type: 'select' },
-    }
-};
+const AdminPanel = ({ addLog, db }) => {
+    const [apiKey, setApiKey] = useState(sessionStorage.getItem('geminiApiKey') || '');
+    const [apiKeyStatus, setApiKeyStatus] = useState('');
+    const [archiveId, setArchiveId] = useState('');
+    const [archivePayload, setArchivePayload] = useState('');
 
 
-const ViewerPage = ({ db, addLog }) => {
-  const [selectedCollection, setSelectedCollection] = useState('');
-  const [rawData, setRawData] = useState([]);
-  const [tableHeaders, setTableHeaders] = useState([]);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
-  const [deleteDocId, setDeleteDocId] = useState('');
-  const [ingestionData, setIngestionData] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [columnFilters, setColumnFilters] = useState({});
-  const [availableFilters, setAvailableFilters] = useState([]);
-  const tableContainerRef = useRef(null);
-
-  // Effect to subscribe to Firestore collection changes
-  useEffect(() => {
-    setSearchTerm(''); 
-    setColumnFilters({});
-
-    if (db && selectedCollection) {
-        addLog('info', `Subscribing to real-time updates for '${selectedCollection}'...`);
-        const q = collection(db, selectedCollection);
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const data = [];
-            querySnapshot.forEach((doc) => {
-                data.push({ id: doc.id, ...doc.data() });
-            });
-
-            setRawData(data);
-
-            if (data.length > 0) {
-                const headers = Object.keys(data[0]).filter(key => 
-                    !['effects', 'notes', 'description', 'crafting_mod', 'linked_effects', 'absorption_effects', 'radius_by_equip_load', 'parent_ability'].includes(key)
-                );
-                setTableHeaders(headers);
-                if (!sortConfig.key || !headers.includes(sortConfig.key)) {
-                    setSortConfig({ key: headers[0], direction: 'ascending' });
-                }
-
-                const schema = UKB_SCHEMAS[selectedCollection];
-                const generatedFilters = [];
-                if (schema) {
-                    for (const key in schema) {
-                        if (schema[key].filterable) {
-                            const uniqueValues = [...new Set(data.map(item => item[key]).filter(Boolean))].sort();
-                            generatedFilters.push({ key, label: key.replace(/_/g, ' '), options: uniqueValues });
-                        }
-                    }
-                }
-                setAvailableFilters(generatedFilters);
-
-            } else {
-                setTableHeaders([]);
-                setAvailableFilters([]);
-            }
-
-            addLog('success', `Live Viewer updated. Displaying ${data.length} document(s) for '${selectedCollection}'.`);
-
-        }, (error) => {
-            addLog('error', `Error subscribing to '${selectedCollection}': ${error.message}`);
-        });
-
-        return () => unsubscribe();
-    } else {
-        setRawData([]);
-        setTableHeaders([]);
-        setAvailableFilters([]);
-    }
-  }, [db, selectedCollection, addLog, sortConfig.key]);
-
-  // Memoized filtering and sorting logic
-  const processedData = useMemo(() => {
-    let filteredItems = [...rawData];
-    if (searchTerm) {
-        const lowercasedTerm = searchTerm.toLowerCase();
-        filteredItems = filteredItems.filter(item => 
-            Object.values(item).some(value =>
-                String(value).toLowerCase().includes(lowercasedTerm)
-            )
-        );
-    }
-    Object.entries(columnFilters).forEach(([key, value]) => {
-        if (value) {
-            filteredItems = filteredItems.filter(item => String(item[key]) === value);
+    const handleSaveApiKey = () => {
+        if (apiKey) {
+            sessionStorage.setItem('geminiApiKey', apiKey);
+            setApiKeyStatus('API Key saved for this session.');
+            addLog('success', 'Gemini API key has been set for the session.');
+        } else {
+            sessionStorage.removeItem('geminiApiKey');
+            setApiKeyStatus('API Key removed.');
+            addLog('info', 'Gemini API key has been removed for the session.');
         }
-    });
-    if (sortConfig.key !== null) {
-      filteredItems.sort((a, b) => {
-        const valA = a[sortConfig.key];
-        const valB = b[sortConfig.key];
-        if (valA < valB) return sortConfig.direction === 'ascending' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'ascending' ? 1 : -1;
-        return 0;
-      });
-    }
-    return filteredItems;
-  }, [rawData, searchTerm, columnFilters, sortConfig]);
+    };
 
-  // Effect to reset scroll position
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    if (tableContainerRef.current) {
-      tableContainerRef.current.scrollTop = 0;
-    }
-  }, [processedData]);
+    const handleStashData = async () => {
+        if (!db || !archiveId || !archivePayload) {
+            addLog('error', 'Stash failed: Archive ID and Payload cannot be empty.');
+            return;
+        }
+        addLog('special', `Stashing raw data under ID '${archiveId}'...`);
+        try {
+            const docRef = doc(db, 'raw_data_archive', archiveId);
+            await setDoc(docRef, {
+                raw_data: archivePayload,
+                stashed_at: new Date().toISOString()
+            });
+            addLog('success', `Successfully stashed '${archiveId}' into the raw data archive.`);
+            setArchiveId('');
+            setArchivePayload('');
+        } catch (error) {
+            addLog('error', `Error stashing raw data: ${error.message}`);
+        }
+    };
 
-  const handleRowClick = (row) => {
-    setDeleteDocId(row.id);
-    addLog('info', `Staged document '${row.id}' for surgical deletion.`);
-  };
 
-  const handleColumnFilterChange = (key, value) => {
-    setColumnFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const requestSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
-    addLog('info', `Sorting by ${key} (${direction}).`);
-  };
-
-  const handleDelete = async () => {
-    if (!db || !selectedCollection || !deleteDocId) {
-        addLog('error', 'Deletion failed: Collection and Document ID must be specified.');
-        return;
-    }
-    addLog('special', `Initiating deletion of document '${deleteDocId}' from '${selectedCollection}'...`);
-    try {
-        await deleteDoc(doc(db, selectedCollection, deleteDocId));
-        addLog('success', `Successfully deleted document '${deleteDocId}'.`);
-        setDeleteDocId('');
-    } catch (error) {
-        addLog('error', `Error deleting document: ${error.message}`);
-    }
-  };
-
-  const handleIngest = async () => {
-    if (!db || !selectedCollection || !ingestionData) {
-      addLog('error', 'Ingestion failed: Collection and data must be specified.');
-      return;
-    }
-    addLog('special', `Initiating Smart Ingestion for '${selectedCollection}'...`);
-    
-    let dataArray;
-    try {
-      dataArray = JSON.parse(ingestionData);
-      if (!Array.isArray(dataArray)) throw new Error("Input data must be a valid JSON array.");
-    } catch (e) {
-      addLog('error', `Ingestion failed: Invalid JSON format. ${e.message}`);
-      return;
-    }
-
-    const batch = writeBatch(db);
-    let count = 0;
-    dataArray.forEach(obj => {
-      const primaryKey = obj.id || obj.ability_id || obj.effect_id;
-      if (!primaryKey) {
-        addLog('error', `Skipping object due to missing primary key (id, ability_id, or effect_id): ${JSON.stringify(obj)}`);
-        return;
-      }
-      const docRef = doc(db, selectedCollection, String(primaryKey));
-      batch.set(docRef, obj, { merge: true });
-      count++;
-    });
-
-    try {
-      await batch.commit();
-      addLog('success', `Smart Ingestion successful. ${count} documents were created/updated in '${selectedCollection}'.`);
-      setIngestionData(''); 
-    } catch (error) {
-      addLog('error', `Error during Smart Ingestion: ${error.message}`);
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-      {/* Left Column: Data Table */}
-      <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-gray-700 flex flex-col xl:col-span-2">
-        <h2 className="text-2xl font-semibold text-sky-300 mb-4">Live UKB Viewer</h2>
-        <div className="mb-4">
-          <label htmlFor="collectionSelectorViewer" className="block text-sm font-medium text-gray-400">Select Collection:</label>
-          <select 
-            id="collectionSelectorViewer" 
-            value={selectedCollection}
-            onChange={(e) => setSelectedCollection(e.target.value)}
-            className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
-          >
-            <option value="">-- Select Collection --</option>
-            {COLLECTIONS.map(col => (<option key={col} value={col}>{col}</option>))}
-          </select>
-        </div>
-        <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="universalSearch" className="block text-sm font-medium text-gray-400">Universal Search</label>
-            <input 
-                type="text" id="universalSearch" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-sky-500 focus:border-sky-500" 
-                placeholder="Search all fields..." 
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-400">Column Filters</label>
-            <div className="mt-1 grid grid-cols-2 gap-2">
-              {availableFilters.map(filter => (
-                <select 
-                  key={filter.key} value={columnFilters[filter.key] || ''} onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
-                  className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-1 px-2 text-white text-xs focus:outline-none focus:ring-sky-500 focus:border-sky-500"
-                >
-                  <option value="">Filter by {filter.label}</option>
-                  {filter.options.map(opt => (<option key={opt} value={opt}>{opt}</option>))}
-                </select>
-              ))}
+    return (
+        <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-red-500/50 space-y-8">
+            {/* API Key Management */}
+            <div>
+                <h2 className="text-2xl font-semibold text-yellow-300 mb-4">Gemini API Key</h2>
+                <p className="text-sm text-gray-400 mb-2">Enter your Gemini API key below. It will be stored securely for this session only.</p>
+                <div className="flex items-center space-x-2">
+                    <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        className="block w-full bg-gray-900 border-gray-600 rounded-md p-2 font-mono text-sm text-amber-300"
+                        placeholder="Enter your Gemini API key..."
+                    />
+                    <button
+                        onClick={handleSaveApiKey}
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition"
+                    >
+                        Save Key
+                    </button>
+                </div>
+                {apiKeyStatus && <p className="text-xs text-emerald-400 mt-2">{apiKeyStatus}</p>}
+                {!sessionStorage.getItem('geminiApiKey') && <p className="text-xs text-red-400 mt-2">API Key is not set. AI features will fail.</p>}
             </div>
-          </div>
+
+            {/* Operation: Precious Cargo */}
+            <div>
+                <h2 className="text-2xl font-semibold text-teal-300 mb-4">Operation: Precious Cargo</h2>
+                <p className="text-sm text-gray-400 mb-2">Securely stash raw source data (e.g., full API responses) into the UKB. This data is critical for future analysis and harvester development.</p>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="archiveDocIdInput" className="block text-sm font-medium text-gray-400">Archive ID (e.g., nwdb_perks_page_1)</label>
+                        <input
+                            type="text"
+                            id="archiveDocIdInput"
+                            value={archiveId}
+                            onChange={(e) => setArchiveId(e.target.value)}
+                            className="mt-1 block w-full bg-gray-900 border-gray-600 rounded-md p-2 font-mono text-sm text-amber-300"
+                            placeholder="Enter a unique ID for this data..."
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="archiveDataInput" className="block text-sm font-medium text-gray-400">Raw Data Payload</label>
+                        <textarea
+                            id="archiveDataInput"
+                            rows="6"
+                            value={archivePayload}
+                            onChange={(e) => setArchivePayload(e.target.value)}
+                            className="mt-1 block w-full bg-gray-900 border-gray-600 rounded-md p-2 font-mono text-sm text-amber-300"
+                            placeholder="Paste the raw JSON or text data here..."
+                        ></textarea>
+                    </div>
+                    <button
+                        onClick={handleStashData}
+                        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-5 rounded-lg text-lg transition"
+                    >
+                        Stash Raw Data
+                    </button>
+                </div>
+            </div>
+
         </div>
-        <div ref={tableContainerRef} className="flex-grow rounded-md overflow-auto border border-gray-600">
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-700/50 sticky top-0">
-              <tr>
-                {tableHeaders.map(header => (
-                  <th key={header} onClick={() => requestSort(header)} className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-700">
-                    {header.replace(/_/g, ' ')}
-                    {sortConfig.key === header ? (sortConfig.direction === 'ascending' ? ' ▲' : ' ▼') : ''}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700">
-              {processedData.length > 0 ? (
-                processedData.map((row, index) => (
-                  <tr key={row.id || index} onClick={() => handleRowClick(row)} className="bg-gray-800 even:bg-gray-800/50 hover:bg-gray-700/50 cursor-pointer">
-                    {tableHeaders.map(header => (<td key={header} className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{String(row[header])}</td>))}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={tableHeaders.length || 1} className="text-center p-4 text-gray-500">
-                    {selectedCollection ? 'No results match your search.' : 'Please select a collection to view its data.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-        
-      <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-gray-700 flex flex-col space-y-6">
-          <h2 className="text-2xl font-semibold text-emerald-300 mb-0">Command Center</h2>
-          <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700">
-              <h3 className="text-xl font-semibold text-gray-300 mb-2">Smart Ingestion (Upsert)</h3>
-              <p className="text-sm text-gray-400 mb-4">{selectedCollection ? `Paste JSON array to add/update in '${selectedCollection}'.` : 'Select a collection to enable ingestion.'}</p>
-              <textarea value={ingestionData} onChange={(e) => setIngestionData(e.target.value)}
-                  className="w-full h-32 bg-gray-900 rounded-md p-3 font-mono text-sm border border-gray-600 text-amber-300" 
-                  placeholder="[ { &quot;id&quot;: &quot;...&quot;, ... } ]" disabled={!selectedCollection}/>
-              <button onClick={handleIngest}
-                  className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition disabled:opacity-50 disabled:cursor-not-allowed" 
-                  disabled={!selectedCollection || !ingestionData}>
-                  Run Smart Ingestion
-              </button>
-          </div>
-          <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700">
-              <h3 className="text-xl font-semibold text-red-300 mb-2">Surgical Deletion</h3>
-              <select value={selectedCollection} onChange={(e) => setSelectedCollection(e.target.value)}
-                  className="mb-4 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-red-500 focus:border-red-500">
-                  <option value="">-- Select Collection --</option>
-                  {COLLECTIONS.map(col => (<option key={col} value={col}>{col}</option>))}
-              </select>
-              <input type="text" value={deleteDocId} onChange={(e) => setDeleteDocId(e.target.value)}
-                  className="mb-4 block w-full bg-gray-900 border-gray-600 rounded-md p-2 font-mono text-sm text-amber-300" 
-                  placeholder="Paste document ID here..." />
-              <button onClick={handleDelete} className="mt-auto w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition">
-                  Delete Document
-              </button>
-          </div>
-      </div> 
-    </div>
-  );
+    );
 };
 
-export default ViewerPage;
+export default AdminPanel;
 
