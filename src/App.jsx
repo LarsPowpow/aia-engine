@@ -137,22 +137,21 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
                     </p>
                 )}
             </div>
-            <div className="mt-6 flex flex-col sm:flex-row gap-4">
-                <button
-                    onClick={handleCommitAll}
-                    className="w-full bg-emerald-400 hover:bg-emerald-500 text-gray-900 font-bold py-3 px-6 rounded-lg text-lg transition disabled:bg-emerald-800 disabled:text-gray-500 disabled:cursor-not-allowed"
-                    disabled={!stagedData || stagedData.length === 0}
-                >
-                    Approve & Commit All {stagedData && stagedData.length > 0 && `(${stagedData.length})`}
-                </button>
-                <button
-                    onClick={handleClearAll}
-                    className="w-full bg-amber-700/50 hover:bg-amber-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed"
-                    disabled={!stagedData || stagedData.length === 0}
-                >
-                    Reject and Clear All {stagedData && stagedData.length > 0 && `(${stagedData.length})`}
-                </button>
-            </div>
+            // ...inside MigrationPanel in App.jsx...
+<div className="mt-6 flex flex-col sm:flex-row gap-4">
+    <button
+        onClick={handleCommitAll}
+        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition"
+    >
+        Approve & Commit All {stagedData && stagedData.length > 0 ? `(${stagedData.length})` : ''}
+    </button>
+    <button
+        onClick={handleClearAll}
+        className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 px-6 rounded-lg text-lg transition"
+    >
+        Reject and Clear All {stagedData && stagedData.length > 0 ? `(${stagedData.length})` : ''}
+    </button>
+</div>
         </div>
     );
 }

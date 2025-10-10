@@ -2,21 +2,23 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, writeBatch } from "firebase/firestore";
 
 // --- MASTER CONFIG & SCHEMAS ---
-const COLLECTIONS = ['perks', 'weapon_mastery', 'game_constants', 'status_effects', 'attribute_bonuses', 'builds', 'effects', 'abilities', 'raw_data_archive'];
+const COLLECTIONS = [
+  'perks', 'weapon_mastery', 'game_constants', 'status_effects',
+  'attribute_bonuses', 'builds', 'effects', 'abilities', 'raw_data_archive'
+];
 const UKB_SCHEMAS = {
-    perks: {
-        type: { filterable: true, type: 'select' },
-        perk_bucket: { filterable: true, type: 'select' },
-    },
-    weapon_mastery: {
-        type: { filterable: true, type: 'select' },
-        mastery_tree: { filterable: true, type: 'select' },
-    },
-    abilities: {
-        type: { filterable: true, type: 'select' },
-    }
+  perks: {
+    type: { filterable: true, type: 'select' },
+    perk_bucket: { filterable: true, type: 'select' },
+  },
+  weapon_mastery: {
+    type: { filterable: true, type: 'select' },
+    mastery_tree: { filterable: true, type: 'select' },
+  },
+  abilities: {
+    type: { filterable: true, type: 'select' },
+  }
 };
-
 
 const ViewerPage = ({ db, addLog }) => {
   const [selectedCollection, setSelectedCollection] = useState('');
@@ -32,57 +34,60 @@ const ViewerPage = ({ db, addLog }) => {
 
   // Effect to subscribe to Firestore collection changes
   useEffect(() => {
-    setSearchTerm(''); 
+    setSearchTerm('');
     setColumnFilters({});
 
     if (db && selectedCollection) {
-        addLog('info', `Subscribing to real-time updates for '${selectedCollection}'...`);
-        const q = collection(db, selectedCollection);
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const data = [];
-            querySnapshot.forEach((doc) => {
-                data.push({ id: doc.id, ...doc.data() });
-            });
-
-            setRawData(data);
-
-            if (data.length > 0) {
-                const headers = Object.keys(data[0]).filter(key => 
-                    !['effects', 'notes', 'description', 'crafting_mod', 'linked_effects', 'absorption_effects', 'radius_by_equip_load', 'parent_ability'].includes(key)
-                );
-                setTableHeaders(headers);
-                if (!sortConfig.key || !headers.includes(sortConfig.key)) {
-                    setSortConfig({ key: headers[0], direction: 'ascending' });
-                }
-
-                const schema = UKB_SCHEMAS[selectedCollection];
-                const generatedFilters = [];
-                if (schema) {
-                    for (const key in schema) {
-                        if (schema[key].filterable) {
-                            const uniqueValues = [...new Set(data.map(item => item[key]).filter(Boolean))].sort();
-                            generatedFilters.push({ key, label: key.replace(/_/g, ' '), options: uniqueValues });
-                        }
-                    }
-                }
-                setAvailableFilters(generatedFilters);
-
-            } else {
-                setTableHeaders([]);
-                setAvailableFilters([]);
-            }
-
-            addLog('success', `Live Viewer updated. Displaying ${data.length} document(s) for '${selectedCollection}'.`);
-
-        }, (error) => {
-            addLog('error', `Error subscribing to '${selectedCollection}': ${error.message}`);
+      addLog('info', `Subscribing to real-time updates for '${selectedCollection}'...`);
+      const q = collection(db, selectedCollection);
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const data = [];
+        querySnapshot.forEach((doc) => {
+          data.push({ id: doc.id, ...doc.data() });
         });
 
-        return () => unsubscribe();
+        setRawData(data);
+
+        if (data.length > 0) {
+          const headers = Object.keys(data[0]).filter(key =>
+            ![
+              'effects', 'notes', 'description', 'crafting_mod', 'linked_effects',
+              'absorption_effects', 'radius_by_equip_load', 'parent_ability'
+            ].includes(key)
+          );
+          setTableHeaders(headers);
+          if (!sortConfig.key || !headers.includes(sortConfig.key)) {
+            setSortConfig({ key: headers[0], direction: 'ascending' });
+          }
+
+          const schema = UKB_SCHEMAS[selectedCollection];
+          const generatedFilters = [];
+          if (schema) {
+            for (const key in schema) {
+              if (schema[key].filterable) {
+                const uniqueValues = [...new Set(data.map(item => item[key]).filter(Boolean))].sort();
+                generatedFilters.push({ key, label: key.replace(/_/g, ' '), options: uniqueValues });
+              }
+            }
+          }
+          setAvailableFilters(generatedFilters);
+
+        } else {
+          setTableHeaders([]);
+          setAvailableFilters([]);
+        }
+
+        addLog('success', `Live Viewer updated. Displaying ${data.length} document(s) for '${selectedCollection}'.`);
+
+      }, (error) => {
+        addLog('error', `Error subscribing to '${selectedCollection}': ${error.message}`);
+      });
+
+      return () => unsubscribe();
     } else {
-        setRawData([]);
-        setTableHeaders([]);
-        setAvailableFilters([]);
+      setRawData([]);
+      setTableHeaders([]);
+      setAvailableFilters([]);
     }
   }, [db, selectedCollection, addLog, sortConfig.key]);
 
@@ -90,17 +95,17 @@ const ViewerPage = ({ db, addLog }) => {
   const processedData = useMemo(() => {
     let filteredItems = [...rawData];
     if (searchTerm) {
-        const lowercasedTerm = searchTerm.toLowerCase();
-        filteredItems = filteredItems.filter(item => 
-            Object.values(item).some(value =>
-                String(value).toLowerCase().includes(lowercasedTerm)
-            )
-        );
+      const lowercasedTerm = searchTerm.toLowerCase();
+      filteredItems = filteredItems.filter(item =>
+        Object.values(item).some(value =>
+          String(value).toLowerCase().includes(lowercasedTerm)
+        )
+      );
     }
     Object.entries(columnFilters).forEach(([key, value]) => {
-        if (value) {
-            filteredItems = filteredItems.filter(item => String(item[key]) === value);
-        }
+      if (value) {
+        filteredItems = filteredItems.filter(item => String(item[key]) === value);
+      }
     });
     if (sortConfig.key !== null) {
       filteredItems.sort((a, b) => {
@@ -142,16 +147,16 @@ const ViewerPage = ({ db, addLog }) => {
 
   const handleDelete = async () => {
     if (!db || !selectedCollection || !deleteDocId) {
-        addLog('error', 'Deletion failed: Collection and Document ID must be specified.');
-        return;
+      addLog('error', 'Deletion failed: Collection and Document ID must be specified.');
+      return;
     }
     addLog('special', `Initiating deletion of document '${deleteDocId}' from '${selectedCollection}'...`);
     try {
-        await deleteDoc(doc(db, selectedCollection, deleteDocId));
-        addLog('success', `Successfully deleted document '${deleteDocId}'.`);
-        setDeleteDocId('');
+      await deleteDoc(doc(db, selectedCollection, deleteDocId));
+      addLog('success', `Successfully deleted document '${deleteDocId}'.`);
+      setDeleteDocId('');
     } catch (error) {
-        addLog('error', `Error deleting document: ${error.message}`);
+      addLog('error', `Error deleting document: ${error.message}`);
     }
   };
 
@@ -161,7 +166,7 @@ const ViewerPage = ({ db, addLog }) => {
       return;
     }
     addLog('special', `Initiating Smart Ingestion for '${selectedCollection}'...`);
-    
+
     let dataArray;
     try {
       dataArray = JSON.parse(ingestionData);
@@ -187,7 +192,7 @@ const ViewerPage = ({ db, addLog }) => {
     try {
       await batch.commit();
       addLog('success', `Smart Ingestion successful. ${count} documents were created/updated in '${selectedCollection}'.`);
-      setIngestionData(''); 
+      setIngestionData('');
     } catch (error) {
       addLog('error', `Error during Smart Ingestion: ${error.message}`);
     }
@@ -200,8 +205,8 @@ const ViewerPage = ({ db, addLog }) => {
         <h2 className="text-2xl font-semibold text-sky-300 mb-4">Live UKB Viewer</h2>
         <div className="mb-4">
           <label htmlFor="collectionSelectorViewer" className="block text-sm font-medium text-gray-400">Select Collection:</label>
-          <select 
-            id="collectionSelectorViewer" 
+          <select
+            id="collectionSelectorViewer"
             value={selectedCollection}
             onChange={(e) => setSelectedCollection(e.target.value)}
             className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
@@ -213,17 +218,17 @@ const ViewerPage = ({ db, addLog }) => {
         <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="universalSearch" className="block text-sm font-medium text-gray-400">Universal Search</label>
-            <input 
-                type="text" id="universalSearch" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-sky-500 focus:border-sky-500" 
-                placeholder="Search all fields..." 
+            <input
+              type="text" id="universalSearch" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-sky-500 focus:border-sky-500"
+              placeholder="Search all fields..."
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-400">Column Filters</label>
             <div className="mt-1 grid grid-cols-2 gap-2">
               {availableFilters.map(filter => (
-                <select 
+                <select
                   key={filter.key} value={columnFilters[filter.key] || ''} onChange={(e) => handleColumnFilterChange(filter.key, e.target.value)}
                   className="block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-1 px-2 text-white text-xs focus:outline-none focus:ring-sky-500 focus:border-sky-500"
                 >
@@ -264,39 +269,41 @@ const ViewerPage = ({ db, addLog }) => {
           </table>
         </div>
       </div>
-        
-      <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-gray-700 flex flex-col space-y-6">
-          <h2 className="text-2xl font-semibold text-emerald-300 mb-0">Command Center</h2>
-          <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700">
-              <h3 className="text-xl font-semibold text-gray-300 mb-2">Smart Ingestion (Upsert)</h3>
-              <p className="text-sm text-gray-400 mb-4">{selectedCollection ? `Paste JSON array to add/update in '${selectedCollection}'.` : 'Select a collection to enable ingestion.'}</p>
-              <textarea value={ingestionData} onChange={(e) => setIngestionData(e.target.value)}
-                  className="w-full h-32 bg-gray-900 rounded-md p-3 font-mono text-sm border border-gray-600 text-amber-300" 
-                  placeholder="[ { &quot;id&quot;: &quot;...&quot;, ... } ]" disabled={!selectedCollection}/>
-              <button onClick={handleIngest}
-                  className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition disabled:opacity-50 disabled:cursor-not-allowed" 
-                  disabled={!selectedCollection || !ingestionData}>
-                  Run Smart Ingestion
-              </button>
-          </div>
-          <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700">
-              <h3 className="text-xl font-semibold text-red-300 mb-2">Surgical Deletion</h3>
-              <select value={selectedCollection} onChange={(e) => setSelectedCollection(e.target.value)}
-                  className="mb-4 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-red-500 focus:border-red-500">
-                  <option value="">-- Select Collection --</option>
-                  {COLLECTIONS.map(col => (<option key={col} value={col}>{col}</option>))}
-              </select>
-              <input type="text" value={deleteDocId} onChange={(e) => setDeleteDocId(e.target.value)}
-                  className="mb-4 block w-full bg-gray-900 border-gray-600 rounded-md p-2 font-mono text-sm text-amber-300" 
-                  placeholder="Paste document ID here..." />
-              <button onClick={handleDelete} className="mt-auto w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition">
-                  Delete Document
-              </button>
-          </div>
-      </div> 
+      {/* Right Column: Command Center */}
+      <div
+        className="bg-gray-800 rounded-lg shadow-xl p-6 border border-gray-700 flex flex-col space-y-6 xl:col-span-1"
+        style={{ position: 'sticky', top: '2rem', height: 'fit-content' }}
+      >
+        <h2 className="text-2xl font-semibold text-emerald-300 mb-0">Command Center</h2>
+        <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700 flex flex-col">
+          <h3 className="text-xl font-semibold text-gray-300 mb-2">Smart Ingestion (Upsert)</h3>
+          <p className="text-sm text-gray-400 mb-4">{selectedCollection ? `Paste JSON array to add/update in '${selectedCollection}'.` : 'Select a collection to enable ingestion.'}</p>
+          <textarea value={ingestionData} onChange={(e) => setIngestionData(e.target.value)}
+            className="w-full h-32 bg-gray-900 rounded-md p-3 font-mono text-sm border border-gray-600 text-amber-300"
+            placeholder="[ { &quot;id&quot;: &quot;...&quot;, ... } ]" disabled={!selectedCollection} />
+          <button onClick={handleIngest}
+            className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!selectedCollection || !ingestionData}>
+            Run Smart Ingestion
+          </button>
+        </div>
+        <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700 flex flex-col">
+          <h3 className="text-xl font-semibold text-red-300 mb-2">Surgical Deletion</h3>
+          <select value={selectedCollection} onChange={(e) => setSelectedCollection(e.target.value)}
+            className="mb-4 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-red-500 focus:border-red-500">
+            <option value="">-- Select Collection --</option>
+            {COLLECTIONS.map(col => (<option key={col} value={col}>{col}</option>))}
+          </select>
+          <input type="text" value={deleteDocId} onChange={(e) => setDeleteDocId(e.target.value)}
+            className="mb-4 block w-full bg-gray-900 border-gray-600 rounded-md p-2 font-mono text-sm text-amber-300"
+            placeholder="Paste document ID here..." />
+          <button onClick={handleDelete} className="mt-auto w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition">
+            Delete Document
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
 
 export default ViewerPage;
-
