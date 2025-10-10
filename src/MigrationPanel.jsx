@@ -1,26 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { initializeApp } from "firebase/app";
-import { getFirestore, writeBatch, doc } from "firebase/firestore";
+import { useState } from 'react';
+import { writeBatch, doc } from "firebase/firestore";
 
-// Component Imports
-import ViewerPage from './components/ViewerPage';
-import TabNavigation from './components/TabNavigation';
-import SystemLog from './components/SystemLog';
-import ForgePanel from './components/ForgePanel';
-import AdminPanel from './components/AdminPanel';
-
-// --- Firebase Configuration ---
-const firebaseConfig = {
-    apiKey: "AIzaSyARiZYDRmAPutSoq8_oiMu1f77Dx3iSM",
-    authDomain: "aeternumintelligence.firebaseapp.com",
-    projectId: "aeternumintelligence",
-    storageBucket: "aeternumintelligence.appspot.com",
-    messagingSenderId: "581680312893",
-    appId: "1:581680312893:web:a7b8dfe93be5798fed2b8a",
-    measurementId: "G-NF5TESZ9B4"
-};
-
-// --- UKB Schemas (Needed for MigrationPanel) ---
+// --- UKB Schemas (Scoped to this component) ---
 const UKB_SCHEMAS = {
     effects: {
         effect_id: { type: 'text', label: 'Effect ID (e.g., Empower_10_Pct_5s)', required: true },
@@ -47,7 +28,8 @@ const UKB_SCHEMAS = {
     }
 };
 
-// --- COMPONENT: MigrationForm (Internal) ---
+
+// --- SUB-COMPONENT: MigrationForm ---
 function MigrationForm({ schema, initialData, formId, onDataChange }) {
     const [formData, setFormData] = useState(initialData);
 
@@ -96,7 +78,7 @@ function MigrationForm({ schema, initialData, formId, onDataChange }) {
     );
 }
 
-// --- COMPONENT: MigrationPanel (Internal) ---
+// --- MAIN COMPONENT: MigrationPanel ---
 function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
 
     const handleDataChange = (updatedItem, itemIndex, itemType, subIndex = null) => {
@@ -269,66 +251,5 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
     );
 }
 
-
-// --- MAIN APP COMPONENT ---
-function App() {
-    const [activeTab, setActiveTab] = useState('viewer');
-    const [logs, setLogs] = useState([
-        { timestamp: new Date().toLocaleTimeString(), message: 'Cockpit v2.0 Initialized. All systems nominal.', typeClass: 'text-gray-400' },
-    ]);
-    const [db, setDb] = useState(null);
-    const [stagedData, setStagedData] = useState([]);
-
-    const addLog = useCallback((type, message) => {
-        const timestamp = new Date().toLocaleTimeString();
-        const typeClasses = { success: 'text-emerald-400', error: 'text-red-400', info: 'text-gray-400', special: 'text-amber-400' };
-        setLogs(prevLogs => [...prevLogs, { timestamp, message, typeClass: typeClasses[type] || typeClasses.info }]);
-    }, []);
-
-    useEffect(() => {
-        try {
-            const app = initializeApp(firebaseConfig);
-            const firestore = getFirestore(app);
-            setDb(firestore);
-            addLog('success', 'Firebase UKB connection established.');
-        } catch (error) {
-            addLog('error', `Firebase connection error: ${error.message}`);
-        }
-    }, [addLog]);
-
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'viewer':
-                return <ViewerPage db={db} addLog={addLog} />;
-            case 'forge':
-                return <ForgePanel setStagedData={setStagedData} addLog={addLog} setActiveTab={setActiveTab} />;
-            case 'migration':
-                return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} />;
-            case 'admin':
-                return <AdminPanel addLog={addLog} db={db} />; // <-- PROP ADDED HERE
-            default:
-                return null;
-        }
-    };
-
-    return (
-        <div className="bg-gray-900 text-gray-200 min-h-screen font-sans">
-            <div className="w-full max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-emerald-400">
-                        Aeternum Intelligence Agency
-                    </h1>
-                    <p className="text-xl text-gray-400">
-                        Cockpit v2.0
-                    </p>
-                </div>
-                <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-                <div>{renderContent()}</div>
-                <SystemLog logs={logs} />
-            </div>
-        </div>
-    );
-}
-
-export default App;
+export default MigrationPanel;
 
