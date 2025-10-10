@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, writeBatch } from "firebase/firestore";
+import InspectorModal from './InspectorModal';
 
 // --- MASTER CONFIG & SCHEMAS ---
 const COLLECTIONS = [
@@ -30,6 +31,8 @@ const ViewerPage = ({ db, addLog }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFilters, setColumnFilters] = useState({});
   const [availableFilters, setAvailableFilters] = useState([]);
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const tableContainerRef = useRef(null);
 
   // Effect to subscribe to Firestore collection changes
@@ -128,8 +131,10 @@ const ViewerPage = ({ db, addLog }) => {
   }, [processedData]);
 
   const handleRowClick = (row) => {
+    setSelectedItem(row);
     setDeleteDocId(row.id);
-    addLog('info', `Staged document '${row.id}' for surgical deletion.`);
+    addLog('info', `Inspecting document '${row.id}'.`);
+    setIsInspectorOpen(true);
   };
 
   const handleColumnFilterChange = (key, value) => {
@@ -302,6 +307,7 @@ const ViewerPage = ({ db, addLog }) => {
           </button>
         </div>
       </div>
+      <InspectorModal isOpen={isInspectorOpen} onClose={() => setIsInspectorOpen(false)} item={selectedItem} />
     </div>
   );
 };
