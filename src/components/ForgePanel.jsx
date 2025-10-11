@@ -3,43 +3,41 @@ import { collection, addDoc } from 'firebase/firestore';
 import JSONCleaner from './JSONCleaner.jsx';
 import DeconstructorTestbed from './DeconstructorTestbed.jsx';
 
-const ForgePanel = ({ db, addLog, userId, isRateLimited, setIsRateLimited }) => {
+const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange }) => {
     const [archiveDocId, setArchiveDocId] = useState('');
     const [archiveData, setArchiveData] = useState('');
 
     const handleStashData = async () => {
         if (!archiveData) {
-            addLog('Archive data cannot be empty.', 'error');
+            addLog('error', 'Archive data cannot be empty.');
             return;
         }
         try {
             const docRef = await addDoc(collection(db, 'raw_data_archive'), {
                 data: archiveData,
                 timestamp: new Date(),
-                stashedBy: userId || 'unknown',
             });
             setArchiveDocId(docRef.id);
-            addLog(`Precious Cargo secured. Archive ID: ${docRef.id}`, 'success');
+            addLog('success', `Raw Data secured. Archive ID: ${docRef.id}`);
             setArchiveData('');
         } catch (error) {
             console.error("Error stashing document: ", error);
-            addLog(`Error stashing Precious Cargo: ${error.message}`, 'error');
+            addLog('error', `Error stashing Raw Data: ${error.message}`);
         }
     };
 
     return (
-        // This is the main container for our new single-column assembly line.
         <div className="flex flex-col space-y-8">
 
-            {/* Station 1: Precious Cargo */}
+            {/* Station 1: Raw Data Archive */}
             <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
-                <h3 className="text-2xl font-semibold text-gray-300 mb-4">1. Operation: Precious Cargo</h3>
+                <h3 className="text-2xl font-semibold text-gray-300 mb-4">Raw Data Archive</h3>
                 <p className="text-sm text-gray-400 mb-4">Secure the master tape. Paste the raw, unaltered JSON here to archive it before cleaning. This ensures we never lose the original source data.</p>
                 <textarea
                     className="w-full h-32 bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs"
                     value={archiveData}
                     onChange={(e) => setArchiveData(e.target.value)}
-                    placeholder="Paste raw 'dirty' JSON data here..."
+                    placeholder="Paste raw data here..."
                 ></textarea>
                 <button
                     onClick={handleStashData}
@@ -54,21 +52,18 @@ const ForgePanel = ({ db, addLog, userId, isRateLimited, setIsRateLimited }) => 
                 )}
             </div>
 
-            {/* Station 2: Carwash */}
+            {/* Station 2: JSON Cleaner */}
             <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
-                 <h3 className="text-2xl font-semibold text-gray-300 mb-4">2. Operation: Carwash - JSON Cleaner</h3>
+                 <h3 className="text-2xl font-semibold text-gray-300 mb-4">JSON Cleaner</h3>
                 <JSONCleaner addLog={addLog} />
             </div>
 
-            {/* Station 3: Deconstructor */}
+            {/* Station 3: AI Deconstructor */}
             <DeconstructorTestbed
-                db={db}
                 addLog={addLog}
-                userId={userId}
-                isRateLimited={isRateLimited}
-                setIsRateLimited={setIsRateLimited}
+                apiKey={apiKey}
+                onApiKeyChange={onApiKeyChange}
             />
-
         </div>
     );
 };

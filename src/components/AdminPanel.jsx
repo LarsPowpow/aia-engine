@@ -1,76 +1,62 @@
-import React, { useState } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
-import JSONCleaner from './JSONCleaner.jsx';
-import DeconstructorTestbed from './DeconstructorTestbed.jsx';
+import React from 'react';
 
-const ForgePanel = ({ db, addLog, userId, isRateLimited, setIsRateLimited }) => {
-    const [archiveDocId, setArchiveDocId] = useState('');
-    const [archiveData, setArchiveData] = useState('');
-
-    const handleStashData = async () => {
-        if (!archiveData) {
-            addLog('Archive data cannot be empty.', 'error');
-            return;
-        }
-        try {
-            const docRef = await addDoc(collection(db, 'raw_data_archive'), {
-                data: archiveData,
-                timestamp: new Date(),
-                stashedBy: userId || 'unknown',
-            });
-            setArchiveDocId(docRef.id);
-            addLog(`Dirty JSON secured. Archive ID: ${docRef.id}`, 'success');
-            setArchiveData('');
-        } catch (error) {
-            console.error("Error stashing document: ", error);
-            addLog(`Error stashing Dirty JSON: ${error.message}`, 'error');
-        }
-    };
-
+const AdminPanel = ({ onClearUkb, onClearArchive, onBootstrapData, onClearSystemLog, covenant, onGenerateCovenant }) => {
     return (
-        // This is the main container for our new single-column assembly line.
-        <div className="flex flex-col space-y-8">
-
-            {/* Station 1: Dirty JSON Archive */}
-            <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
-                <h3 className="text-2xl font-semibold text-gray-300 mb-4">1. Archive Dirty JSON</h3>
-                <p className="text-sm text-gray-400 mb-4">Secure the master tape. Paste the raw, unaltered JSON here to archive it before cleaning. This ensures we never lose the original source data.</p>
-                <textarea
-                    className="w-full h-32 bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs"
-                    value={archiveData}
-                    onChange={(e) => setArchiveData(e.target.value)}
-                    placeholder="Paste raw 'dirty' JSON data here..."
-                ></textarea>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Covenant Viewer Card */}
+            <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700 col-span-1 lg:col-span-2">
+                <h3 className="text-2xl font-semibold text-gray-300 mb-4">Operation: Secure the Covenant</h3>
+                 <p className="text-sm text-gray-400 mb-4">Generate and display the Co-Pilot's core operational document.</p>
                 <button
-                    onClick={handleStashData}
-                    className="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg"
+                    onClick={onGenerateCovenant}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 mb-4 shadow-md hover:shadow-lg"
                 >
-                    Stash Raw Data
+                    Generate Latest Covenant
                 </button>
-                {archiveDocId && (
-                    <p className="text-sm text-green-400 mt-4 bg-gray-900 p-2 rounded">
-                        Successfully Stashed. Archive ID: <span className="font-mono bg-gray-700 px-2 py-1 rounded">{archiveDocId}</span>
-                    </p>
-                )}
+                <div className="bg-gray-900 h-96 rounded-md p-4 overflow-y-auto font-mono text-sm border border-gray-600">
+                    <pre className="whitespace-pre-wrap text-gray-300">{covenant}</pre>
+                </div>
             </div>
 
-            {/* Station 2: Carwash */}
+            {/* System Administration Card */}
             <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
-                 <h3 className="text-2xl font-semibold text-gray-300 mb-4">2. Operation: Carwash - JSON Cleaner</h3>
-                <JSONCleaner addLog={addLog} />
+                <h3 className="text-2xl font-semibold text-gray-300 mb-4">System Administration</h3>
+                <p className="text-sm text-gray-400 mb-6">Execute high-level system commands. Use with extreme caution.</p>
+
+                <div className="flex flex-col space-y-4">
+                    {/* Big Buttons */}
+                    <button
+                        onClick={onBootstrapData}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-lg"
+                    >
+                        Bootstrap UKB
+                    </button>
+                    <button
+                        onClick={onClearSystemLog}
+                        className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-lg"
+                    >
+                        Clear System Log
+                    </button>
+                    
+                    {/* Small Buttons */}
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                        <button
+                            onClick={onClearArchive}
+                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-sm"
+                        >
+                            Clean Slate: Dirty JSON
+                        </button>
+                         <button
+                            onClick={onClearUkb}
+                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-sm"
+                        >
+                            Clean Slate: UKB
+                        </button>
+                    </div>
+                </div>
             </div>
-
-            {/* Station 3: Deconstructor */}
-            <DeconstructorTestbed
-                db={db}
-                addLog={addLog}
-                userId={userId}
-                isRateLimited={isRateLimited}
-                setIsRateLimited={setIsRateLimited}
-            />
-
         </div>
     );
 };
 
-export default ForgePanel;
+export default AdminPanel;

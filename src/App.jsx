@@ -88,22 +88,22 @@ function MigrationForm({ schema, initialData, formId, onDataChange, allEffects =
                     if (field.type === 'multiselect') {
                         return (
                              <div key={fullKey} className="md:col-span-2 lg:col-span-3">
-                                <label className="block text-sm font-medium text-gray-300">{field.label}</label>
-                                <div className="mt-2 h-32 overflow-y-auto bg-gray-900/50 p-2 rounded-md border border-gray-700 grid grid-cols-2 md:grid-cols-3 gap-2">
-                                    {allEffects.sort((a,b) => a.localeCompare(b)).map(effectId => (
-                                        <label key={effectId} className="flex items-center space-x-2 text-sm font-mono">
-                                            <input
-                                                type="checkbox"
-                                                value={effectId}
-                                                checked={(formData.effects_to_apply || []).includes(effectId)}
-                                                onChange={handleMultiSelectChange}
-                                                className="bg-gray-800 border-gray-600 rounded h-4 w-4 text-emerald-500 focus:ring-emerald-600"
-                                            />
-                                            <span className="truncate">{effectId}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
+                                 <label className="block text-sm font-medium text-gray-300">{field.label}</label>
+                                 <div className="mt-2 h-32 overflow-y-auto bg-gray-900/50 p-2 rounded-md border border-gray-700 grid grid-cols-2 md:grid-cols-3 gap-2">
+                                     {allEffects.sort((a,b) => a.localeCompare(b)).map(effectId => (
+                                         <label key={effectId} className="flex items-center space-x-2 text-sm font-mono">
+                                             <input
+                                                 type="checkbox"
+                                                 value={effectId}
+                                                 checked={(formData.effects_to_apply || []).includes(effectId)}
+                                                 onChange={handleMultiSelectChange}
+                                                 className="bg-gray-800 border-gray-600 rounded h-4 w-4 text-emerald-500 focus:ring-emerald-600"
+                                             />
+                                             <span className="truncate">{effectId}</span>
+                                         </label>
+                                     ))}
+                                 </div>
+                             </div>
                         )
                     }
 
@@ -119,7 +119,7 @@ function MigrationForm({ schema, initialData, formId, onDataChange, allEffects =
                                 </select>
                             ) : field.type === 'checkbox' ? (
                                  <div className="flex items-center h-full mt-1">
-                                    <input id={fullKey} name={key} type="checkbox" checked={!!value} onChange={handleChange} className="bg-gray-700 border-gray-600 rounded h-5 w-5 text-amber-500 focus:ring-amber-600" />
+                                     <input id={fullKey} name={key} type="checkbox" checked={!!value} onChange={handleChange} className="bg-gray-700 border-gray-600 rounded h-5 w-5 text-amber-500 focus:ring-amber-600" />
                                  </div>
                             ) : (
                                 <input id={fullKey} name={key} type={field.type} value={value || ''} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 text-sm" />
@@ -217,13 +217,13 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
                                     {item.effects_to_create.length > 0 ? (
                                         item.effects_to_create.map((effect, effectIndex) => (
                                              <div key={effectIndex} className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                                                <MigrationForm
-                                                    schema={UKB_SCHEMAS.effects}
-                                                    initialData={effect}
-                                                    formId={`effect-${itemIndex}-${effectIndex}`}
-                                                    onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
-                                                />
-                                            </div>
+                                                 <MigrationForm
+                                                     schema={UKB_SCHEMAS.effects}
+                                                     initialData={effect}
+                                                     formId={`effect-${itemIndex}-${effectIndex}`}
+                                                     onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
+                                                 />
+                                             </div>
                                         ))
                                     ) : (
                                         <p className="text-gray-500 italic">No effects were generated for this item.</p>
@@ -267,6 +267,23 @@ function App() {
     ]);
     const [db, setDb] = useState(null);
     const [stagedData, setStagedData] = useState([]);
+    const [apiKey, setApiKey] = useState(''); // <-- NEW: API Key State
+
+    // --- NEW: "Set and Forget" API Key Logic ---
+    useEffect(() => {
+        const savedApiKey = localStorage.getItem('geminiApiKey');
+        if (savedApiKey) {
+            setApiKey(savedApiKey);
+            addLog('info', 'Gemini API Key loaded from memory.');
+        }
+    }, []);
+
+    const handleApiKeyChange = (e) => {
+        const newKey = e.target.value;
+        setApiKey(newKey);
+        localStorage.setItem('geminiApiKey', newKey);
+    };
+    // ---------------------------------------------
 
     const addLog = useCallback((type, message) => {
         const timestamp = new Date().toLocaleTimeString();
@@ -290,7 +307,14 @@ function App() {
             case 'viewer':
                 return <ViewerPage db={db} addLog={addLog} />;
             case 'forge':
-                return <ForgePanel setStagedData={setStagedData} addLog={addLog} setActiveTab={setActiveTab} />;
+                // --- MODIFIED: Pass API Key props down ---
+                return <ForgePanel 
+                           setStagedData={setStagedData} 
+                           addLog={addLog} 
+                           setActiveTab={setActiveTab} 
+                           apiKey={apiKey}
+                           onApiKeyChange={handleApiKeyChange}
+                       />;
             case 'migration':
                 return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} />;
             case 'admin':
