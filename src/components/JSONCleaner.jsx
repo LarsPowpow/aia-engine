@@ -1,185 +1,116 @@
 import React, { useState } from 'react';
 
-const JSONCleaner = ({ onCleanComplete }) => {
+const JSONCleaner = ({ addLog, onDataCleaned }) => {
     const [rawJson, setRawJson] = useState('');
-    const [dataPathPreset, setDataPathPreset] = useState('data');
-    const [customDataPath, setCustomDataPath] = useState('');
+    const [dataPath, setDataPath] = useState('data');
     const [fieldsToExtract, setFieldsToExtract] = useState('id, name, description, PerkType, ExclusiveLabels, condition');
     const [cleanedJson, setCleanedJson] = useState('');
-    const [error, setError] = useState('');
+    const [isSending, setIsSending] = useState(false);
 
     const handleCleanData = () => {
+        if (!rawJson) {
+            addLog('error', 'Raw JSON input is empty.');
+            return;
+        }
+
         try {
-            // 1. Clear old state
-            setError('');
-            setCleanedJson('');
+            const parsedData = JSON.parse(rawJson);
+            const dataArray = dataPath.split('.').reduce((o, i) => o[i], parsedData);
 
-            // 2. Parse Raw JSON
-            if (!rawJson.trim()) {
-                throw new Error("Raw JSON input cannot be empty.");
-            }
-            const parsedJson = JSON.parse(rawJson);
-
-            let targetData;
-
-            // 3. Determine and Access Data
-            if (dataPathPreset === 'ROOT') {
-                targetData = parsedJson;
-            } else {
-                const path = dataPathPreset === 'Custom...' ? customDataPath : dataPathPreset;
-                if (!path) {
-                    throw new Error("Data path must be specified.");
-                }
-                const getDataFromPath = (obj, pathStr) => {
-                    return pathStr.split('.').reduce((acc, part) => acc && acc[part], obj);
-                };
-                targetData = getDataFromPath(parsedJson, path);
+            if (!Array.isArray(dataArray)) {
+                addLog('error', 'The specified data path does not lead to an array.');
+                return;
             }
 
-            // 5. Validate Target Data
-            if (targetData === undefined || targetData === null) {
-                const pathForError = dataPathPreset === 'Custom...' ? customDataPath : dataPathPreset;
-                throw new Error(`Data path "${pathForError}" not found in JSON object.`);
-            }
-
-            // 6. Normalize to Array
-            if (!Array.isArray(targetData)) {
-                targetData = [targetData];
-            }
-
-            // 7. Extract Fields
-            const keysToExtract = fieldsToExtract.split(',').map(key => key.trim()).filter(Boolean);
-            if (keysToExtract.length === 0) {
-                throw new Error("Please specify at least one field to extract.");
-            }
-
-            // 8. Map and Pick
-            const cleanedData = targetData.map(item => {
+            const fields = fieldsToExtract.split(',').map(f => f.trim());
+            const cleanedArray = dataArray.map(item => {
                 const newItem = {};
-                keysToExtract.forEach(key => {
-                    if (item[key] !== undefined) {
-                        newItem[key] = item[key];
+                fields.forEach(field => {
+                    if (item.hasOwnProperty(field)) {
+                        newItem[field] = item[field];
                     }
                 });
                 return newItem;
             });
-            
-            // 9. Set Output
-            setCleanedJson(JSON.stringify(cleanedData, null, 2));
 
-        } catch (e) {
-            // Handle any errors
-            setError(e.message);
+            const cleanedJsonString = JSON.stringify(cleanedArray, null, 2);
+            setCleanedJson(cleanedJsonString);
+            onDataCleaned(cleanedJsonString); // <-- Placing goods on the conveyor belt
+            addLog('success', `JSON cleaned successfully. ${cleanedArray.length} items processed.`);
+
+        } catch (error) {
+            addLog('error', `JSON cleaning failed: ${error.message}`);
         }
     };
 
-    const handleSendToDeconstructor = () => {
-        if (onCleanComplete && cleanedJson) {
-            onCleanComplete(cleanedJson);
-        }
+    const handleSendData = () => {
+        // This button's functionality will be replaced by our conveyor belt.
+        // For now, we'll just log a message.
+        setIsSending(true);
+        addLog('info', 'Data has been sent to the conveyor belt automatically.');
+        setTimeout(() => setIsSending(false), 1500);
     };
+
 
     return (
-        <div className="bg-gray-900/50 p-6 rounded-lg border border-gray-700 space-y-6">
-            <h2 className="text-2xl font-semibold text-purple-300 mb-2">Operation: Carwash - JSON Cleaner</h2>
-            
-            {/* Section 1: Inputs */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Raw JSON Input */}
-                <div className="flex flex-col space-y-2">
-                    <label htmlFor="rawJson" className="text-sm font-medium text-gray-300">1. Paste Raw JSON</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">1. Paste Raw JSON</label>
                     <textarea
-                        id="rawJson"
                         value={rawJson}
                         onChange={(e) => setRawJson(e.target.value)}
-                        className="w-full h-48 bg-gray-900 rounded-md p-3 font-mono text-sm border border-gray-600 text-amber-300 focus:ring-purple-500 focus:border-purple-500"
                         placeholder="Paste your large, messy JSON object here..."
+                        className="w-full h-48 bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs"
                     />
                 </div>
-
-                {/* Controls */}
-                <div className="space-y-4">
-                    <div>
-                        <label htmlFor="dataPathPreset" className="text-sm font-medium text-gray-300">2. Select Data Path</label>
-                        <select
-                            id="dataPathPreset"
-                            value={dataPathPreset}
-                            onChange={(e) => setDataPathPreset(e.target.value)}
-                            className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-                        >
-                            <option value="ROOT">[Root Array]</option>
-                            <option value="data">data</option>
-                            <option value="results">results</option>
-                            <option value="Custom...">Custom...</option>
-                        </select>
-                    </div>
-
-                    {dataPathPreset === 'Custom...' && (
-                        <div>
-                            <label htmlFor="customDataPath" className="text-sm font-medium text-gray-300">Custom Data Path</label>
-                            <input
-                                type="text"
-                                id="customDataPath"
-                                value={customDataPath}
-                                onChange={(e) => setCustomDataPath(e.target.value)}
-                                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-                                placeholder="e.g., response.data.perks"
-                            />
-                        </div>
-                    )}
-
-                    <div>
-                        <label htmlFor="fieldsToExtract" className="text-sm font-medium text-gray-300">3. Fields to Extract (comma-separated)</label>
-                        <input
-                            type="text"
-                            id="fieldsToExtract"
-                            value={fieldsToExtract}
-                            onChange={(e) => setFieldsToExtract(e.target.value)}
-                            className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-purple-500 focus:border-purple-500"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Section 2: Actions */}
-            <div>
-                <button
+                 <button
                     onClick={handleCleanData}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!rawJson}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition-colors"
                 >
                     Clean Data
                 </button>
             </div>
-
-            {/* Section 3: Output */}
-            <div className="flex flex-col space-y-2">
-                <div className="flex justify-between items-center">
-                    <label htmlFor="cleanedJson" className="text-sm font-medium text-gray-300">Cleaned JSON Output</label>
-                    <button
-                        onClick={handleSendToDeconstructor}
-                        disabled={!cleanedJson}
-                        className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">2. Select Data Path</label>
+                    <select 
+                        value={dataPath} 
+                        onChange={(e) => setDataPath(e.target.value)}
+                        className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     >
-                        Send to Deconstructor
+                        <option value="data">data</option>
+                        <option value="Perks">Perks</option>
+                        <option value="">(root array)</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">3. Fields to Extract (comma-separated)</label>
+                    <input
+                        type="text"
+                        value={fieldsToExtract}
+                        onChange={(e) => setFieldsToExtract(e.target.value)}
+                        className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs"
+                    />
+                </div>
+                 <div className="h-48 relative">
+                    <textarea
+                        value={cleanedJson}
+                        readOnly
+                        placeholder="Clean, Deconstructor-ready JSON will appear here..."
+                        className="w-full h-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 font-mono text-xs"
+                    />
+                    <button 
+                        onClick={handleSendData}
+                        disabled={!cleanedJson || isSending}
+                        className="absolute bottom-3 right-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm transition-all disabled:bg-gray-500 disabled:cursor-not-allowed"
+                    >
+                       {isSending ? 'Sent!' : 'Send to Deconstructor'}
                     </button>
                 </div>
-                <textarea
-                    id="cleanedJson"
-                    readOnly
-                    value={cleanedJson}
-                    className="w-full h-48 bg-gray-900 rounded-md p-3 font-mono text-sm border border-gray-600 text-sky-300"
-                    placeholder="Clean, Deconstructor-ready JSON will appear here..."
-                />
-                {error && (
-                    <div className="p-3 bg-red-900/50 border border-red-500/50 text-red-300 text-sm rounded-md">
-                        <strong>Error:</strong> {error}
-                    </div>
-                )}
             </div>
         </div>
     );
 };
 
 export default JSONCleaner;
-

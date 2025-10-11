@@ -3,9 +3,10 @@ import { collection, addDoc } from 'firebase/firestore';
 import JSONCleaner from './JSONCleaner.jsx';
 import DeconstructorTestbed from './DeconstructorTestbed.jsx';
 
-const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange }) => {
+const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange, setStagedData, setActiveTab }) => {
     const [archiveDocId, setArchiveDocId] = useState('');
     const [archiveData, setArchiveData] = useState('');
+    const [cleanJsonForDeconstructor, setCleanJsonForDeconstructor] = useState('');
 
     const handleStashData = async () => {
         if (!archiveData) {
@@ -55,7 +56,10 @@ const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange }) => {
             {/* Station 2: JSON Cleaner */}
             <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
                  <h3 className="text-2xl font-semibold text-gray-300 mb-4">JSON Cleaner</h3>
-                <JSONCleaner addLog={addLog} />
+                <JSONCleaner 
+                    addLog={addLog} 
+                    onDataCleaned={setCleanJsonForDeconstructor}
+                />
             </div>
 
             {/* Station 3: AI Deconstructor */}
@@ -63,6 +67,9 @@ const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange }) => {
                 addLog={addLog}
                 apiKey={apiKey}
                 onApiKeyChange={onApiKeyChange}
+                cleanJson={cleanJsonForDeconstructor}
+                setStagedData={setStagedData}
+                setActiveTab={setActiveTab}
             />
         </div>
     );

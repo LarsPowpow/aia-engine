@@ -1,14 +1,80 @@
 import React from 'react';
 
-const DeconstructorTestbed = ({ apiKey, onApiKeyChange, addLog }) => {
+const DeconstructorTestbed = ({ apiKey, onApiKeyChange, addLog, cleanJson, setStagedData, setActiveTab }) => {
 
-    const handleDeconstruct = () => {
+    const buildPrompt = (jsonData) => {
+        // This is a simplified version of our Genesis Prompt
+        return `
+            You are an expert system designed to analyze game data for "New World." Your task is to deconstruct the following JSON data, which represents a list of in-game perks. For each perk, you must generate a structured JSON output that proposes a new "ability" and any necessary corresponding "effects."
+
+            RULES:
+            1.  **effect_id:** Must be a unique, descriptive, lowercase, snake_case string.
+            2.  **ability_id:** Must be the original perk 'id' with a "_ability" suffix.
+            3.  **Output Format:** Your response MUST be a single, valid JSON array of objects. Each object in the array represents a single perk that was processed and should contain the keys "original_perk", "ability_to_create", and "effects_to_create".
+            4.  Analyze the 'description' field of each perk to infer its mechanics.
+
+            Here is the JSON data to process:
+            ${jsonData}
+        `;
+    };
+
+    const handleDeconstruct = async () => {
         if (!apiKey) {
             addLog('error', 'API Key is missing. Cannot run the Deconstructor.');
             return;
         }
-        addLog('info', 'Deconstructor engaged. (Placeholder for Gemini API call)');
-        // Full API logic will be wired in a future operation.
+        if (!cleanJson) {
+            addLog('error', 'No clean JSON data has been received from the Cleaner. Cannot run Deconstructor.');
+            return;
+        }
+
+        addLog('info', `Deconstructor engaged. Contacting Gemini API with ${JSON.parse(cleanJson).length} items...`);
+
+        const prompt = buildPrompt(cleanJson);
+        // Using the EXACT verified endpoint from the AI Studio documentation
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                }),
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json();
+                console.error("API Error Response:", errorBody);
+                throw new Error(`API request failed with status ${response.status}: ${errorBody.error.message}`);
+            }
+
+            const result = await response.json();
+            
+            if (!result.candidates || !result.candidates[0] || !result.candidates[0].content || !result.candidates[0].content.parts || !result.candidates[0].content.parts[0]) {
+                console.error("Unexpected API response structure:", result);
+                throw new Error("Invalid or unexpected response structure from Gemini API.");
+            }
+
+            const rawJsonText = result.candidates[0].content.parts[0].text;
+            
+            const cleanedJsonText = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const deconstructedData = JSON.parse(cleanedJsonText);
+
+            addLog('success', `Deconstruction complete. ${deconstructedData.length} items received from AI.`);
+            
+            setStagedData(deconstructedData);
+            addLog('success', `Data has been delivered to the Migration Workshop for verification.`);
+
+            setActiveTab('migration');
+            addLog('info', 'Auto-pilot engaged. Navigating to Migration Staging.');
+
+        } catch (error) {
+            console.error("Deconstruction Error: ", error);
+            addLog('error', `Deconstruction failed: ${error.message}`);
+        }
     };
 
     return (
@@ -26,6 +92,18 @@ const DeconstructorTestbed = ({ apiKey, onApiKeyChange, addLog }) => {
                         onChange={onApiKeyChange}
                         className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
                         placeholder="Enter your Gemini API Key once..."
+                    />
+                </div>
+                <div>
+                    <label htmlFor="cleanJsonInput" className="block text-sm font-medium text-gray-300 mb-1">
+                        Clean JSON from Conveyor Belt
+                    </label>
+                     <textarea
+                        id="cleanJsonInput"
+                        readOnly
+                        value={cleanJson}
+                        className="w-full h-32 bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none font-mono text-xs"
+                        placeholder="Data from the JSON Cleaner will appear here automatically..."
                     />
                 </div>
                 <button
