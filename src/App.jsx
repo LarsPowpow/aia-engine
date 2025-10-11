@@ -1,4 +1,3 @@
-// FILE: src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, setDoc, updateDoc, arrayUnion, deleteDoc, getDoc } from "firebase/firestore";
@@ -45,7 +44,7 @@ const UKB_SCHEMAS = {
     abilities: {
         ability_id: { type: 'text', label: 'Ability ID', required: true, overridable: false },
         name: { type: 'text', label: 'Name', overridable: true },
-        type: { type: 'select', label: 'Type', options: ['PERK', 'WEAPON_MASTERY', 'GEM', 'STATUS_EFFECT'], overridable: true },
+        type: { type: 'select', label: 'Type', options: ['PERK', 'WEAPON_MASTERY', 'GEM', 'STATUS_EFFECT', 'ATTRIBUTE_BONUS'], overridable: true },
         trigger: { type: 'text', label: 'Trigger', overridable: true },
         effects_to_apply: { type: 'multiselect', label: 'Effects to Apply', overridable: true },
         prerequisites: { type: 'textarea', label: 'Prerequisites', overridable: true },
@@ -137,12 +136,39 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOpenOverrideM
         setStagedData(newStagedData);
     };
     const handleClearAll = () => { setStagedData([]); addLog('info', 'Migration staging area has been cleared.'); };
+    
+    // --- UPGRADED COMMIT PROTOCOL ---
     const handleCommitAll = async () => {
         if (!db || stagedData.length === 0) { addLog('error', 'Commit failed: No data staged or database not connected.'); return; }
         addLog('special', `Initiating commit of ${stagedData.length} item(s) to UKB...`);
         const batch = writeBatch(db);
         let effectCount = 0; let abilityCount = 0;
+
         stagedData.forEach(item => {
+            let abilityToCommit = null;
+            
+            // Check for the legacy wrapped structure for perks
+            if (item.ability_to_create) {
+                abilityToCommit = item.ability_to_create;
+            } 
+            // Assume flat structure for direct data (like attribute bonuses) if the legacy one isn't found
+            else if (item.ability_id) { 
+                abilityToCommit = item;
+            }
+
+            // If we found an ability to commit (either nested or flat)
+            if (abilityToCommit && abilityToCommit.ability_id) {
+                let targetCollection = 'abilities'; // Default collection
+                if (abilityToCommit.type === 'ATTRIBUTE_BONUS') {
+                    targetCollection = 'attribute_bonuses';
+                }
+                
+                const abilityRef = doc(db, targetCollection, abilityToCommit.ability_id);
+                batch.set(abilityRef, abilityToCommit, { merge: true });
+                abilityCount++;
+            }
+
+            // Effects logic remains the same, as it's only expected with the wrapped structure
             if (item.effects_to_create && Array.isArray(item.effects_to_create)) {
                 item.effects_to_create.forEach(effect => {
                     if (effect.effect_id) {
@@ -152,69 +178,70 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOpenOverrideM
                     }
                 });
             }
-            if (item.ability_to_create && item.ability_to_create.ability_id) {
-                const abilityRef = doc(db, 'abilities', item.ability_to_create.ability_id);
-                batch.set(abilityRef, item.ability_to_create, { merge: true });
-                abilityCount++;
-            }
         });
+
         try {
             await batch.commit();
             addLog('success', `Commit successful: ${abilityCount} ability(s) and ${effectCount} effect(s) saved to UKB.`);
             handleClearAll();
         } catch (e) { addLog('error', `Error committing to UKB: ${e.message}`); }
     };
+    
+    // Defensive: ensure stagedData is always an array
+    const safeStagedData = Array.isArray(stagedData) ? stagedData : [];
     return (
         <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-amber-500/50">
             <h2 className="text-2xl font-semibold text-amber-300 mb-4 text-center">Migration Workshop</h2>
             <div className="max-h-[70vh] overflow-y-auto pr-2 space-y-8">
-                {stagedData && stagedData.length > 0 ? (
-                    stagedData.map((item, itemIndex) => (
+                {safeStagedData.length > 0 ? (
+                    safeStagedData.map((item, itemIndex) => (
                         <div key={itemIndex} className="bg-gray-800/50 p-4 rounded-lg border border-gray-600 space-y-4">
-                            <h3 className="text-xl font-semibold text-amber-400">Staged Item #{itemIndex + 1}: {item.original_perk.name}</h3>
+                            <h3 className="text-xl font-semibold text-amber-400">Staged Item #{itemIndex + 1}: {item.original_perk?.name || item.name || 'Untitled'}</h3>
                             <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
                                 <h4 className="text-lg font-semibold text-emerald-300 mb-2 border-b border-emerald-500/50 pb-1">Proposed Ability</h4>
                                 <MigrationForm
                                     schema={UKB_SCHEMAS.abilities}
-                                    initialData={item.ability_to_create}
+                                    initialData={item.ability_to_create || item}
                                     formId={`ability-${itemIndex}`}
-                                    allEffects={[...item.effects_to_create.map(e => e.effect_id), ...(item.ability_to_create.effects_to_apply || [])].filter((v, i, a) => a.indexOf(v) === i)}
+                                    allEffects={Array.isArray(item.effects_to_create) ? [...item.effects_to_create.map(e => e.effect_id), ...(item.ability_to_create?.effects_to_apply || [])].filter((v, i, a) => a.indexOf(v) === i) : []}
                                     onDataChange={(newData) => handleDataChange(itemIndex, 'ability', null, newData)}
                                     onOpenOverrideModal={onOpenOverrideModal}
-                                    perkId={item.original_perk.id}
+                                    perkId={item.original_perk?.id || item.ability_id || ''}
                                     fieldPathPrefix="ability"
                                     schemaName="abilities"
                                 />
                             </div>
-                            <div>
-                                <h4 className="text-lg font-semibold text-sky-300 mb-2 mt-4 border-b border-sky-500/50 pb-1">Proposed Effects</h4>
-                                <div className="space-y-4">
-                                    {item.effects_to_create.length > 0 ? (
-                                        item.effects_to_create.map((effect, effectIndex) => (
-                                             <div key={effectIndex} className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                                                 <MigrationForm
-                                                     schema={UKB_SCHEMAS.effects}
-                                                     initialData={effect}
-                                                     formId={`effect-${itemIndex}-${effectIndex}`}
-                                                     onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
-                                                     onOpenOverrideModal={onOpenOverrideModal}
-                                                     perkId={item.original_perk.id}
-                                                     fieldPathPrefix={`effect.${effectIndex}`}
-                                                     schemaName="effects"
-                                                />
-                                             </div>
-                                        ))
-                                    ) : ( <p className="text-gray-500 italic">No effects were generated for this item.</p> )}
+                            {item.effects_to_create && (
+                                <div>
+                                    <h4 className="text-lg font-semibold text-sky-300 mb-2 mt-4 border-b border-sky-500/50 pb-1">Proposed Effects</h4>
+                                    <div className="space-y-4">
+                                        {Array.isArray(item.effects_to_create) && item.effects_to_create.length > 0 ? (
+                                            item.effects_to_create.map((effect, effectIndex) => (
+                                                 <div key={effectIndex} className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                                                     <MigrationForm
+                                                         schema={UKB_SCHEMAS.effects}
+                                                         initialData={effect}
+                                                         formId={`effect-${itemIndex}-${effectIndex}`}
+                                                         onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
+                                                         onOpenOverrideModal={onOpenOverrideModal}
+                                                         perkId={item.original_perk?.id || ''}
+                                                         fieldPathPrefix={`effect.${effectIndex}`}
+                                                         schemaName="effects"
+                                                    />
+                                                 </div>
+                                            ))
+                                        ) : ( <p className="text-gray-500 italic">No effects were generated for this item.</p> )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     ))
                 ) : ( <p className="text-center text-gray-400"> The workshop is empty. Run the Deconstructor in The Forge to stage items for verification. </p> )}
             </div>
-            {stagedData && stagedData.length > 0 && (
+            {safeStagedData.length > 0 && (
                 <div className="mt-6 flex flex-col sm:flex-row gap-4">
-                    <button onClick={handleCommitAll} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition"> Approve & Commit All ({stagedData.length}) </button>
-                    <button onClick={handleClearAll} className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 px-6 rounded-lg text-lg transition"> Reject and Clear All ({stagedData.length}) </button>
+                    <button onClick={handleCommitAll} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition"> Approve & Commit All ({safeStagedData.length}) </button>
+                    <button onClick={handleClearAll} className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 px-6 rounded-lg text-lg transition"> Reject and Clear All ({safeStagedData.length}) </button>
                 </div>
             )}
         </div>

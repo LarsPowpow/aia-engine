@@ -4,15 +4,6 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
     const [rawJson, setRawJson] = useState('');
     const [fieldsToExtract, setFieldsToExtract] = useState('id, name, description, PerkType, ExclusiveLabels, condition');
     const [cleanedJson, setCleanedJson] = useState('');
-    const [copied, setCopied] = useState(false);
-
-    const promptTemplate = `Please extract the abilities from the provided text and return the result as a valid JSON array.\nEach ability should be an object with the following fields:\n- ability_id (string)\n- name (string)\n- type (string)\n- trigger (string)\n- effects_to_apply (array of strings)\n- prerequisites (array of strings)\n- internal_cooldown_seconds (number)\n- description (string)\n\nImportant:\n- Output only the JSON array, nothing else.\n- All property names and string values must use double quotes.\n- Do not include comments or extra text.\n- If a field is missing, use an empty string, empty array, or 0 as appropriate.\n\nExample Output:\n[\n  {\n    "ability_id": "attr_strength_25_1",\n    "name": "Strength 25: +5% light attack damage",\n    "type": "ATTRIBUTE_BONUS",\n    "trigger": "on_reaching_25_strength",\n    "effects_to_apply": [],\n    "prerequisites": ["25 Strength"],\n    "internal_cooldown_seconds": 0,\n    "description": "+5% light attack damage"\n  }\n]`;
-
-    const handleCopyPrompt = () => {
-        navigator.clipboard.writeText(promptTemplate);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-    };
 
     // --- UPGRADED REPAIR PROTOCOL ---
     const attemptJsonRepair = (jsonString, originalError) => {
@@ -297,21 +288,6 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
 
     return (
         <div className="flex flex-col h-full space-y-4">
-            {/* Prompt Template Section */}
-            <div className="bg-gray-800 rounded p-4 border border-gray-700 mb-2">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-purple-400 font-semibold">Prompt Template for OCR/LLM</span>
-                    <button
-                        onClick={handleCopyPrompt}
-                        className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-1 px-3 rounded transition-colors duration-200 shadow-md"
-                    >
-                        {copied ? 'Copied!' : 'Copy'}
-                    </button>
-                </div>
-                <pre className="whitespace-pre-wrap text-xs text-gray-200 font-mono bg-gray-900 rounded p-2 overflow-x-auto">
-                    {promptTemplate}
-                </pre>
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-grow">
                 <div className="flex flex-col">
                     <textarea

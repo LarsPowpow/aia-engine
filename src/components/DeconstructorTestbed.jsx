@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
 import { useOverrides } from '../contexts/OverridesContext';
-// Removed broken import for callGeminiTextApi
-
-// The old, internal API call function has been removed.
 
 const DeconstructorTestbed = ({ 
     apiKey, 
@@ -29,7 +26,7 @@ const DeconstructorTestbed = ({
         const safeChunkData = Array.isArray(chunkData) ? chunkData : [];
         const relevantOverrides = safeChunkData
             .map(perk => {
-                const perkId = perk.id;
+                const perkId = perk.id || perk.ability_id;
                 if (currentOverrideRules && currentOverrideRules[perkId]) {
                     return { perkId, rules: currentOverrideRules[perkId] };
                 }
@@ -70,7 +67,7 @@ const DeconstructorTestbed = ({
 
     const handleDeconstruct = async () => {
         if (isProcessing) return;
-        if (!apiKey) { addLog('error', 'API Key is missing.'); return; }
+        if (!apiKey) { addLog('error', 'API Key is missing. Please enter it in the Forge.'); return; }
         if (!cleanJson) { addLog('error', 'No clean JSON from Cleaner.'); return; }
         if (!activePromptContent) { addLog('error', 'No AI prompt is loaded.'); return; }
 
@@ -79,7 +76,10 @@ const DeconstructorTestbed = ({
         setRawApiResponse('');
 
         const allItems = JSON.parse(cleanJson);
-        const chunkSize = 10;
+        
+        // CORRECTIVE ACTION: Batch size reduced to 5 to avoid API token limits.
+        const chunkSize = 5;
+
         const chunks = [];
         for (let i = 0; i < allItems.length; i += chunkSize) {
             chunks.push(allItems.slice(i, i + chunkSize));
@@ -98,8 +98,7 @@ const DeconstructorTestbed = ({
                 addLog('info', `Processing batch ${i + 1} of ${chunks.length}...`);
                 setPromptToSend(prev => prev + `--- BATCH ${i+1} ---\n` + currentPrompt + `\n\n`);
                 
-                // Restore previous Gemini API logic
-                const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+                const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
                 const payload = {
                     contents: [{ parts: [{ text: currentPrompt }] }],
                 };
@@ -107,7 +106,10 @@ const DeconstructorTestbed = ({
                 try {
                     const response = await fetch(apiUrl, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-goog-api-key': apiKey
+                        },
                         body: JSON.stringify(payload)
                     });
                     const result = await response.json();
@@ -117,6 +119,11 @@ const DeconstructorTestbed = ({
                     }
                     rawJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (!rawJsonText) {
+                        // If there's no text but the request was okay, it could be a safety block.
+                        const safetyFeedback = result.candidates?.[0]?.finishReason;
+                        if(safetyFeedback === 'SAFETY') {
+                             throw new Error('AI response blocked due to safety settings.');
+                        }
                         throw new Error('No content received from AI.');
                     }
                 } catch (error) {
@@ -137,12 +144,16 @@ const DeconstructorTestbed = ({
                         addLog('success', `Batch ${i + 1}: Auto-Completer successful.`);
                         deconstructedChunk = JSON.parse(repairedJson);
                     } else {
-                        throw new Error(`Auto-Completer failed. ${parseError.message}`);
+                        throw new Error(`Auto-Completer failed for Batch ${i + 1}. ${parseError.message}`);
                     }
                 }
                 
-                allDeconstructedData.push(...deconstructedChunk);
-                addLog('success', `Batch ${i + 1} complete. ${deconstructedChunk.length} items processed.`);
+                if (Array.isArray(deconstructedChunk)) {
+                    allDeconstructedData.push(...deconstructedChunk);
+                    addLog('success', `Batch ${i + 1} complete. ${deconstructedChunk.length} items processed.`);
+                } else {
+                     addLog('warning', `Batch ${i + 1} did not return a valid array. Skipping.`);
+                }
             }
 
             addLog('special', `All batches complete. Total items deconstructed: ${allDeconstructedData.length}.`);
@@ -168,7 +179,7 @@ const DeconstructorTestbed = ({
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-1"> Gemini API Key </label>
-                            <input type="password" id="apiKey" value={apiKey} onChange={onApiKeyChange} className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm" placeholder="Enter your Gemini API Key..." />
+                            <input type="password" id="apiKey" value={apiKey} onChange={onApiKeyChange} className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm" placeholder="Loaded from .env file" />
                         </div>
                         <div>
                             <label htmlFor="prompt-select" className="block text-sm font-medium text-gray-300 mb-1"> Select Prompt Version </label>
