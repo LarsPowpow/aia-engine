@@ -34,7 +34,60 @@ const ScribePanel = ({ onImageData, prompts, onPromptSelect, selectedPromptId, a
 
     const processImage = (blob) => {
         setIsProcessing(true);
-        onImageData(blob, () => setIsProcessing(false)); 
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const base64ImageData = event.target.result.split(',')[1];
+            // Compose the prompt from the selected prompt
+            const selectedPrompt = scribePrompts.find(p => p.id === selectedPromptId);
+            const promptText = selectedPrompt ? selectedPrompt.content : '';
+            const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyB6ZCaBMXb5BxQQKT8sM7gjD7ZIxi12qYw';
+            const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+            const payload = {
+                contents: [
+                    {
+                        parts: [
+                            { text: promptText },
+                            { inline_data: { mime_type: blob.type, data: base64ImageData } }
+                        ]
+                    }
+                ]
+            };
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-goog-api-key': apiKey
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    addLog('error', `API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+                } else {
+                    const result = await response.json();
+                    const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (jsonText) {
+                        const cleanedJson = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+                        if (typeof onImageData === 'function') {
+                            onImageData(cleanedJson);
+                        }
+                        addLog('success', 'Scribe analysis complete.');
+                    } else {
+                        addLog('error', 'No valid JSON content returned from API.');
+                    }
+                }
+            } catch (error) {
+                addLog('error', `Project Scribe AI Error: ${error.message}`);
+            } finally {
+                setIsProcessing(false);
+            }
+        };
+        reader.onerror = () => {
+            addLog('error', 'Failed to read image file.');
+            setIsProcessing(false);
+        };
+        reader.readAsDataURL(blob);
     };
     
     useEffect(() => {

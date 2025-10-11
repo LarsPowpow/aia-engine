@@ -137,7 +137,7 @@ const ForgePanel = ({
             </div>
 
             <ScribePanel 
-                onImageData={handleScribeImageData}
+                onImageData={setCleanJsonForDeconstructor}
                 prompts={prompts}
                 onPromptSelect={onPromptSelect}
                 selectedPromptId={selectedPromptId}

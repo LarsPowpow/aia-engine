@@ -1,33 +1,143 @@
-// FILE: src/components/JSONCleaner.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
     const [rawJson, setRawJson] = useState('');
     const [fieldsToExtract, setFieldsToExtract] = useState('id, name, description, PerkType, ExclusiveLabels, condition');
     const [cleanedJson, setCleanedJson] = useState('');
 
-    useEffect(() => {
-        if (initialData) {
-            setRawJson(initialData);
-            if(initialData.trim() !== '') {
-                handleCleanData(initialData);
-            }
-        } else {
-            setRawJson('');
-        }
-    }, [initialData]);
-
-    const attemptJsonRepair = (jsonString) => {
+    // --- UPGRADED REPAIR PROTOCOL ---
+    const attemptJsonRepair = (jsonString, originalError) => {
         let repaired = jsonString.trim();
-        if ((repaired.startsWith('{') && !repaired.endsWith('}'))) {
-            repaired += '}';
+        // Final brute-force: If we have an error position, chop there and close
+        if (originalError && /position (\d+)/.test(originalError.message)) {
+            const match = originalError.message.match(/position (\d+)/);
+            if (match) {
+                const pos = parseInt(match[1], 10);
+                let brute = repaired.substring(0, pos);
+                brute = brute.replace(/,\s*$/, '');
+                if (repaired.startsWith('[')) {
+                    brute += ']';
+                } else if (repaired.startsWith('{')) {
+                    brute += '}';
+                }
+                try {
+                    JSON.parse(brute);
+                    addLog('warning', 'Repair Protocol: Brute-force chop at error position and close.');
+                    return brute;
+                } catch (e) { /* Give up */ }
+            }
         }
+
+        // Stage 1: Fix missing closing brace or bracket
+        if ((repaired.startsWith('{') && !repaired.endsWith('}')) || (repaired.startsWith('[') && !repaired.endsWith(']'))) {
+            repaired += repaired.startsWith('{') ? '}' : ']';
+            try {
+                JSON.parse(repaired);
+                addLog('info', 'Repair Protocol: Fixed missing closing brace/bracket.');
+                return repaired;
+            } catch (e) { /* Fall through */ }
+        }
+
+        // Stage 2: Remove trailing commas
+        repaired = repaired.replace(/,\s*([}\]])/g, '$1');
         try {
             JSON.parse(repaired);
+            addLog('info', 'Repair Protocol: Removed trailing commas.');
             return repaired;
-        } catch (e) {
-            return null; 
+        } catch (e) { /* Fall through */ }
+
+        // Stage 3: Replace single quotes with double quotes
+        if (repaired.includes("'")) {
+            const singleToDouble = repaired.replace(/'/g, '"');
+            try {
+                JSON.parse(singleToDouble);
+                addLog('info', 'Repair Protocol: Replaced single quotes with double quotes.');
+                return singleToDouble;
+            } catch (e) { /* Fall through */ }
         }
+
+        // Stage 4: Remove illegal control characters
+        const controlCharFree = repaired.replace(/[\x00-\x1F\x7F]/g, '');
+        try {
+            JSON.parse(controlCharFree);
+            addLog('info', 'Repair Protocol: Removed illegal control characters.');
+            return controlCharFree;
+        } catch (e) { /* Fall through */ }
+
+        // Stage 5: Truncate at last valid closing brace/bracket
+        const lastBrace = repaired.lastIndexOf('}');
+        const lastBracket = repaired.lastIndexOf(']');
+        const lastValid = Math.max(lastBrace, lastBracket);
+        if (lastValid !== -1) {
+            const truncated = repaired.substring(0, lastValid + 1);
+            try {
+                JSON.parse(truncated);
+                addLog('warning', 'Repair Protocol: Truncated at last valid closing brace/bracket.');
+                return truncated;
+            } catch (e) { /* Fall through */ }
+        }
+
+        // Stage 6: Unterminated string (original plumber's fix)
+        if (originalError && originalError.message.includes('Unterminated string')) {
+            // Try to find the last valid quote and comma, then close the array
+            const lastValidQuote = repaired.lastIndexOf('"');
+            const lastValidComma = repaired.lastIndexOf(',"');
+            let cutPoint = Math.max(lastValidQuote, lastValidComma);
+            if (cutPoint !== -1) {
+                // Try closing with ] or } depending on start
+                let closing = repaired.startsWith('[') ? ']' : '}';
+                let truncated = repaired.substring(0, cutPoint + 1);
+                // Remove trailing comma if present
+                truncated = truncated.replace(/,\s*$/, '');
+                truncated += closing;
+                try {
+                    JSON.parse(truncated);
+                    addLog('warning', 'Repair Protocol: Deep truncation for unterminated string.');
+                    return truncated;
+                } catch (e) { /* Fall through */ }
+            }
+            // If still failing, try to find the last valid closing brace/bracket and truncate there
+            const lastBrace = repaired.lastIndexOf('}');
+            const lastBracket = repaired.lastIndexOf(']');
+            const lastValid = Math.max(lastBrace, lastBracket);
+            if (lastValid !== -1) {
+                const truncated = repaired.substring(0, lastValid + 1);
+                try {
+                    JSON.parse(truncated);
+                    addLog('warning', 'Repair Protocol: Fallback truncation at last valid closing brace/bracket for unterminated string.');
+                    return truncated;
+                } catch (e) { /* Fall through */ }
+            }
+            // If still failing, forcibly close array/object and remove trailing comma
+            if (repaired.startsWith('[')) {
+                let forced = repaired.replace(/,\s*$/, '') + ']';
+                try {
+                    JSON.parse(forced);
+                    addLog('warning', 'Repair Protocol: Forced array closure for unterminated string.');
+                    return forced;
+                } catch (e) { /* Fall through */ }
+            } else if (repaired.startsWith('{')) {
+                let forced = repaired.replace(/,\s*$/, '') + '}';
+                try {
+                    JSON.parse(forced);
+                    addLog('warning', 'Repair Protocol: Forced object closure for unterminated string.');
+                    return forced;
+                } catch (e) { /* Fall through */ }
+            }
+        }
+
+        // Stage 7: Try JSON5 (if available)
+        try {
+            // Dynamically import json5 if available
+            if (window.JSON5) {
+                const json5Parsed = window.JSON5.parse(jsonString);
+                addLog('info', 'Repair Protocol: Parsed with JSON5.');
+                return JSON.stringify(json5Parsed);
+            }
+        } catch (e) { /* Fall through */ }
+
+        // Final Stage: Return null if no repair was successful.
+        return null;
     };
 
     const findArrayOfObjects = (obj) => {
@@ -43,23 +153,46 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
         return null;
     };
 
-    const handleCleanData = (dataToClean = rawJson) => {
-        if (!dataToClean) {
-            addLog('error', 'Raw JSON input is empty.');
-            return;
-        }
+    const processData = useCallback((dataToClean) => {
+        if (!dataToClean) return;
 
         let parsedData;
         try {
             parsedData = JSON.parse(dataToClean);
         } catch (error) {
-            const repairedJson = attemptJsonRepair(dataToClean);
+            const repairedJson = attemptJsonRepair(dataToClean, error); // Pass the error to the repair function
             if (repairedJson) {
-                addLog('warning', 'Input JSON was malformed. Auto-repair successful.');
-                parsedData = JSON.parse(repairedJson);
+                try {
+                    parsedData = JSON.parse(repairedJson);
+                } catch (e) {
+                    // Try JSON5 as last resort
+                    if (window.JSON5) {
+                        try {
+                            parsedData = window.JSON5.parse(dataToClean);
+                            addLog('info', 'Repair Protocol: Parsed with JSON5 as last resort.');
+                        } catch (json5e) {
+                            addLog('error', `JSON5 parsing failed: ${json5e.message}`);
+                            return;
+                        }
+                    } else {
+                        addLog('error', `JSON cleaning failed: ${error.message}`);
+                        return;
+                    }
+                }
             } else {
-                addLog('error', `JSON cleaning failed: ${error.message}`);
-                return;
+                // Try JSON5 as last resort
+                if (window.JSON5) {
+                    try {
+                        parsedData = window.JSON5.parse(dataToClean);
+                        addLog('info', 'Repair Protocol: Parsed with JSON5 as last resort.');
+                    } catch (json5e) {
+                        addLog('error', `JSON5 parsing failed: ${json5e.message}`);
+                        return;
+                    }
+                } else {
+                    addLog('error', `JSON cleaning failed: ${error.message}`);
+                    return;
+                }
             }
         }
 
@@ -96,6 +229,26 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
         } catch (error) {
             addLog('error', `JSON cleaning failed: ${error.message}`);
         }
+    }, [addLog, onDataCleaned, fieldsToExtract]);
+
+    useEffect(() => {
+        if (initialData && initialData !== rawJson) {
+            setRawJson(initialData);
+        }
+    }, [initialData, rawJson]);
+
+    useEffect(() => {
+        if (rawJson.trim() !== '') {
+            processData(rawJson);
+        }
+    }, [rawJson, processData]);
+
+    const handleManualCleanClick = () => {
+        if (!rawJson) {
+            addLog('error', 'Raw JSON input is empty.');
+            return;
+        }
+        processData(rawJson);
     };
 
     return (
@@ -134,7 +287,7 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
                 />
             </div>
             <button
-                onClick={() => handleCleanData()}
+                onClick={handleManualCleanClick}
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg"
             >
                 Clean Data
