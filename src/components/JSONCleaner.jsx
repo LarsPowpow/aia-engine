@@ -4,6 +4,15 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
     const [rawJson, setRawJson] = useState('');
     const [fieldsToExtract, setFieldsToExtract] = useState('id, name, description, PerkType, ExclusiveLabels, condition');
     const [cleanedJson, setCleanedJson] = useState('');
+    const [copied, setCopied] = useState(false);
+
+    const promptTemplate = `Please extract the abilities from the provided text and return the result as a valid JSON array.\nEach ability should be an object with the following fields:\n- ability_id (string)\n- name (string)\n- type (string)\n- trigger (string)\n- effects_to_apply (array of strings)\n- prerequisites (array of strings)\n- internal_cooldown_seconds (number)\n- description (string)\n\nImportant:\n- Output only the JSON array, nothing else.\n- All property names and string values must use double quotes.\n- Do not include comments or extra text.\n- If a field is missing, use an empty string, empty array, or 0 as appropriate.\n\nExample Output:\n[\n  {\n    "ability_id": "attr_strength_25_1",\n    "name": "Strength 25: +5% light attack damage",\n    "type": "ATTRIBUTE_BONUS",\n    "trigger": "on_reaching_25_strength",\n    "effects_to_apply": [],\n    "prerequisites": ["25 Strength"],\n    "internal_cooldown_seconds": 0,\n    "description": "+5% light attack damage"\n  }\n]`;
+
+    const handleCopyPrompt = () => {
+        navigator.clipboard.writeText(promptTemplate);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+    };
 
     // --- UPGRADED REPAIR PROTOCOL ---
     const attemptJsonRepair = (jsonString, originalError) => {
@@ -137,17 +146,26 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
         } catch (e) { /* Fall through */ }
 
         // Stage 8: Attempt to quote unquoted property names (very aggressive, last resort)
-        // This regex is not perfect but works for most simple cases
-        const quotedProps = repaired.replace(/([{,]\s*)([A-Za-z0-9_\-]+)\s*:/g, '$1"$2":');
+        // Improved regex: catches property names at line starts, after whitespace, and after braces/commas
+        const quotedProps = repaired.replace(/([\{,\s\n\r]+)([A-Za-z0-9_\-]+)\s*:/g, '$1"$2":');
         if (quotedProps !== repaired) {
             try {
                 JSON.parse(quotedProps);
-                addLog('warning', 'Repair Protocol: Quoted unquoted property names (regex last resort).');
+                addLog('warning', 'Repair Protocol: Aggressively quoted unquoted property names (regex last resort).');
                 return quotedProps;
             } catch (e) { /* Fall through */ }
         }
 
-        // Final Stage: Return null if no repair was successful.
+        // Final Stage: Forcibly close array if input is truncated and cannot be repaired
+        if (repaired.startsWith('[') && !repaired.trim().endsWith(']')) {
+            let forced = repaired.replace(/,\s*$/, '') + ']';
+            try {
+                JSON.parse(forced);
+                addLog('warning', 'Repair Protocol: Forcibly closed array at end of input (last resort).');
+                return forced;
+            } catch (e) { /* Give up */ }
+        }
+        // If all else fails, return null
         return null;
     };
 
@@ -171,6 +189,15 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
         try {
             parsedData = JSON.parse(dataToClean);
         } catch (error) {
+            // Debug: Show region around error position if available
+            const posMatch = error.message.match(/position (\d+)/);
+            if (posMatch) {
+                const pos = parseInt(posMatch[1], 10);
+                const contextStart = Math.max(0, pos - 40);
+                const contextEnd = Math.min(dataToClean.length, pos + 40);
+                const contextSnippet = dataToClean.substring(contextStart, contextEnd);
+                addLog('error', `Context around error position ${pos}: ...${contextSnippet}...`);
+            }
             const repairedJson = attemptJsonRepair(dataToClean, error); // Pass the error to the repair function
             if (repairedJson) {
                 try {
@@ -208,17 +235,23 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
         }
 
         try {
-            let dataToProcess = findArrayOfObjects(parsedData);
-
-            if (!dataToProcess) {
-                if(typeof parsedData === 'object' && !Array.isArray(parsedData) && parsedData !== null){
-                    addLog('info', 'No array found. Assuming input is a single object.');
-                    dataToProcess = [parsedData];
-                } else {
-                    throw new Error("Auto-Finder could not locate an array of objects to process.");
-                }
+            let dataToProcess = null;
+            if (Array.isArray(parsedData)) {
+                // Top-level array, process directly
+                addLog('info', 'Input is a top-level array. Processing directly.');
+                dataToProcess = parsedData;
             } else {
-                 addLog('info', 'Auto-Finder located target data array.');
+                dataToProcess = findArrayOfObjects(parsedData);
+                if (!dataToProcess) {
+                    if (typeof parsedData === 'object' && parsedData !== null) {
+                        addLog('info', 'No array found. Assuming input is a single object.');
+                        dataToProcess = [parsedData];
+                    } else {
+                        throw new Error("Auto-Finder could not locate an array of objects to process.");
+                    }
+                } else {
+                    addLog('info', 'Auto-Finder located target data array.');
+                }
             }
 
             const fields = fieldsToExtract.split(',').map(f => f.trim());
@@ -264,6 +297,21 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
 
     return (
         <div className="flex flex-col h-full space-y-4">
+            {/* Prompt Template Section */}
+            <div className="bg-gray-800 rounded p-4 border border-gray-700 mb-2">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-purple-400 font-semibold">Prompt Template for OCR/LLM</span>
+                    <button
+                        onClick={handleCopyPrompt}
+                        className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-1 px-3 rounded transition-colors duration-200 shadow-md"
+                    >
+                        {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                </div>
+                <pre className="whitespace-pre-wrap text-xs text-gray-200 font-mono bg-gray-900 rounded p-2 overflow-x-auto">
+                    {promptTemplate}
+                </pre>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-grow">
                 <div className="flex flex-col">
                     <textarea
