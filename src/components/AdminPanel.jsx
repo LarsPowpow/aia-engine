@@ -6,6 +6,7 @@ const COLLECTIONS = [
   'perks', 'weapon_mastery', 'game_constants', 'status_effects',
   'attribute_bonuses', 'builds', 'effects', 'abilities', 'raw_data_archive'
 ];
+// LEGACY_COLLECTIONS is no longer the primary target for purge, but kept for reference if needed.
 const LEGACY_COLLECTIONS = ['perks', 'weapon_mastery', 'game_constants', 'status_effects', 'attribute_bonuses'];
 
 
@@ -119,8 +120,8 @@ const AdminPanel = ({ db, addLog }) => {
 
   const executePurge = async () => {
     setPurgeState(3); // Set to "executing"
-    addLog('delete', "OPERATION CLEAN SLATE INITIATED. THIS CANNOT BE UNDONE.");
-    for (const collectionName of LEGACY_COLLECTIONS) {
+    addLog('delete', "OPERATION: TOTAL ANNIHILATION INITIATED. THIS CANNOT BE UNDONE.");
+    for (const collectionName of COLLECTIONS) { // <-- THE FIX
       try {
         addLog('delete', `Purging collection: ${collectionName}...`);
         const querySnapshot = await getDocs(collection(db, collectionName));
@@ -136,7 +137,7 @@ const AdminPanel = ({ db, addLog }) => {
         addLog('error', `Error purging collection '${collectionName}': ${e.message}`);
       }
     }
-    addLog('success', "OPERATION CLEAN SLATE COMPLETE.");
+    addLog('success', "OPERATION: TOTAL ANNIHILATION COMPLETE.");
     setPurgeState(4); // Set to "complete"
   };
 
@@ -185,8 +186,8 @@ const AdminPanel = ({ db, addLog }) => {
 
       {/* Operation: Clean Slate */}
       <div>
-        <h2 className="text-2xl font-semibold text-red-400 mb-4">Operation: Clean Slate</h2>
-        <p className="text-sm text-gray-400 mb-2">This is a destructive and irreversible action. It will delete all documents from all legacy UKB collections. This action cannot be undone. Proceed with extreme caution.</p>
+        <h2 className="text-2xl font-semibold text-red-400 mb-4">Operation: Clean Slate (Total Annihilation)</h2>
+        <p className="text-sm text-gray-400 mb-2">This is a destructive and irreversible action. It will delete all documents from ALL UKB collections (including abilities, effects, etc.). This action cannot be undone. Proceed with extreme caution.</p>
         <div>
           {purgeState === 0 && <button onClick={() => setPurgeState(1)} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition">Initiate Purge...</button>}
           {purgeState === 1 && (
@@ -214,4 +215,3 @@ const AdminPanel = ({ db, addLog }) => {
 };
 
 export default AdminPanel;
-
