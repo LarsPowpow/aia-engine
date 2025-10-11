@@ -3,7 +3,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import JSONCleaner from './JSONCleaner.jsx';
 import DeconstructorTestbed from './DeconstructorTestbed.jsx';
 
-const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange, setStagedData, setActiveTab }) => {
+const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange, setStagedData, setActiveTab, activePromptContent }) => {
     const [archiveDocId, setArchiveDocId] = useState('');
     const [archiveData, setArchiveData] = useState('');
     const [cleanJsonForDeconstructor, setCleanJsonForDeconstructor] = useState('');
@@ -70,6 +70,7 @@ const ForgePanel = ({ db, addLog, apiKey, onApiKeyChange, setStagedData, setActi
                 cleanJson={cleanJsonForDeconstructor}
                 setStagedData={setStagedData}
                 setActiveTab={setActiveTab}
+                activePromptContent={activePromptContent} // <-- FINAL WIRE CONNECTED
             />
         </div>
     );
