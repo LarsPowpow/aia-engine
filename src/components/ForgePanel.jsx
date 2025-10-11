@@ -1,9 +1,9 @@
-// FILE: src/components/ForgePanel.jsx
 import React, { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import JSONCleaner from './JSONCleaner.jsx';
 import DeconstructorTestbed from './DeconstructorTestbed.jsx';
 import ScribePanel from './ScribePanel.jsx';
+// Removed broken import for callGeminiVisionApi
 
 const ForgePanel = ({ 
     db, 
@@ -16,7 +16,6 @@ const ForgePanel = ({
     prompts, 
     selectedPromptId, 
     onPromptSelect,
-    // --- FINAL WIRES ---
     onPromptContentChange,
     onSaveNewPrompt,
     onDeletePrompt
@@ -50,14 +49,14 @@ const ForgePanel = ({
             onComplete();
             return;
         }
-        if (!activePromptContent || !prompts.find(p => p.id === selectedPromptId)?.name.toLowerCase().includes('scribe')) {
-            addLog('error', 'Scribe Failure: No Scribe-specific prompt is selected.');
+        if (!activePromptContent) {
+            addLog('error', 'Scribe Failure: No prompt is selected.');
             onComplete();
             return;
         }
 
         addLog('special', 'Project Scribe engaged. Analyzing image...');
-        
+
         const reader = new FileReader();
         reader.onload = async (event) => {
             const base64ImageData = event.target.result.split(',')[1];
@@ -91,9 +90,8 @@ const ForgePanel = ({
                     setCleanJsonForDeconstructor(cleanedJson);
                     addLog('success', 'Scribe analysis complete. Extracted JSON sent to Cleaner.');
                 } else {
-                    throw new Error("No valid JSON content returned from API.");
+                    throw new Error('No valid JSON content returned from API.');
                 }
-
             } catch (error) {
                 addLog('error', `Project Scribe AI Error: ${error.message}`);
             } finally {

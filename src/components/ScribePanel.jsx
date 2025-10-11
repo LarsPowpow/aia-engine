@@ -49,11 +49,8 @@ const ScribePanel = ({ onImageData, prompts, onPromptSelect, selectedPromptId, a
     }, [isPasteActive]);
 
 
-    const getScribePrompts = () => {
-        return prompts.filter(p => p.name && p.name.toLowerCase().includes('scribe'));
-    };
-
-    const scribePrompts = getScribePrompts();
+    // Show all prompts, no filter
+    const scribePrompts = Array.isArray(prompts) ? prompts : [];
 
     return (
         <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-gray-700">

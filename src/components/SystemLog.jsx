@@ -38,7 +38,7 @@ const SystemLog = ({ logs, isExpanded, setIsExpanded }) => {
             >
                 {logs.map((log, index) => (
                     <p key={index} className="whitespace-pre-wrap">
-                        <span className="text-gray-500">{log.timestamp}</span>
+                        <span className="text-gray-500">{log.timestanp}</span>
                         <span className={`ml-2 ${log.typeClass}`}>
                             {log.message}
                         </span>

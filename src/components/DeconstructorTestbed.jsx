@@ -1,35 +1,8 @@
-// FILE: src/components/DeconstructorTestbed.jsx
 import React, { useState } from 'react';
 import { useOverrides } from '../contexts/OverridesContext';
+// Removed broken import for callGeminiTextApi
 
-// --- SEALED ENGINE PROTOCOL: ACTIVE ---
-const callGeminiApi = async (prompt, apiKey) => {
-    const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-    
-    const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-        const errorDetails = result.error ? result.error.message : `HTTP error! status: ${response.status}`;
-        throw new Error(errorDetails);
-    }
-    
-    const rawJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawJsonText) {
-        throw new Error("No content received from AI.");
-    }
-
-    return rawJsonText;
-};
-// --- END OF SEALED COMPONENT ---
+// The old, internal API call function has been removed.
 
 const DeconstructorTestbed = ({ 
     apiKey, 
@@ -44,7 +17,6 @@ const DeconstructorTestbed = ({
     onPromptSelect,
     onPromptContentChange,
     onSaveNewPrompt,
-    // --- NEW: Delete functionality ---
     onDeletePrompt
 }) => {
     const [promptToSend, setPromptToSend] = useState('');
@@ -126,7 +98,30 @@ const DeconstructorTestbed = ({
                 addLog('info', `Processing batch ${i + 1} of ${chunks.length}...`);
                 setPromptToSend(prev => prev + `--- BATCH ${i+1} ---\n` + currentPrompt + `\n\n`);
                 
-                const rawJsonText = await callGeminiApi(currentPrompt, apiKey);
+                // Restore previous Gemini API logic
+                const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey;
+                const payload = {
+                    contents: [{ parts: [{ text: currentPrompt }] }],
+                };
+                let rawJsonText = '';
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (!response.ok) {
+                        const errorDetails = result.error ? result.error.message : `HTTP error! status: ${response.status}`;
+                        throw new Error(errorDetails);
+                    }
+                    rawJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!rawJsonText) {
+                        throw new Error('No content received from AI.');
+                    }
+                } catch (error) {
+                    throw error;
+                }
                 
                 setRawApiResponse(prev => prev + `--- BATCH ${i+1} RESPONSE ---\n` + rawJsonText + `\n\n`);
 
