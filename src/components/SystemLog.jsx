@@ -31,3 +31,4 @@ const SystemLog = ({ logs }) => {
 };
 
 export default SystemLog;
+
