@@ -1,6 +1,7 @@
+// FILE: src/App.jsx
 import { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from "firebase/app";
-import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, setDoc } from "firebase/firestore";
+import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, setDoc, updateDoc, arrayUnion, deleteDoc, getDoc } from "firebase/firestore";
 
 // Component Imports
 import ViewerPage from './components/ViewerPage.jsx';
@@ -8,6 +9,10 @@ import TabNavigation from './components/TabNavigation.jsx';
 import SystemLog from './components/SystemLog.jsx';
 import ForgePanel from './components/ForgePanel.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
+import OverrideModal from './components/OverrideModal.jsx';
+import { OverridesContext } from './contexts/OverridesContext.jsx';
+import { SchemaContext } from './contexts/SchemaContext.jsx';
+
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
@@ -20,7 +25,7 @@ const firebaseConfig = {
     measurementId: "G-NF5TESZ9B4"
 };
 
-// --- UKB Schemas ---
+// --- UKB Schemas (The "Hardcoded" Dictionary) ---
 const UKB_SCHEMAS = {
     effects: {
         effect_id: { type: 'text', label: 'Effect ID', required: true, overridable: false },
@@ -50,7 +55,7 @@ const UKB_SCHEMAS = {
 };
 
 // --- COMPONENT: MigrationForm (Internal to App) ---
-function MigrationForm({ schema, initialData, formId, onDataChange, allEffects = [], onOverride }) {
+function MigrationForm({ schema, initialData, formId, onDataChange, allEffects = [], onOpenOverrideModal, perkId, fieldPathPrefix, schemaName }) {
     const [formData, setFormData] = useState(initialData || {});
     useEffect(() => { setFormData(initialData || {}); }, [initialData]);
     const triggerChange = (newData) => { setFormData(newData); onDataChange(newData); };
@@ -60,7 +65,7 @@ function MigrationForm({ schema, initialData, formId, onDataChange, allEffects =
         if (type === 'checkbox') { newValue = checked; }
         else if (type === 'number') { newValue = parseFloat(value) || 0; }
         else if (schema[name]?.type === 'textarea' && (name === 'synergy_tags' || name === 'prerequisites')) {
-             newValue = value.split(',').map(s => s.trim()).filter(Boolean);
+            newValue = value.split(',').map(s => s.trim()).filter(Boolean);
         } else { newValue = value; }
         triggerChange({ ...formData, [name]: newValue });
     };
@@ -100,12 +105,9 @@ function MigrationForm({ schema, initialData, formId, onDataChange, allEffects =
                             <label htmlFor={`${formId}-${key}`} className="flex items-center text-sm font-medium text-gray-300">
                                 {field.label}
                                 {field.overridable && (
-                                    <button 
+                                    <button
                                         type="button"
-                                        onClick={() => {
-                                            const correctValue = prompt(`Create override for "${field.label}".\n\nEnter the correct value that should ALWAYS be used for this perk:`);
-                                            if (correctValue) onOverride(key, correctValue);
-                                        }}
+                                        onClick={() => onOpenOverrideModal(perkId, `${fieldPathPrefix}.${key}`, field.label, key, schemaName)}
                                         className="ml-2 text-xs bg-purple-700 hover:bg-purple-600 text-white font-bold py-0.5 px-1.5 rounded-sm"
                                         title={`Create a permanent override rule for this field.`}
                                     >
@@ -127,7 +129,7 @@ function MigrationForm({ schema, initialData, formId, onDataChange, allEffects =
 }
 
 // --- COMPONENT: MigrationPanel (Internal to App) ---
-function MigrationPanel({ stagedData, setStagedData, addLog, db, onOverride }) {
+function MigrationPanel({ stagedData, setStagedData, addLog, db, onOpenOverrideModal }) {
     const handleDataChange = (itemIndex, dataType, effectIndex, newData) => {
         const newStagedData = JSON.parse(JSON.stringify(stagedData));
         if (dataType === 'ability') { newStagedData[itemIndex].ability_to_create = newData; }
@@ -172,13 +174,16 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOverride }) {
                             <h3 className="text-xl font-semibold text-amber-400">Staged Item #{itemIndex + 1}: {item.original_perk.name}</h3>
                             <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
                                 <h4 className="text-lg font-semibold text-emerald-300 mb-2 border-b border-emerald-500/50 pb-1">Proposed Ability</h4>
-                                <MigrationForm 
-                                    schema={UKB_SCHEMAS.abilities} 
-                                    initialData={item.ability_to_create} 
-                                    formId={`ability-${itemIndex}`} 
-                                    allEffects={[...item.effects_to_create.map(e => e.effect_id), ...(item.ability_to_create.effects_to_apply || [])].filter((v, i, a) => a.indexOf(v) === i)} 
+                                <MigrationForm
+                                    schema={UKB_SCHEMAS.abilities}
+                                    initialData={item.ability_to_create}
+                                    formId={`ability-${itemIndex}`}
+                                    allEffects={[...item.effects_to_create.map(e => e.effect_id), ...(item.ability_to_create.effects_to_apply || [])].filter((v, i, a) => a.indexOf(v) === i)}
                                     onDataChange={(newData) => handleDataChange(itemIndex, 'ability', null, newData)}
-                                    onOverride={(field, value) => onOverride(item.original_perk.id, `ability.${field}`, value)}
+                                    onOpenOverrideModal={onOpenOverrideModal}
+                                    perkId={item.original_perk.id}
+                                    fieldPathPrefix="ability"
+                                    schemaName="abilities"
                                 />
                             </div>
                             <div>
@@ -187,13 +192,16 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOverride }) {
                                     {item.effects_to_create.length > 0 ? (
                                         item.effects_to_create.map((effect, effectIndex) => (
                                              <div key={effectIndex} className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                                                 <MigrationForm 
-                                                    schema={UKB_SCHEMAS.effects} 
-                                                    initialData={effect} 
-                                                    formId={`effect-${itemIndex}-${effectIndex}`} 
-                                                    onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
-                                                    onOverride={(field, value) => onOverride(item.original_perk.id, `effect.${effectIndex}.${field}`, value)}
-                                                 />
+                                                 <MigrationForm
+                                                     schema={UKB_SCHEMAS.effects}
+                                                     initialData={effect}
+                                                     formId={`effect-${itemIndex}-${effectIndex}`}
+                                                     onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
+                                                     onOpenOverrideModal={onOpenOverrideModal}
+                                                     perkId={item.original_perk.id}
+                                                     fieldPathPrefix={`effect.${effectIndex}`}
+                                                     schemaName="effects"
+                                                />
                                              </div>
                                         ))
                                     ) : ( <p className="text-gray-500 italic">No effects were generated for this item.</p> )}
@@ -215,7 +223,7 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOverride }) {
 
 // --- MAIN APP COMPONENT ---
 function App() {
-    const [activeTab, setActiveTab] = useState('viewer');
+    const [activeTab, setActiveTab] = useState('admin');
     const [logs, setLogs] = useState([]);
     const [db, setDb] = useState(null);
     const [stagedData, setStagedData] = useState([]);
@@ -224,6 +232,11 @@ function App() {
     const [selectedPromptId, setSelectedPromptId] = useState('');
     const [activePromptContent, setActivePromptContent] = useState('');
     const [isLogExpanded, setIsLogExpanded] = useState(false);
+    const [overrideRules, setOverrideRules] = useState({});
+    const [schemaExtensions, setSchemaExtensions] = useState({});
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalData, setModalData] = useState(null);
+    const [covenant, setCovenant] = useState('Covenant text not yet generated.');
 
     const addLog = useCallback((type, message) => {
         const timestamp = new Date().toLocaleTimeString();
@@ -231,41 +244,137 @@ function App() {
         setLogs(prevLogs => [...prevLogs, { timestamp, message, typeClass: typeClasses[type] || typeClasses.info }]);
     }, []);
     
+    const fetchPrompts = useCallback(async (firestore) => {
+        if (!firestore) return;
+        addLog('info', 'Refreshing prompt library...');
+        try {
+            const querySnapshot = await getDocs(collection(firestore, 'prompts'));
+            const promptsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            promptsData.sort((a, b) => {
+                const aTime = a.timestamp?.toMillis() || 0;
+                const bTime = b.timestamp?.toMillis() || 0;
+                if (bTime !== aTime) return bTime - aTime;
+                return (b.name || '').localeCompare(a.name || '');
+            });
+            
+            setPrompts(promptsData);
+
+            if (promptsData.length > 0) {
+                const latestPrompt = promptsData[0];
+                setSelectedPromptId(latestPrompt.id);
+                setActivePromptContent(latestPrompt.content);
+                addLog('success', `Prompt library refreshed. Auto-selected "${latestPrompt.name}".`);
+            } else { 
+                addLog('warning', 'Prompt library is empty.');
+                setSelectedPromptId('');
+                setActivePromptContent('');
+            }
+        } catch (error) {
+            addLog('error', `Failed to refresh prompts: ${error.message}`);
+        }
+    }, [addLog]);
+    
+    const fetchSchemaExtensions = useCallback(async (firestore) => {
+        if (!firestore) return;
+        addLog('info', 'Refreshing Living Dictionary...');
+        try {
+            const querySnapshot = await getDocs(collection(firestore, 'ukb_schema_extensions'));
+            const extensions = {};
+            querySnapshot.forEach(doc => {
+                extensions[doc.id] = doc.data().values || [];
+            });
+            setSchemaExtensions(extensions);
+            addLog('success', 'Living Dictionary is up to date.');
+        } catch (error) {
+            addLog('error', `Failed to refresh Living Dictionary: ${error.message}`);
+        }
+    }, [addLog]);
+
+
     useEffect(() => {
         const savedApiKey = localStorage.getItem('geminiApiKey');
         if (savedApiKey) { setApiKey(savedApiKey); addLog('info', 'Gemini API Key loaded from memory.'); }
     }, [addLog]);
-
-    const handleApiKeyChange = (e) => {
-        const newKey = e.target.value;
-        setApiKey(newKey);
-        localStorage.setItem('geminiApiKey', newKey);
-    };
 
     useEffect(() => {
         const app = initializeApp(firebaseConfig);
         const firestore = getFirestore(app);
         setDb(firestore);
         addLog('success', 'Firebase UKB connection established.');
-        
-        const fetchPrompts = async () => {
-            addLog('info', 'Fetching AI prompts from database...');
-            try {
-                const querySnapshot = await getDocs(collection(firestore, 'prompts'));
-                const promptsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setPrompts(promptsData);
 
-                if (promptsData.length > 0) {
-                    addLog('success', `Found ${promptsData.length} prompts in the database.`);
-                    setSelectedPromptId(promptsData[0].id);
-                    setActivePromptContent(promptsData[0].content);
-                } else {
-                    addLog('warning', 'No prompts found in the database. Please add one via the Admin Panel.');
-                }
-            } catch (error) { addLog('error', `Failed to fetch prompts: ${error.message}`); }
+        const fetchAllData = async () => {
+            try {
+                addLog('info', 'Fetching all operational data from UKB...');
+                const [overridesSnap, extensionsSnap] = await Promise.all([
+                    getDocs(collection(firestore, 'exception_overrides')),
+                    getDocs(collection(firestore, 'ukb_schema_extensions'))
+                ]);
+
+                await fetchPrompts(firestore); // Initial prompt fetch
+
+                const rules = {};
+                overridesSnap.forEach(doc => { rules[doc.id] = doc.data(); });
+                setOverrideRules(rules);
+                if (Object.keys(rules).length > 0) addLog('success', `Loaded ${Object.keys(rules).length} override rule(s).`);
+                
+                const extensions = {};
+                extensionsSnap.forEach(doc => { extensions[doc.id] = doc.data().values || []; });
+                setSchemaExtensions(extensions);
+                if (Object.keys(extensions).length > 0) addLog('success', `Loaded ${Object.values(extensions).flat().length} custom schema values.`);
+
+                addLog('special', 'All operational data loaded.');
+            } catch (error) {
+                console.error("Error fetching all data:", error);
+                addLog('error', `Failed to fetch operational data: ${error.message}`);
+            }
         };
-        fetchPrompts();
-    }, [addLog]);
+        fetchAllData();
+    }, [addLog, fetchPrompts]);
+
+    const handleApiKeyChange = (e) => {
+        setApiKey(e.target.value);
+        localStorage.setItem('geminiApiKey', e.target.value);
+    };
+
+    const handleSchemaChange = useCallback(async () => {
+        if (!db) return;
+        await fetchSchemaExtensions(db);
+    }, [db, fetchSchemaExtensions]);
+
+    const handleOpenOverrideModal = (perkId, fieldPath, fieldLabel, fieldKey, schemaName) => {
+        setModalData({ perkId, fieldPath, fieldLabel, fieldKey, schemaName });
+        setIsModalOpen(true);
+    };
+
+    const handleModalClose = () => {
+        setIsModalOpen(false);
+        setModalData(null);
+    };
+
+    const handleModalSubmit = async (newValue) => {
+        if (!modalData) return;
+        const { perkId, fieldPath, fieldKey, schemaName } = modalData;
+        await handleCreateOverride(perkId, fieldPath, newValue);
+
+        const standardOptions = UKB_SCHEMAS[schemaName]?.[fieldKey]?.options || [];
+        const customOptions = schemaExtensions[fieldKey] || [];
+        addLog('special', `New custom value "${newValue}" detected. Adding to Living Dictionary...`);
+        try {
+            const extensionRef = doc(db, 'ukb_schema_extensions', fieldKey);
+            const docSnap = await getDoc(extensionRef);
+            if (docSnap.exists()) {
+                await updateDoc(extensionRef, { values: arrayUnion(newValue) });
+            } else {
+                await setDoc(extensionRef, { values: [newValue] });
+            }
+            addLog('success', `Added "${newValue}" to the Living Dictionary.`);
+            await handleSchemaChange();
+        } catch (error) {
+            addLog('error', `Failed to add new custom value: ${error.message}`);
+        }
+        handleModalClose();
+    };
 
     const handlePromptSelect = (promptId) => {
         const selected = prompts.find(p => p.id === promptId);
@@ -277,34 +386,120 @@ function App() {
     };
 
     const handlePromptContentChange = (newContent) => { setActivePromptContent(newContent); };
-    
+
     const handleSaveNewPromptVersion = async () => {
-        if (!db) { addLog('error', 'Database not connected. Cannot save prompt.'); return; }
-        const newPromptName = prompt('Enter a name for this new prompt version (e.g., v2.3_with_synergy_tags):');
+        if (!db) { addLog('error', 'Database not connected.'); return; }
+        const newPromptName = prompt('Enter a name for this new prompt version:');
         if (newPromptName && activePromptContent) {
             try {
-                const docRef = await addDoc(collection(db, 'prompts'), { name: newPromptName, content: activePromptContent, timestamp: new Date(), });
-                addLog('success', `New prompt version "${newPromptName}" saved with ID: ${docRef.id}`);
-                const querySnapshot = await getDocs(collection(db, 'prompts'));
-                const promptsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setPrompts(promptsData);
+                await addDoc(collection(db, 'prompts'), { name: newPromptName, content: activePromptContent, timestamp: new Date(), });
+                addLog('success', `New prompt version "${newPromptName}" saved.`);
+                await fetchPrompts(db); // Refresh the prompt list
             } catch (error) { addLog('error', `Failed to save new prompt: ${error.message}`); }
         }
     };
 
+    const handleDeletePrompt = async () => {
+        if (!db || !selectedPromptId) return;
+        const promptToDelete = prompts.find(p => p.id === selectedPromptId);
+        if (!promptToDelete) return;
+
+        if (window.confirm(`Are you sure you want to permanently delete the prompt "${promptToDelete.name}"? This action cannot be undone.`)) {
+            addLog('special', `Deleting prompt "${promptToDelete.name}"...`);
+            try {
+                await deleteDoc(doc(db, 'prompts', selectedPromptId));
+                addLog('success', 'Prompt successfully deleted.');
+                await fetchPrompts(db); // Refresh list and auto-select new latest
+            } catch (error) {
+                addLog('error', `Failed to delete prompt: ${error.message}`);
+            }
+        }
+    };
+
     const handleCreateOverride = async (perkId, fieldToOverride, correctValue) => {
-        if (!db) { addLog('error', 'Database not connected. Cannot create override.'); return; }
+        if (!db) { addLog('error', 'DB not connected.'); return; }
         addLog('special', `Creating override rule for ${perkId}...`);
         try {
             const overrideRef = doc(db, 'exception_overrides', perkId);
             await setDoc(overrideRef, { [fieldToOverride]: correctValue }, { merge: true });
-            addLog('success', `Override rule created: For perk "${perkId}", the field "${fieldToOverride}" will now always be "${correctValue}".`);
+            addLog('success', `Override rule created for "${perkId}".`);
+            setOverrideRules(prev => ({ ...prev, [perkId]: { ...prev[perkId], [fieldToOverride]: correctValue } }));
         } catch (error) { addLog('error', `Failed to create override: ${error.message}`); }
     };
-
+    
     const handleClearSystemLog = () => {
         setLogs([]);
         addLog('info', 'System Log cleared by Captain.');
+    };
+
+    const deleteCollection = async (collectionName) => {
+        if (!db) { addLog('error', 'Database not connected.'); return; }
+        addLog('special', `Initiating full purge of "${collectionName}" collection...`);
+        try {
+            const querySnapshot = await getDocs(collection(db, collectionName));
+            if (querySnapshot.empty) {
+                addLog('info', `Collection '${collectionName}' is already empty.`);
+                return;
+            }
+            const batch = writeBatch(db);
+            querySnapshot.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            addLog('success', `Successfully purged ${querySnapshot.size} document(s) from "${collectionName}".`);
+        } catch(e) {
+            addLog('error', `Failed to purge collection "${collectionName}": ${e.message}`);
+        }
+    };
+    
+    const handleClearUkb = () => {
+        deleteCollection('abilities');
+        deleteCollection('effects');
+    };
+    
+    const handleClearArchive = () => {
+        deleteCollection('raw_data_archive');
+    };
+    
+    const handleBootstrapData = () => {
+        addLog('error', 'Function "onBootstrapData" is not yet implemented.');
+    };
+    
+    const handleGenerateCovenant = async () => {
+        if (!db) { addLog('error', 'Database not connected.'); return; }
+        addLog('special', 'Initiating Cold Storage Protocol...');
+        
+        const collectionsToBackup = ['abilities', 'effects', 'raw_data_archive', 'prompts', 'exception_overrides', 'ukb_schema_extensions'];
+        const backupData = {
+            metadata: {
+                backupDate: new Date().toISOString(),
+                version: "2.0"
+            },
+            data: {}
+        };
+
+        try {
+            for (const collectionName of collectionsToBackup) {
+                addLog('info', `Backing up '${collectionName}'...`);
+                const querySnapshot = await getDocs(collection(db, collectionName));
+                backupData.data[collectionName] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            }
+            
+            const jsonString = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const date = new Date().toISOString().split('T')[0];
+            a.download = `AIA_Backup_${date}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            addLog('success', 'Cold Storage backup successfully generated and download initiated.');
+
+        } catch (error) {
+            addLog('error', `Cold Storage backup failed: ${error.message}`);
+        }
     };
 
     const renderContent = () => {
@@ -312,66 +507,86 @@ function App() {
             case 'viewer': return <ViewerPage db={db} addLog={addLog} />;
             case 'forge':
                 return <ForgePanel 
-                           db={db}
-                           setStagedData={setStagedData}
-                           addLog={addLog} 
-                           setActiveTab={setActiveTab} 
-                           apiKey={apiKey}
-                           onApiKeyChange={handleApiKeyChange}
-                           activePromptContent={activePromptContent}
-                       />;
-            case 'migration': 
-                return <MigrationPanel 
-                           stagedData={stagedData} 
-                           setStagedData={setStagedData} 
-                           addLog={addLog} 
-                           db={db}
-                           onOverride={handleCreateOverride} 
-                       />;
+                            db={db} 
+                            setStagedData={setStagedData} 
+                            addLog={addLog} 
+                            setActiveTab={setActiveTab} 
+                            apiKey={apiKey} 
+                            onApiKeyChange={handleApiKeyChange} 
+                            activePromptContent={activePromptContent}
+                            prompts={prompts}
+                            selectedPromptId={selectedPromptId}
+                            onPromptSelect={handlePromptSelect}
+                            onPromptContentChange={handlePromptContentChange}
+                            onSaveNewPrompt={handleSaveNewPromptVersion}
+                            onDeletePrompt={handleDeletePrompt}
+                        />;
+            case 'migration':
+                return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} onOpenOverrideModal={handleOpenOverrideModal} />;
             case 'admin':
                 return <AdminPanel 
-                           addLog={addLog} 
-                           db={db}
-                           prompts={prompts}
-                           selectedPromptId={selectedPromptId}
-                           activePromptContent={activePromptContent}
-                           onPromptSelect={handlePromptSelect}
-                           onPromptContentChange={handlePromptContentChange}
-                           onSaveNewPrompt={handleSaveNewPromptVersion}
-                           onClearSystemLog={handleClearSystemLog}
-                       />;
+                            db={db} 
+                            addLog={addLog}
+                            UKB_SCHEMAS={UKB_SCHEMAS}
+                            onSchemaChange={handleSchemaChange}
+                            onClearUkb={handleClearUkb}
+                            onClearArchive={handleClearArchive}
+                            onBootstrapData={handleBootstrapData}
+                            covenant={covenant}
+                            onGenerateCovenant={handleGenerateCovenant}
+                            onClearSystemLog={handleClearSystemLog}
+                            prompts={prompts}
+                            selectedPromptId={selectedPromptId}
+                            activePromptContent={activePromptContent}
+                            onPromptSelect={handlePromptSelect}
+                            onPromptContentChange={handlePromptContentChange}
+                            onSaveNewPrompt={handleSaveNewPromptVersion}
+                        />;
             default: return null;
         }
     };
 
+    const getModalOptions = () => {
+        if (!modalData) return [];
+        const { fieldKey, schemaName } = modalData;
+        const standardOptions = UKB_SCHEMAS[schemaName]?.[fieldKey]?.options || [];
+        const customOptions = schemaExtensions[fieldKey] || [];
+        return [...new Set([...standardOptions, ...customOptions])];
+    };
+
     return (
-        <div className="bg-gray-900 text-gray-200 h-screen font-sans flex flex-col">
-            <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg flex-shrink-0">
-                <div className="w-full max-w-screen-2xl mx-auto">
-                    <h1 className="text-3xl font-bold text-center text-teal-400 tracking-wider">
-                        Aeternum Intelligence Agency
-                    </h1>
-                    <p className="text-center text-teal-600 text-sm">Cockpit v2.0</p>
-                </div>
-            </header>
-
-            <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
-                <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-                <main className="flex-grow p-4 md:p-8 overflow-y-auto">
-                    {renderContent()}
-                </main>
-            </div>
-
-            <footer className="flex-shrink-0 bg-gray-900 border-t border-gray-700 p-4">
-                <div className="w-full max-w-screen-2xl mx-auto">
-                    <SystemLog 
-                        logs={logs} 
-                        isExpanded={isLogExpanded}
-                        setIsExpanded={setIsLogExpanded}
+        <OverridesContext.Provider value={overrideRules}>
+            <SchemaContext.Provider value={schemaExtensions}>
+                <div className="bg-gray-900 text-gray-200 h-screen font-sans flex flex-col">
+                    <OverrideModal 
+                        isOpen={isModalOpen}
+                        onClose={handleModalClose}
+                        onSubmit={handleModalSubmit}
+                        fieldLabel={modalData?.fieldLabel || ''}
+                        allOptions={getModalOptions()}
                     />
+                    <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg flex-shrink-0">
+                        <div className="w-full max-w-screen-2xl mx-auto">
+                            <h1 className="text-3xl font-bold text-center text-teal-400 tracking-wider">
+                                Aeternum Intelligence Agency
+                            </h1>
+                            <p className="text-center text-teal-600 text-sm">Cockpit v2.0</p>
+                        </div>
+                    </header>
+                    <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
+                        <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <main className="flex-grow p-4 md:p-8 overflow-y-auto">
+                            {renderContent()}
+                        </main>
+                    </div>
+                    <footer className="flex-shrink-0 bg-gray-900 border-t border-gray-700 p-4">
+                        <div className="w-full max-w-screen-2xl mx-auto">
+                            <SystemLog logs={logs} isExpanded={isLogExpanded} setIsExpanded={setIsLogExpanded} />
+                        </div>
+                    </footer>
                 </div>
-            </footer>
-        </div>
+            </SchemaContext.Provider>
+        </OverridesContext.Provider>
     );
 }
 
