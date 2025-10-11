@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from "firebase/app";
-import { getFirestore, writeBatch, doc, collection, getDocs, addDoc } from "firebase/firestore";
+import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, setDoc } from "firebase/firestore";
 
 // Component Imports
 import ViewerPage from './components/ViewerPage.jsx';
@@ -20,37 +20,37 @@ const firebaseConfig = {
     measurementId: "G-NF5TESZ9B4"
 };
 
-// --- UKB Schemas (HARDENED V2.1) ---
+// --- UKB Schemas ---
 const UKB_SCHEMAS = {
     effects: {
-        effect_id: { type: 'text', label: 'Effect ID', required: true },
-        name: { type: 'text', label: 'Name' },
-        type: { type: 'select', label: 'Type', options: ['EMPOWER', 'BLEED', 'FORTIFY', 'HASTE', 'SLOW', 'HEAL', 'DAMAGE', 'ROOT', 'STUN', 'WEAKEN', 'REND', 'MANA_RESTORE'] },
-        application_trigger: { type: 'text', label: 'Application Trigger' },
-        target: { type: 'select', label: 'Target', options: ['SELF', 'TARGET', 'GROUP_IN_AOE', 'FRIENDLY_TARGET'] },
-        value_type: { type: 'select', label: 'Value Type', options: ['PERCENTAGE', 'FLAT', 'WEAPON_DAMAGE_PCT', 'BASE_HEALTH_PCT'] },
-        value: { type: 'text', label: 'Value' },
-        duration_seconds: { type: 'number', label: 'Duration (s)' },
-        is_stackable: { type: 'checkbox', label: 'Is Stackable' },
-        max_stacks: { type: 'number', label: 'Max Stacks' },
-        scales_with_attribute: { type: 'select', label: 'Scales With', options: ['', 'FOCUS', 'INTELLIGENCE', 'STRENGTH', 'DEXTERITY', 'CONSTITUTION'] },
-        synergy_tags: { type: 'textarea', label: 'Synergy Tags' },
-        description: { type: 'textarea', label: 'Description' },
+        effect_id: { type: 'text', label: 'Effect ID', required: true, overridable: false },
+        name: { type: 'text', label: 'Name', overridable: true },
+        type: { type: 'select', label: 'Type', options: ['EMPOWER', 'BLEED', 'FORTIFY', 'HASTE', 'SLOW', 'HEAL', 'DAMAGE', 'ROOT', 'STUN', 'WEAKEN', 'REND', 'MANA_RESTORE'], overridable: true },
+        application_trigger: { type: 'text', label: 'Application Trigger', overridable: true },
+        target: { type: 'select', label: 'Target', options: ['SELF', 'TARGET', 'GROUP_IN_AOE', 'FRIENDLY_TARGET'], overridable: true },
+        value_type: { type: 'select', label: 'Value Type', options: ['PERCENTAGE', 'FLAT', 'WEAPON_DAMAGE_PCT', 'BASE_HEALTH_PCT'], overridable: true },
+        value: { type: 'text', label: 'Value', overridable: true },
+        duration_seconds: { type: 'number', label: 'Duration (s)', overridable: true },
+        is_stackable: { type: 'checkbox', label: 'Is Stackable', overridable: true },
+        max_stacks: { type: 'number', label: 'Max Stacks', overridable: true },
+        scales_with_attribute: { type: 'select', label: 'Scales With', options: ['', 'FOCUS', 'INTELLIGENCE', 'STRENGTH', 'DEXTERITY', 'CONSTITUTION'], overridable: true },
+        synergy_tags: { type: 'textarea', label: 'Synergy Tags', overridable: true },
+        description: { type: 'textarea', label: 'Description', overridable: true },
     },
     abilities: {
-        ability_id: { type: 'text', label: 'Ability ID', required: true },
-        name: { type: 'text', label: 'Name' },
-        type: { type: 'select', label: 'Type', options: ['PERK', 'WEAPON_MASTERY', 'GEM', 'STATUS_EFFECT'] },
-        trigger: { type: 'text', label: 'Trigger' },
-        effects_to_apply: { type: 'multiselect', label: 'Effects to Apply' },
-        prerequisites: { type: 'textarea', label: 'Prerequisites' },
-        internal_cooldown_seconds: { type: 'number', label: 'Internal Cooldown (s)' },
-        description: { type: 'textarea', label: 'Description' },
+        ability_id: { type: 'text', label: 'Ability ID', required: true, overridable: false },
+        name: { type: 'text', label: 'Name', overridable: true },
+        type: { type: 'select', label: 'Type', options: ['PERK', 'WEAPON_MASTERY', 'GEM', 'STATUS_EFFECT'], overridable: true },
+        trigger: { type: 'text', label: 'Trigger', overridable: true },
+        effects_to_apply: { type: 'multiselect', label: 'Effects to Apply', overridable: true },
+        prerequisites: { type: 'textarea', label: 'Prerequisites', overridable: true },
+        internal_cooldown_seconds: { type: 'number', label: 'Internal Cooldown (s)', overridable: true },
+        description: { type: 'textarea', label: 'Description', overridable: true },
     }
 };
 
 // --- COMPONENT: MigrationForm (Internal to App) ---
-function MigrationForm({ schema, initialData, formId, onDataChange, allEffects = [] }) {
+function MigrationForm({ schema, initialData, formId, onDataChange, allEffects = [], onOverride }) {
     const [formData, setFormData] = useState(initialData || {});
     useEffect(() => { setFormData(initialData || {}); }, [initialData]);
     const triggerChange = (newData) => { setFormData(newData); onDataChange(newData); };
@@ -97,7 +97,22 @@ function MigrationForm({ schema, initialData, formId, onDataChange, allEffects =
                     }
                     return (
                         <div key={key} className={field.type === 'textarea' ? 'md:col-span-2 lg:col-span-3' : ''}>
-                            <label htmlFor={`${formId}-${key}`} className="block text-sm font-medium text-gray-300">{field.label}</label>
+                            <label htmlFor={`${formId}-${key}`} className="flex items-center text-sm font-medium text-gray-300">
+                                {field.label}
+                                {field.overridable && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            const correctValue = prompt(`Create override for "${field.label}".\n\nEnter the correct value that should ALWAYS be used for this perk:`);
+                                            if (correctValue) onOverride(key, correctValue);
+                                        }}
+                                        className="ml-2 text-xs bg-purple-700 hover:bg-purple-600 text-white font-bold py-0.5 px-1.5 rounded-sm"
+                                        title={`Create a permanent override rule for this field.`}
+                                    >
+                                        O
+                                    </button>
+                                )}
+                            </label>
                             {field.type === 'textarea' ? ( <textarea id={`${formId}-${key}`} name={key} value={value} onChange={handleChange} rows={2} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 text-sm" />
                             ) : field.type === 'select' ? ( <select id={`${formId}-${key}`} name={key} value={value} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 text-sm"> <option value="">-- Select --</option> {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)} </select>
                             ) : field.type === 'checkbox' ? ( <div className="flex items-center h-full mt-1"> <input id={`${formId}-${key}`} name={key} type="checkbox" checked={!!value} onChange={handleChange} className="bg-gray-700 border-gray-600 rounded h-5 w-5 text-amber-500 focus:ring-amber-600" /> </div>
@@ -112,7 +127,7 @@ function MigrationForm({ schema, initialData, formId, onDataChange, allEffects =
 }
 
 // --- COMPONENT: MigrationPanel (Internal to App) ---
-function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
+function MigrationPanel({ stagedData, setStagedData, addLog, db, onOverride }) {
     const handleDataChange = (itemIndex, dataType, effectIndex, newData) => {
         const newStagedData = JSON.parse(JSON.stringify(stagedData));
         if (dataType === 'ability') { newStagedData[itemIndex].ability_to_create = newData; }
@@ -157,7 +172,14 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
                             <h3 className="text-xl font-semibold text-amber-400">Staged Item #{itemIndex + 1}: {item.original_perk.name}</h3>
                             <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
                                 <h4 className="text-lg font-semibold text-emerald-300 mb-2 border-b border-emerald-500/50 pb-1">Proposed Ability</h4>
-                                <MigrationForm schema={UKB_SCHEMAS.abilities} initialData={item.ability_to_create} formId={`ability-${itemIndex}`} allEffects={[...item.effects_to_create.map(e => e.effect_id), ...(item.ability_to_create.effects_to_apply || [])].filter((v, i, a) => a.indexOf(v) === i)} onDataChange={(newData) => handleDataChange(itemIndex, 'ability', null, newData)} />
+                                <MigrationForm 
+                                    schema={UKB_SCHEMAS.abilities} 
+                                    initialData={item.ability_to_create} 
+                                    formId={`ability-${itemIndex}`} 
+                                    allEffects={[...item.effects_to_create.map(e => e.effect_id), ...(item.ability_to_create.effects_to_apply || [])].filter((v, i, a) => a.indexOf(v) === i)} 
+                                    onDataChange={(newData) => handleDataChange(itemIndex, 'ability', null, newData)}
+                                    onOverride={(field, value) => onOverride(item.original_perk.id, `ability.${field}`, value)}
+                                />
                             </div>
                             <div>
                                 <h4 className="text-lg font-semibold text-sky-300 mb-2 mt-4 border-b border-sky-500/50 pb-1">Proposed Effects</h4>
@@ -165,7 +187,13 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db }) {
                                     {item.effects_to_create.length > 0 ? (
                                         item.effects_to_create.map((effect, effectIndex) => (
                                              <div key={effectIndex} className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                                                 <MigrationForm schema={UKB_SCHEMAS.effects} initialData={effect} formId={`effect-${itemIndex}-${effectIndex}`} onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)} />
+                                                 <MigrationForm 
+                                                    schema={UKB_SCHEMAS.effects} 
+                                                    initialData={effect} 
+                                                    formId={`effect-${itemIndex}-${effectIndex}`} 
+                                                    onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
+                                                    onOverride={(field, value) => onOverride(item.original_perk.id, `effect.${effectIndex}.${field}`, value)}
+                                                 />
                                              </div>
                                         ))
                                     ) : ( <p className="text-gray-500 italic">No effects were generated for this item.</p> )}
@@ -195,10 +223,11 @@ function App() {
     const [prompts, setPrompts] = useState([]);
     const [selectedPromptId, setSelectedPromptId] = useState('');
     const [activePromptContent, setActivePromptContent] = useState('');
+    const [isLogExpanded, setIsLogExpanded] = useState(false);
 
     const addLog = useCallback((type, message) => {
         const timestamp = new Date().toLocaleTimeString();
-        const typeClasses = { success: 'text-emerald-400', error: 'text-red-400', info: 'text-gray-400', special: 'text-amber-400' };
+        const typeClasses = { success: 'text-emerald-400', error: 'text-red-400', info: 'text-gray-400', special: 'text-amber-400', system: 'text-purple-400'};
         setLogs(prevLogs => [...prevLogs, { timestamp, message, typeClass: typeClasses[type] || typeClasses.info }]);
     }, []);
     
@@ -225,8 +254,9 @@ function App() {
                 const querySnapshot = await getDocs(collection(firestore, 'prompts'));
                 const promptsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setPrompts(promptsData);
-                addLog('success', `Found ${promptsData.length} prompts in the database.`);
+
                 if (promptsData.length > 0) {
+                    addLog('success', `Found ${promptsData.length} prompts in the database.`);
                     setSelectedPromptId(promptsData[0].id);
                     setActivePromptContent(promptsData[0].content);
                 } else {
@@ -262,6 +292,21 @@ function App() {
         }
     };
 
+    const handleCreateOverride = async (perkId, fieldToOverride, correctValue) => {
+        if (!db) { addLog('error', 'Database not connected. Cannot create override.'); return; }
+        addLog('special', `Creating override rule for ${perkId}...`);
+        try {
+            const overrideRef = doc(db, 'exception_overrides', perkId);
+            await setDoc(overrideRef, { [fieldToOverride]: correctValue }, { merge: true });
+            addLog('success', `Override rule created: For perk "${perkId}", the field "${fieldToOverride}" will now always be "${correctValue}".`);
+        } catch (error) { addLog('error', `Failed to create override: ${error.message}`); }
+    };
+
+    const handleClearSystemLog = () => {
+        setLogs([]);
+        addLog('info', 'System Log cleared by Captain.');
+    };
+
     const renderContent = () => {
         switch (activeTab) {
             case 'viewer': return <ViewerPage db={db} addLog={addLog} />;
@@ -273,35 +318,59 @@ function App() {
                            setActiveTab={setActiveTab} 
                            apiKey={apiKey}
                            onApiKeyChange={handleApiKeyChange}
-                           activePromptContent={activePromptContent} // <-- THE CRITICAL WIRE
+                           activePromptContent={activePromptContent}
                        />;
-            case 'migration': return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} />;
+            case 'migration': 
+                return <MigrationPanel 
+                           stagedData={stagedData} 
+                           setStagedData={setStagedData} 
+                           addLog={addLog} 
+                           db={db}
+                           onOverride={handleCreateOverride} 
+                       />;
             case 'admin':
                 return <AdminPanel 
                            addLog={addLog} 
-                           db={db} 
+                           db={db}
                            prompts={prompts}
                            selectedPromptId={selectedPromptId}
                            activePromptContent={activePromptContent}
                            onPromptSelect={handlePromptSelect}
                            onPromptContentChange={handlePromptContentChange}
                            onSaveNewPrompt={handleSaveNewPromptVersion}
+                           onClearSystemLog={handleClearSystemLog}
                        />;
             default: return null;
         }
     };
 
     return (
-        <div className="bg-gray-900 text-gray-200 min-h-screen font-sans">
-            <div className="w-full max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-emerald-400"> Aeternum Intelligence Agency </h1>
-                    <p className="text-xl text-gray-400"> Cockpit v2.0 </p>
+        <div className="bg-gray-900 text-gray-200 h-screen font-sans flex flex-col">
+            <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg flex-shrink-0">
+                <div className="w-full max-w-screen-2xl mx-auto">
+                    <h1 className="text-3xl font-bold text-center text-teal-400 tracking-wider">
+                        Aeternum Intelligence Agency
+                    </h1>
+                    <p className="text-center text-teal-600 text-sm">Cockpit v2.0</p>
                 </div>
+            </header>
+
+            <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
                 <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-                <div>{renderContent()}</div>
-                <SystemLog logs={logs} />
+                <main className="flex-grow p-4 md:p-8 overflow-y-auto">
+                    {renderContent()}
+                </main>
             </div>
+
+            <footer className="flex-shrink-0 bg-gray-900 border-t border-gray-700 p-4">
+                <div className="w-full max-w-screen-2xl mx-auto">
+                    <SystemLog 
+                        logs={logs} 
+                        isExpanded={isLogExpanded}
+                        setIsExpanded={setIsLogExpanded}
+                    />
+                </div>
+            </footer>
         </div>
     );
 }

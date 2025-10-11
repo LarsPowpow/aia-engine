@@ -2,27 +2,35 @@ import React, { useState } from 'react';
 
 const JSONCleaner = ({ addLog, onDataCleaned }) => {
     const [rawJson, setRawJson] = useState('');
-    const [dataPath, setDataPath] = useState('data');
     const [fieldsToExtract, setFieldsToExtract] = useState('id, name, description, PerkType, ExclusiveLabels, condition');
     const [cleanedJson, setCleanedJson] = useState('');
-    const [isSending, setIsSending] = useState(false);
 
     const attemptJsonRepair = (jsonString) => {
         let repaired = jsonString.trim();
-        // Attempt to fix common issues like a missing closing brace/bracket
-        if ((repaired.startsWith('{') && !repaired.endsWith('}')) || (repaired.startsWith('[') && !repaired.endsWith(']'))) {
-            const openBraces = (repaired.match(/{/g) || []).length;
-            const closeBraces = (repaired.match(/}/g) || []).length;
-            if (openBraces > closeBraces) {
-                repaired += '}'.repeat(openBraces - closeBraces);
-            }
+        // Add more robust repair logic here if needed in the future
+        if ((repaired.startsWith('{') && !repaired.endsWith('}'))) {
+            repaired += '}';
         }
         try {
             JSON.parse(repaired);
             return repaired;
         } catch (e) {
-            return null; // Repair failed
+            return null; 
         }
+    };
+
+    // --- NEW: AUTO-FINDER ALGORITHM ---
+    const findArrayOfObjects = (obj) => {
+        for (const key in obj) {
+            if (Array.isArray(obj[key]) && obj[key].length > 0 && typeof obj[key][0] === 'object' && obj[key][0] !== null) {
+                return obj[key]; // Found it
+            }
+            if (typeof obj[key] === 'object' && obj[key] !== null) {
+                const result = findArrayOfObjects(obj[key]);
+                if (result) return result; // Found in a nested object
+            }
+        }
+        return null; // Not found
     };
 
     const handleCleanData = () => {
@@ -46,31 +54,21 @@ const JSONCleaner = ({ addLog, onDataCleaned }) => {
         }
 
         try {
-            // --- "SMART CLEANER" V2 PROTOCOL ---
-            // Step 1: Always try to navigate to the dataPath first.
-            const payload = dataPath ? dataPath.split('.').reduce((o, i) => o && o[i], parsedData) : parsedData;
+            // --- "SMART CLEANER" V3 PROTOCOL ---
+            let dataToProcess = findArrayOfObjects(parsedData);
 
-            if (payload === undefined) {
-                 throw new Error(`The specified data path "${dataPath}" does not exist in the provided JSON.`);
-            }
-
-            let dataToProcess;
-            // Step 2: Now, check the shape of what we found.
-            if (Array.isArray(payload)) {
-                addLog('info', 'Payload is an array. Processing...');
-                dataToProcess = payload;
-            } else if (typeof payload === 'object' && payload !== null) {
-                addLog('info', 'Payload is a single object. Wrapping it in an array for processing.');
-                dataToProcess = [payload];
+            if (!dataToProcess) {
+                 // If no array is found, check if the root itself is a single object
+                if(typeof parsedData === 'object' && !Array.isArray(parsedData) && parsedData !== null){
+                    addLog('info', 'No array found. Assuming input is a single object.');
+                    dataToProcess = [parsedData];
+                } else {
+                    throw new Error("Auto-Finder could not locate an array of objects to process.");
+                }
             } else {
-                throw new Error("The data at the specified path is not a valid JSON object or array.");
+                 addLog('info', 'Auto-Finder located target data array.');
             }
             // ------------------------------------
-
-            if (!dataToProcess || dataToProcess.length === 0) {
-                addLog('error', 'No processable data found.');
-                return;
-            }
 
             const fields = fieldsToExtract.split(',').map(f => f.trim());
             const cleanedArray = dataToProcess.map(item => {
@@ -92,13 +90,6 @@ const JSONCleaner = ({ addLog, onDataCleaned }) => {
             addLog('error', `JSON cleaning failed: ${error.message}`);
         }
     };
-
-    const handleSendData = () => {
-        setIsSending(true);
-        addLog('info', 'Data has been sent to the conveyor belt automatically.');
-        setTimeout(() => setIsSending(false), 1500);
-    };
-
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -124,21 +115,8 @@ const JSONCleaner = ({ addLog, onDataCleaned }) => {
             </div>
             <div className="space-y-4">
                 <div>
-                    <label htmlFor="dataPath" className="block text-sm font-medium text-gray-300 mb-1">
-                        2. Select Data Path (if applicable)
-                    </label>
-                    <input
-                        type="text"
-                        id="dataPath"
-                        value={dataPath}
-                        onChange={(e) => setDataPath(e.target.value)}
-                        className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
-                        placeholder="e.g. data.items"
-                    />
-                </div>
-                <div>
                     <label htmlFor="fieldsToExtract" className="block text-sm font-medium text-gray-300 mb-1">
-                        3. Fields to Extract (comma-separated)
+                        2. Fields to Extract (comma-separated)
                     </label>
                     <input
                         type="text"
@@ -161,12 +139,6 @@ const JSONCleaner = ({ addLog, onDataCleaned }) => {
                             className="w-full h-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none font-mono text-xs"
                             placeholder="Clean, Deconstructor-ready JSON will appear here..."
                         />
-                         <button 
-                            onClick={handleSendData}
-                            className={`absolute bottom-2 right-2 px-3 py-1 text-xs rounded transition-all duration-300 ${isSending ? 'bg-green-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-                        >
-                           {isSending ? 'Sent!' : 'Send to Deconstructor'}
-                        </button>
                     </div>
                 </div>
             </div>
