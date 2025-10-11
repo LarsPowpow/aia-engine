@@ -40,7 +40,7 @@ const ScribePanel = ({ onImageData, prompts, onPromptSelect, selectedPromptId, a
             // Compose the prompt from the selected prompt
             const selectedPrompt = scribePrompts.find(p => p.id === selectedPromptId);
             const promptText = selectedPrompt ? selectedPrompt.content : '';
-            const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyB6ZCaBMXb5BxQQKT8sM7gjD7ZIxi12qYw';
+            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
             const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
             const payload = {
                 contents: [

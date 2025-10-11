@@ -2,13 +2,13 @@
 
 // Firebase project credentials, taken from the v7 prototype.
 export const firebaseConfig = {
-  apiKey: "AIzaSyARiZYDRmAPutSoq8_oiMu1f77Dx3iSM",
-  authDomain: "aeternumintelligence.firebaseapp.com",
-  projectId: "aeternumintelligence",
-  storageBucket: "aeternumintelligence.appspot.com",
-  messagingSenderId: "581680312893",
-  appId: "1:581680312893:web:a7b8dfe93be5798fed2b8a",
-  measurementId: "G-NF5TESZ9B4"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // A central list of our Universal Knowledge Base collections.

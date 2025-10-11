@@ -136,6 +136,17 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
             }
         } catch (e) { /* Fall through */ }
 
+        // Stage 8: Attempt to quote unquoted property names (very aggressive, last resort)
+        // This regex is not perfect but works for most simple cases
+        const quotedProps = repaired.replace(/([{,]\s*)([A-Za-z0-9_\-]+)\s*:/g, '$1"$2":');
+        if (quotedProps !== repaired) {
+            try {
+                JSON.parse(quotedProps);
+                addLog('warning', 'Repair Protocol: Quoted unquoted property names (regex last resort).');
+                return quotedProps;
+            } catch (e) { /* Fall through */ }
+        }
+
         // Final Stage: Return null if no repair was successful.
         return null;
     };
