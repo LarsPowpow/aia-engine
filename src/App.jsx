@@ -137,7 +137,6 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOpenOverrideM
     };
     const handleClearAll = () => { setStagedData([]); addLog('info', 'Migration staging area has been cleared.'); };
     
-    // --- UPGRADED COMMIT PROTOCOL ---
     const handleCommitAll = async () => {
         if (!db || stagedData.length === 0) { addLog('error', 'Commit failed: No data staged or database not connected.'); return; }
         addLog('special', `Initiating commit of ${stagedData.length} item(s) to UKB...`);
@@ -147,18 +146,15 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOpenOverrideM
         stagedData.forEach(item => {
             let abilityToCommit = null;
             
-            // Check for the legacy wrapped structure for perks
             if (item.ability_to_create) {
                 abilityToCommit = item.ability_to_create;
             } 
-            // Assume flat structure for direct data (like attribute bonuses) if the legacy one isn't found
             else if (item.ability_id) { 
                 abilityToCommit = item;
             }
 
-            // If we found an ability to commit (either nested or flat)
             if (abilityToCommit && abilityToCommit.ability_id) {
-                let targetCollection = 'abilities'; // Default collection
+                let targetCollection = 'abilities'; 
                 if (abilityToCommit.type === 'ATTRIBUTE_BONUS') {
                     targetCollection = 'attribute_bonuses';
                 }
@@ -168,7 +164,6 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOpenOverrideM
                 abilityCount++;
             }
 
-            // Effects logic remains the same, as it's only expected with the wrapped structure
             if (item.effects_to_create && Array.isArray(item.effects_to_create)) {
                 item.effects_to_create.forEach(effect => {
                     if (effect.effect_id) {
@@ -187,7 +182,6 @@ function MigrationPanel({ stagedData, setStagedData, addLog, db, onOpenOverrideM
         } catch (e) { addLog('error', `Error committing to UKB: ${e.message}`); }
     };
     
-    // Defensive: ensure stagedData is always an array
     const safeStagedData = Array.isArray(stagedData) ? stagedData : [];
     return (
         <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-amber-500/50">
@@ -321,7 +315,15 @@ function App() {
 
     useEffect(() => {
         const savedApiKey = localStorage.getItem('geminiApiKey');
-        if (savedApiKey) { setApiKey(savedApiKey); addLog('info', 'Gemini API Key loaded from memory.'); }
+        if (savedApiKey) { 
+            setApiKey(savedApiKey); 
+        } else {
+            const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+            if (envApiKey) {
+                setApiKey(envApiKey);
+                addLog('info', 'Gemini API Key loaded from secure environment.');
+            }
+        }
     }, [addLog]);
 
     useEffect(() => {
@@ -360,8 +362,10 @@ function App() {
     }, [addLog, fetchPrompts]);
 
     const handleApiKeyChange = (e) => {
-        setApiKey(e.target.value);
-        localStorage.setItem('geminiApiKey', e.target.value);
+        const newKey = e.target.value;
+        setApiKey(newKey);
+        localStorage.setItem('geminiApiKey', newKey);
+        addLog('special', 'Gemini API Key has been updated in local memory.')
     };
 
     const handleSchemaChange = useCallback(async () => {
@@ -489,6 +493,48 @@ function App() {
     const handleBootstrapData = () => {
         addLog('error', 'Function "onBootstrapData" is not yet implemented.');
     };
+
+    const handleUpsertData = async (collectionName, jsonData, onComplete) => {
+        if (!db) {
+            addLog('error', 'Upsert failed: Database not connected.');
+            onComplete();
+            return;
+        }
+        addLog('special', `Initiating manual upsert to "${collectionName}"...`);
+        let dataArray;
+        try {
+            dataArray = JSON.parse(jsonData);
+            if (!Array.isArray(dataArray)) throw new Error('Input must be a JSON array.');
+        } catch (e) {
+            addLog('error', `Upsert failed: Invalid JSON. ${e.message}`);
+            onComplete();
+            return;
+        }
+
+        const batch = writeBatch(db);
+        let idField = 'ability_id'; // default
+        if (collectionName === 'effects') idField = 'effect_id';
+
+        let count = 0;
+        for (const item of dataArray) {
+            if (item[idField]) {
+                const docRef = doc(db, collectionName, item[idField]);
+                batch.set(docRef, item, { merge: true });
+                count++;
+            } else {
+                addLog('warning', `Skipping item without a valid ID field ('${idField}').`);
+            }
+        }
+
+        try {
+            await batch.commit();
+            addLog('success', `Upsert successful: ${count} document(s) saved to "${collectionName}".`);
+        } catch (e) {
+            addLog('error', `Error during batch commit: ${e.message}`);
+        } finally {
+            onComplete();
+        }
+    };
     
     const handleGenerateCovenant = async () => {
         if (!db) { addLog('error', 'Database not connected.'); return; }
@@ -549,7 +595,13 @@ function App() {
                             onDeletePrompt={handleDeletePrompt}
                         />;
             case 'migration':
-                return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} onOpenOverrideModal={handleOpenOverrideModal} />;
+                return <MigrationPanel 
+                            stagedData={stagedData} 
+                            setStagedData={setStagedData} 
+                            addLog={addLog} 
+                            db={db} 
+                            onOpenOverrideModal={handleOpenOverrideModal} 
+                        />;
             case 'admin':
                 return <AdminPanel 
                             db={db} 
@@ -568,6 +620,7 @@ function App() {
                             onPromptSelect={handlePromptSelect}
                             onPromptContentChange={handlePromptContentChange}
                             onSaveNewPrompt={handleSaveNewPromptVersion}
+                            onUpsertData={handleUpsertData}
                         />;
             default: return null;
         }

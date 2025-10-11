@@ -76,10 +76,7 @@ const DeconstructorTestbed = ({
         setRawApiResponse('');
 
         const allItems = JSON.parse(cleanJson);
-        
-        // CORRECTIVE ACTION: Batch size reduced to 5 to avoid API token limits.
         const chunkSize = 5;
-
         const chunks = [];
         for (let i = 0; i < allItems.length; i += chunkSize) {
             chunks.push(allItems.slice(i, i + chunkSize));
@@ -87,6 +84,7 @@ const DeconstructorTestbed = ({
 
         addLog('special', `Deconstructor engaged. Processing ${allItems.length} items in ${chunks.length} batches.`);
         
+        let allRawResponses = []; // Temporary array to hold raw responses
         const allDeconstructedData = [];
 
         try {
@@ -119,7 +117,6 @@ const DeconstructorTestbed = ({
                     }
                     rawJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (!rawJsonText) {
-                        // If there's no text but the request was okay, it could be a safety block.
                         const safetyFeedback = result.candidates?.[0]?.finishReason;
                         if(safetyFeedback === 'SAFETY') {
                              throw new Error('AI response blocked due to safety settings.');
@@ -130,7 +127,8 @@ const DeconstructorTestbed = ({
                     throw error;
                 }
                 
-                setRawApiResponse(prev => prev + `--- BATCH ${i+1} RESPONSE ---\n` + rawJsonText + `\n\n`);
+                allRawResponses.push(`--- BATCH ${i+1} RESPONSE ---\n` + rawJsonText + `\n\n`);
+                setRawApiResponse(allRawResponses.join(''));
 
                 let deconstructedChunk;
                 let cleanedJsonText = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -156,8 +154,22 @@ const DeconstructorTestbed = ({
                 }
             }
 
-            addLog('special', `All batches complete. Total items deconstructed: ${allDeconstructedData.length}.`);
-            setStagedData(allDeconstructedData);
+            const finalData = allDeconstructedData.map(item => {
+                const newItem = { ...item };
+                let cooldown = 0;
+                if (newItem.cooldown_text && typeof newItem.cooldown_text === 'string') {
+                    const match = newItem.cooldown_text.match(/\d+/);
+                    if (match) {
+                        cooldown = parseInt(match[0], 10);
+                    }
+                }
+                newItem.internal_cooldown_seconds = cooldown;
+                delete newItem.cooldown_text;
+                return newItem;
+            });
+
+            addLog('special', `All batches complete. Total items finalized: ${finalData.length}.`);
+            setStagedData(finalData);
             addLog('success', `Data delivered to Migration Workshop.`);
             setActiveTab('migration');
             addLog('info', 'Auto-pilot to Migration Staging.');
@@ -213,6 +225,17 @@ const DeconstructorTestbed = ({
                             className="w-full flex-grow bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs"
                             placeholder="Select a prompt to view/edit its content..."
                             disabled={isProcessing}
+                        />
+                    </div>
+                    {/* --- NEW DIAGNOSTIC PORT --- */}
+                    <div className="flex flex-col flex-grow">
+                        <label htmlFor="rawApiResponse" className="block text-sm font-medium text-gray-400 mb-1">Raw AI Response (Diagnostic)</label>
+                        <textarea
+                            id="rawApiResponse"
+                            readOnly
+                            value={rawApiResponse}
+                            className="w-full flex-grow bg-black/50 text-red-400 p-2 rounded border border-red-500/50 focus:outline-none font-mono text-xs"
+                            placeholder="Raw, unfiltered AI output will appear here..."
                         />
                     </div>
                     <button 

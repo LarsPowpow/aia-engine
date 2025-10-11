@@ -245,7 +245,16 @@ const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
                 }
             }
 
-            const fields = fieldsToExtract.split(',').map(f => f.trim());
+            // If fieldsToExtract is blank, passthru the cleaned data unchanged
+            if (!fieldsToExtract.trim()) {
+                const passthruJsonString = JSON.stringify(dataToProcess, null, 2);
+                setCleanedJson(passthruJsonString);
+                onDataCleaned(passthruJsonString);
+                addLog('success', `Passthru: ${dataToProcess.length} item(s) processed unchanged.`);
+                return;
+            }
+
+            const fields = fieldsToExtract.split(',').map(f => f.trim()).filter(Boolean);
             const cleanedArray = dataToProcess.map(item => {
                 const newItem = {};
                 fields.forEach(field => {

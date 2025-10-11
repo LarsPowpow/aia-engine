@@ -1,8 +1,8 @@
-// FILE: src/components/AdminPanel.jsx
 import React from 'react';
 import PromptInjector from './PromptInjector.jsx';
 import SchemaGovernorPanel from './SchemaGovernorPanel.jsx';
-import DangerZone from './DangerZone.jsx'; // Import the new component
+import DangerZone from './DangerZone.jsx';
+import ManualUpsertPanel from './ManualUpsertPanel.jsx'; // Import the new component
 
 const AdminPanel = ({ 
     onClearUkb, 
@@ -20,7 +20,8 @@ const AdminPanel = ({
     onSaveNewPrompt,
     addLog,
     UKB_SCHEMAS,
-    onSchemaChange
+    onSchemaChange,
+    onUpsertData 
 }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -42,6 +43,12 @@ const AdminPanel = ({
                     onSaveNewPrompt={onSaveNewPrompt}
                     addLog={addLog}
                 /> 
+                <ManualUpsertPanel
+                    db={db}
+                    addLog={addLog}
+                    collections={[ 'runeglass', 'perks', 'weapon_mastery', 'game_constants', 'status_effects', 'attribute_bonuses', 'builds', 'effects', 'abilities', 'raw_data_archive' ]}
+                    onUpsertData={onUpsertData}
+                />
             </div>
 
             {/* --- RIGHT COLUMN (1/3 width) --- */}
@@ -65,7 +72,6 @@ const AdminPanel = ({
                             Clear System Log
                         </button>
                         
-                        {/* Install the new Danger Zone component */}
                         <DangerZone 
                             onClearUkb={onClearUkb}
                             onClearArchive={onClearArchive}
