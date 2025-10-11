@@ -5,33 +5,39 @@ const DeconstructorTestbed = ({ apiKey, onApiKeyChange, addLog, cleanJson, setSt
     const [rawApiResponse, setRawApiResponse] = useState('');
 
     const buildPrompt = (promptTemplate, jsonData) => {
-        // We will need to make sure the activePromptContent is not null before using replace
-        if (!promptTemplate) {
-            return '';
-        }
+        if (!promptTemplate) return '';
         return promptTemplate.replace('{jsonData}', jsonData);
     };
 
+    const attemptJsonCompletion = (text) => {
+        let repairedText = text.trim();
+        if (repairedText.startsWith('[') && !repairedText.endsWith(']')) {
+            const lastBraceIndex = repairedText.lastIndexOf('}');
+            if (lastBraceIndex !== -1) {
+                repairedText = repairedText.substring(0, lastBraceIndex + 1);
+                repairedText += '\n]\n';
+                try {
+                    JSON.parse(repairedText);
+                    return repairedText; 
+                } catch (e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    };
+
     const handleDeconstruct = async () => {
-        if (!apiKey) {
-            addLog('error', 'API Key is missing. Cannot run the Deconstructor.');
-            return;
-        }
-        if (!cleanJson) {
-            addLog('error', 'No clean JSON data has been received from the Cleaner. Cannot run Deconstructor.');
-            return;
-        }
-        if (!activePromptContent) {
-            addLog('error', 'No AI prompt is loaded. Please select or create one in the Admin Panel.');
-            return;
-        }
+        if (!apiKey) { addLog('error', 'API Key is missing.'); return; }
+        if (!cleanJson) { addLog('error', 'No clean JSON from Cleaner.'); return; }
+        if (!activePromptContent) { addLog('error', 'No AI prompt is loaded.'); return; }
 
         const currentPrompt = buildPrompt(activePromptContent, cleanJson);
         setPromptToSend(currentPrompt);
         setRawApiResponse('');
 
         addLog('info', `Deconstructor engaged. Contacting Gemini API with ${JSON.parse(cleanJson).length} items...`);
-
+        
         // Using the EXACT verified endpoint AND model from the curl command
         const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
@@ -53,17 +59,30 @@ const DeconstructorTestbed = ({ apiKey, onApiKeyChange, addLog, cleanJson, setSt
                 throw new Error(`API request failed with status ${response.status}: ${result.error.message}`);
             }
 
-            if (!result.candidates || !result.candidates[0].content || !result.candidates[0].content.parts || !result.candidates[0].content.parts[0].text) {
+            if (!result.candidates?.[0]?.content?.parts?.[0]?.text) {
                 console.error("Unexpected API response structure:", result);
                 setRawApiResponse(JSON.stringify(result, null, 2));
                 throw new Error("Invalid or unexpected response structure from Gemini API.");
             }
 
-            const rawJsonText = result.candidates[0].content.parts[0].text;
+            let rawJsonText = result.candidates[0].content.parts[0].text;
             setRawApiResponse(rawJsonText);
+            
+            let deconstructedData;
+            let cleanedJsonText = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
 
-            const cleanedJsonText = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
-            const deconstructedData = JSON.parse(cleanedJsonText);
+            try {
+                deconstructedData = JSON.parse(cleanedJsonText);
+            } catch (parseError) {
+                addLog('warning', 'Initial JSON parse failed. Engaging Auto-Completer...');
+                const repairedJson = attemptJsonCompletion(cleanedJsonText);
+                if (repairedJson) {
+                    addLog('success', 'Auto-Completer successful. JSON structure has been repaired.');
+                    deconstructedData = JSON.parse(repairedJson);
+                } else {
+                    throw parseError; 
+                }
+            }
 
             addLog('success', `Deconstruction complete. ${deconstructedData.length} items received from AI.`);
             setStagedData(deconstructedData);
@@ -81,7 +100,6 @@ const DeconstructorTestbed = ({ apiKey, onApiKeyChange, addLog, cleanJson, setSt
         <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
             <h3 className="text-2xl font-semibold text-gray-300 mb-4">AI Deconstructor Workshop</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
                 <div className="space-y-4">
                     <div>
                         <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-1"> Gemini API Key (Set it and Forget it) </label>
@@ -93,7 +111,6 @@ const DeconstructorTestbed = ({ apiKey, onApiKeyChange, addLog, cleanJson, setSt
                     </div>
                     <button onClick={handleDeconstruct} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg"> Run AI Deconstructor </button>
                 </div>
-
                 <div className="space-y-4">
                     <div>
                         <label htmlFor="promptDisplay" className="block text-sm font-medium text-gray-300 mb-1"> Current Prompt (What we're sending) </label>
