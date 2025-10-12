@@ -249,6 +249,7 @@ function App() {
     const [db, setDb] = useState(null);
     const [stagedData, setStagedData] = useState([]);
     const [apiKey, setApiKey] = useState('');
+    const [geminiModel, setGeminiModel] = useState(null); // <-- ADD THIS STATE
     const [prompts, setPrompts] = useState([]);
     const [selectedPromptId, setSelectedPromptId] = useState('');
     const [activePromptContent, setActivePromptContent] = useState('');
@@ -264,6 +265,20 @@ function App() {
         const typeClasses = { success: 'text-emerald-400', error: 'text-red-400', info: 'text-gray-400', special: 'text-amber-400', system: 'text-purple-400'};
         setLogs(prevLogs => [...prevLogs, { timestamp, message, typeClass: typeClasses[type] || typeClasses.info }]);
     }, []);
+    
+    // --- ADD THIS EFFECT TO INITIALIZE THE MODEL ---
+    useEffect(() => {
+        if (apiKey) {
+            try {
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+                setGeminiModel(model);
+                addLog('success', 'Gemini Pro Model Initialized.');
+            } catch (error) {
+                addLog('error', `Failed to initialize Gemini Model: ${error.message}`);
+            }
+        }
+    }, [apiKey, addLog]);
     
     const fetchPrompts = useCallback(async (firestore) => {
         if (!firestore) return;
@@ -360,6 +375,44 @@ function App() {
         };
         fetchAllData();
     }, [addLog, fetchPrompts]);
+    
+    // --- DECONSTRUCTOR: Calls backend Gemini proxy ---
+    const handleDeconstruct = async (prompt, jsonInput) => {
+        addLog('info', 'Deconstructor initiated. Sending request to backend...');
+        if (!apiKey) {
+            addLog('error', 'Deconstructor Error: Gemini API Key not set.');
+            return JSON.stringify({ error: 'Gemini API Key not set.' });
+        }
+        if (!jsonInput.trim()) {
+            addLog('error', 'Deconstructor Error: Input JSON is empty.');
+            return JSON.stringify({ error: 'Input JSON is empty.' });
+        }
+        try {
+            const response = await fetch('/server/deconstruct', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, jsonInput, apiKey })
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Unknown error from backend');
+            }
+            const data = await response.json();
+            if (!data.result) {
+                throw new Error('AI returned an empty response. The request may have been blocked.');
+            }
+            addLog('success', 'Deconstruction successful. AI analysis complete.');
+            return data.result;
+        } catch (error) {
+            console.error('DECONSTRUCTOR CRITICAL FAILURE:', error);
+            addLog('error', `FATAL ERROR in Deconstructor: ${error.message}`);
+            return JSON.stringify({
+                error: 'Deconstructor AI call failed. See System Log for details.',
+                details: error.message
+            }, null, 2);
+        }
+    };
+
 
     const handleApiKeyChange = (e) => {
         const newKey = e.target.value;
@@ -596,6 +649,7 @@ function App() {
                             onPromptContentChange={handlePromptContentChange}
                             onSaveNewPrompt={handleSaveNewPromptVersion}
                             onDeletePrompt={handleDeletePrompt}
+                            onDeconstruct={handleDeconstruct} // <-- FIX: Connect the real function
                         />;
             case 'migration':
                 return <MigrationPanel 
