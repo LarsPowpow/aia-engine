@@ -11,6 +11,7 @@ import ForgePanel from './components/ForgePanel.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 import OverrideModal from './components/OverrideModal.jsx';
 import MigrationPanel from "./components/MigrationPanel.jsx";
+import CombatSimulatorPage from './components/CombatSimulatorPage.jsx';
 import { OverridesContext } from './contexts/OverridesContext.jsx';
 import { SchemaContext } from './contexts/SchemaContext.jsx';
 
@@ -83,16 +84,15 @@ function App() {
     // --- Active Prompt Content State ---
     const [activePromptContent, setActivePromptContent] = useState('');
     // --- Combat Simulator Test Button ---
-    const handleRunSimulation = async () => {
+    const handleRunSimulation = () => { // Removed async, as it's not needed for this hardcoded version
         addLog('special', 'Running Combat Simulation v3.0 (Two-Actor)...');
         
-        // Define two combatants with different stats
         const playerConfig = {
             id: 'player',
             name: 'Player',
             health: 1200,
             base_damage: 55,
-            attack_speed: 1.1 // in seconds (e.g., a Sword)
+            attack_speed: 1.1 
         };
 
         const enemyConfig = {
@@ -100,17 +100,17 @@ function App() {
             name: 'Corrupted Swordsman',
             health: 900,
             base_damage: 40,
-            attack_speed: 1.3 // in seconds
+            attack_speed: 1.3
         };
         
         addLog('info', `Simulating: ${playerConfig.name} vs ${enemyConfig.name}`);
 
         const combatLog = runSimulation(playerConfig, enemyConfig);
 
-        console.log('--- COMBAT SIMULATION LOG (v3.0) ---');
-        console.table(combatLog);
-        console.log('--- END OF LOG ---');
-        addLog('success', `Gladiator simulation complete. ${combatLog.length - 2} events logged to console.`);
+        // We no longer log to console here
+        addLog('success', `Gladiator simulation complete. ${combatLog.length - 2} events generated.`);
+        
+        return combatLog; // --- THIS IS THE KEY CHANGE ---
     };
     // Removed stray addLog call
 
@@ -356,64 +356,18 @@ function App() {
 
     const renderContent = () => {
         switch (activeTab) {
-            case 'viewer': return <ViewerPage db={db} addLog={addLog} />;
+            case 'viewer':
+                return <ViewerPage db={db} addLog={addLog} />;
             case 'forge':
-                return <ForgePanel 
-                            db={db} 
-                            setStagedData={setStagedData} 
-                            addLog={addLog} 
-                            logs={logs}
-                            isLogExpanded={isLogExpanded}
-                            setIsLogExpanded={setIsLogExpanded}
-                            setActiveTab={setActiveTab} 
-                            apiKey={apiKey} 
-                            onApiKeyChange={handleApiKeyChange} 
-                            activePromptContent={activePromptContent}
-                            prompts={prompts}
-                            selectedPromptId={selectedPromptId}
-                            onPromptSelect={handlePromptSelect}
-                            onPromptContentChange={handlePromptContentChange}
-                            onSaveNewPrompt={handleSaveNewPromptVersion}
-                            onDeletePrompt={handleDeletePrompt}
-                            promptName={promptName}
-                            onPromptNameChange={setPromptName}
-                            onDeconstruct={handleDeconstruct}
-                        />;
+                return <ForgePanel db={db} setStagedData={setStagedData} addLog={addLog} logs={logs} isLogExpanded={isLogExpanded} setIsLogExpanded={setIsLogExpanded} setActiveTab={setActiveTab} apiKey={apiKey} onApiKeyChange={handleApiKeyChange} activePromptContent={activePromptContent} prompts={prompts} selectedPromptId={selectedPromptId} onPromptSelect={handlePromptSelect} onPromptContentChange={handlePromptContentChange} onSaveNewPrompt={handleSaveNewPromptVersion} onDeletePrompt={handleDeletePrompt} promptName={promptName} onPromptNameChange={setPromptName} onDeconstruct={handleDeconstruct} />;
             case 'migration':
-                return <MigrationPanel 
-                            stagedData={stagedData} 
-                            setStagedData={setStagedData} 
-                            addLog={addLog} 
-                            db={db} 
-                            effectsManifest={effectsManifest}
-                            onOpenOverrideModal={handleOpenOverrideModal} 
-                            UKB_SCHEMAS={UKB_SCHEMAS}
-                        />;
+                return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} effectsManifest={effectsManifest} onOpenOverrideModal={handleOpenOverrideModal} UKB_SCHEMAS={UKB_SCHEMAS} />;
+            case 'combat_simulator':
+                return <CombatSimulatorPage addLog={addLog} handleRunSimulation={handleRunSimulation} />;
             case 'admin':
-                return <AdminPanel 
-                            db={db} 
-                            addLog={addLog}
-                            UKB_SCHEMAS={UKB_SCHEMAS}
-                            onSchemaChange={handleSchemaChange}
-                            onClearUkb={handleClearUkb}
-                            onClearArchive={handleClearArchive}
-                            onBootstrapData={handleBootstrapData}
-                            covenant={covenant}
-                            onGenerateCovenant={handleGenerateCovenant}
-                            onClearSystemLog={handleClearSystemLog}
-                            prompts={prompts}
-                            selectedPromptId={selectedPromptId}
-                            activePromptContent={activePromptContent}
-                            onPromptSelect={handlePromptSelect}
-                            onPromptContentChange={handlePromptContentChange}
-                            onSaveNewPrompt={handleSaveNewPromptVersion}
-                            onDeletePrompt={handleDeletePrompt}
-                            promptName={promptName}
-                            onPromptNameChange={setPromptName}
-                            onUpsertData={handleUpsertData}
-                            handleRunSimulation={handleRunSimulation}
-                        />;
-            default: return null;
+                return <AdminPanel db={db} addLog={addLog} UKB_SCHEMAS={UKB_SCHEMAS} onSchemaChange={handleSchemaChange} onClearUkb={handleClearUkb} onClearArchive={handleClearArchive} onBootstrapData={handleBootstrapData} covenant={covenant} onGenerateCovenant={handleGenerateCovenant} onClearSystemLog={handleClearSystemLog} prompts={prompts} selectedPromptId={selectedPromptId} activePromptContent={activePromptContent} onPromptSelect={handlePromptSelect} onPromptContentChange={handlePromptContentChange} onSaveNewPrompt={handleSaveNewPromptVersion} onDeletePrompt={handleDeletePrompt} promptName={promptName} onPromptNameChange={setPromptName} onUpsertData={handleUpsertData} />;
+            default:
+                return null;
         }
     };
 

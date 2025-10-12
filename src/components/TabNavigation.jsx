@@ -6,6 +6,7 @@ function TabNavigation({ activeTab, setActiveTab }) {
         { id: 'viewer', label: 'UKB Viewer' },
         { id: 'forge', label: 'The Forge' },
         { id: 'migration', label: 'Migration Staging' },
+        { id: 'combat_simulator', label: 'Combat Simulator' },
         { id: 'admin', label: 'System Administration' },
     ];
 
