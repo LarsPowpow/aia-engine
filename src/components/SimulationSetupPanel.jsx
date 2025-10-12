@@ -1,7 +1,19 @@
 import React from 'react';
 import CombatantPanel from './CombatantPanel';
 
-const SimulationSetupPanel = ({ combatantA, combatantB, setCombatantA, setCombatantB }) => {
+const SimulationSetupPanel = ({
+  combatantA,
+  combatantB,
+  setCombatantA,
+  setCombatantB,
+  allPerks = [],
+  selectedPerksA = [],
+  onPerkAddA,
+  onPerkRemoveA,
+  selectedPerksB = [],
+  onPerkAddB,
+  onPerkRemoveB
+}) => {
   const handleAttributeChange = (setter) => (e) => {
     const { name, value } = e.target;
     setter(prev => ({
@@ -21,11 +33,19 @@ const SimulationSetupPanel = ({ combatantA, combatantB, setCombatantA, setCombat
           title="Combatant A: Your Build" 
           attributes={combatantA.attributes}
           onAttributeChange={handleAttributeChange(setCombatantA)}
+          allPerks={allPerks}
+          selectedPerks={selectedPerksA}
+          onPerkAdd={onPerkAddA}
+          onPerkRemove={onPerkRemoveA}
         />
         <CombatantPanel 
           title="Combatant B: Target" 
           attributes={combatantB.attributes}
           onAttributeChange={handleAttributeChange(setCombatantB)}
+          allPerks={allPerks}
+          selectedPerks={selectedPerksB}
+          onPerkAdd={onPerkAddB}
+          onPerkRemove={onPerkRemoveB}
         />
       </div>
     </div>

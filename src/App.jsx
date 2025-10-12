@@ -1,4 +1,3 @@
-import { runSimulation, loadUKBDocument } from './simulation/engine.js';
 import { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, setDoc, updateDoc, arrayUnion, deleteDoc, getDoc } from "firebase/firestore";
@@ -67,7 +66,7 @@ function App() {
     const [isLogExpanded, setIsLogExpanded] = useState(false);
     // --- API Key State ---
     const [apiKey, setApiKey] = useState('');
-    const [activeTab, setActiveTab] = useState('admin');
+    const [activeTab, setActiveTab] = useState('combat_simulator');
     const [logs, setLogs] = useState([]);
     const [db, setDb] = useState(null);
     const [overrideRules, setOverrideRules] = useState({});
@@ -83,36 +82,6 @@ function App() {
     const [selectedPromptId, setSelectedPromptId] = useState('');
     // --- Active Prompt Content State ---
     const [activePromptContent, setActivePromptContent] = useState('');
-    // --- Combat Simulator Test Button ---
-    const handleRunSimulation = () => { // Removed async, as it's not needed for this hardcoded version
-        addLog('special', 'Running Combat Simulation v3.0 (Two-Actor)...');
-        
-        const playerConfig = {
-            id: 'player',
-            name: 'Player',
-            health: 1200,
-            base_damage: 55,
-            attack_speed: 1.1 
-        };
-
-        const enemyConfig = {
-            id: 'corrupted_swordsman',
-            name: 'Corrupted Swordsman',
-            health: 900,
-            base_damage: 40,
-            attack_speed: 1.3
-        };
-        
-        addLog('info', `Simulating: ${playerConfig.name} vs ${enemyConfig.name}`);
-
-        const combatLog = runSimulation(playerConfig, enemyConfig);
-
-        // We no longer log to console here
-        addLog('success', `Gladiator simulation complete. ${combatLog.length - 2} events generated.`);
-        
-        return combatLog; // --- THIS IS THE KEY CHANGE ---
-    };
-    // Removed stray addLog call
 
     // Modal open/close handlers
     const handleOpenOverrideModal = (data) => {
@@ -137,7 +106,6 @@ function App() {
         ]);
     }, []);
     
-    // Removed stray addLog call
     const fetchPrompts = useCallback(async (firestore) => {
         if (!firestore) return;
         addLog('info', 'Refreshing prompt library...');
@@ -363,9 +331,31 @@ function App() {
             case 'migration':
                 return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} effectsManifest={effectsManifest} onOpenOverrideModal={handleOpenOverrideModal} UKB_SCHEMAS={UKB_SCHEMAS} />;
             case 'combat_simulator':
-                return <CombatSimulatorPage addLog={addLog} handleRunSimulation={handleRunSimulation} />;
+                return <CombatSimulatorPage
+                            addLog={addLog} // Pass addLog down
+                        />;
             case 'admin':
-                return <AdminPanel db={db} addLog={addLog} UKB_SCHEMAS={UKB_SCHEMAS} onSchemaChange={handleSchemaChange} onClearUkb={handleClearUkb} onClearArchive={handleClearArchive} onBootstrapData={handleBootstrapData} covenant={covenant} onGenerateCovenant={handleGenerateCovenant} onClearSystemLog={handleClearSystemLog} prompts={prompts} selectedPromptId={selectedPromptId} activePromptContent={activePromptContent} onPromptSelect={handlePromptSelect} onPromptContentChange={handlePromptContentChange} onSaveNewPrompt={handleSaveNewPromptVersion} onDeletePrompt={handleDeletePrompt} promptName={promptName} onPromptNameChange={setPromptName} onUpsertData={handleUpsertData} />;
+                return <AdminPanel 
+                            db={db} 
+                            addLog={addLog} 
+                            UKB_SCHEMAS={UKB_SCHEMAS} 
+                            onSchemaChange={handleSchemaChange} 
+                            onClearUkb={handleClearUkb} 
+                            onClearArchive={handleClearArchive} 
+                            onBootstrapData={handleBootstrapData} 
+                            covenant={covenant} 
+                            onGenerateCovenant={handleGenerateCovenant} 
+                            onClearSystemLog={handleClearSystemLog} 
+                            prompts={prompts} 
+                            selectedPromptId={selectedPromptId} 
+                            activePromptContent={activePromptContent} 
+                            onPromptSelect={handlePromptSelect} 
+                            onPromptContentChange={handlePromptContentChange} 
+                            onSaveNewPrompt={handleSaveNewPromptVersion} 
+                            onDeletePrompt={handleDeletePrompt} 
+                            promptName={promptName} 
+                            onPromptNameChange={setPromptName} 
+                            onUpsertData={handleUpsertData} />;
             default:
                 return null;
         }

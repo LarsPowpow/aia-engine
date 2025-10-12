@@ -1,6 +1,15 @@
 import React from 'react';
+import PerkSelector from './PerkSelector';
 
-const CombatantPanel = ({ title, attributes = {}, onAttributeChange }) => {
+const CombatantPanel = ({
+  title,
+  attributes = {},
+  onAttributeChange,
+  allPerks = [],
+  selectedPerks = [],
+  onPerkAdd,
+  onPerkRemove
+}) => {
   const attributeFields = [
     { key: 'str', label: 'STR' },
     { key: 'dex', label: 'DEX' },
@@ -34,7 +43,14 @@ const CombatantPanel = ({ title, attributes = {}, onAttributeChange }) => {
       {/* ------------------------ */}
       <div className="space-y-2 mt-4 border-t border-gray-700 pt-4">
         <p className="text-sm text-gray-500">Build Selector: [Coming Soon]</p>
-        <p className="text-sm text-gray-500">Weapon Perks: [Coming Soon]</p>
+        {/* --- INTEGRATED PERK SELECTOR --- */}
+        <PerkSelector
+          allPerks={allPerks}
+          selectedPerks={selectedPerks}
+          onPerkAdd={onPerkAdd}
+          onPerkRemove={onPerkRemove}
+        />
+        {/* -------------------------------- */}
         <p className="text-sm text-gray-500">Armor Perks: [Coming Soon]</p>
         <p className="text-sm text-gray-500">Jewelry Perks: [Coming Soon]</p>
       </div>
