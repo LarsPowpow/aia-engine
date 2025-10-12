@@ -247,7 +247,6 @@ function App() {
     const [activeTab, setActiveTab] = useState('admin');
     const [logs, setLogs] = useState([]);
     const [db, setDb] = useState(null);
-    const [stagedData, setStagedData] = useState([]);
     const [apiKey, setApiKey] = useState('');
     const [geminiModel, setGeminiModel] = useState(null); // <-- ADD THIS STATE
     const [prompts, setPrompts] = useState([]);
@@ -259,6 +258,20 @@ function App() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalData, setModalData] = useState(null);
     const [covenant, setCovenant] = useState('Covenant text not yet generated.');
+    
+        // --- Persist stagedData in localStorage ---
+        const [stagedData, setStagedData] = useState(() => {
+            const saved = localStorage.getItem('aia_stagedData');
+            try {
+                return saved ? JSON.parse(saved) : [];
+            } catch {
+                return [];
+            }
+        });
+    
+        useEffect(() => {
+            localStorage.setItem('aia_stagedData', JSON.stringify(stagedData));
+        }, [stagedData]);
 
     const addLog = useCallback((type, message) => {
         const timestamp = new Date().toLocaleTimeString();

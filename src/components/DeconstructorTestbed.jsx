@@ -65,8 +65,41 @@ const DeconstructorTestbed = ({
             return;
         }
         try {
-            const parsedData = JSON.parse(finalJson);
-            setStagedData(parsedData);
+            console.log('Deconstructor finalJson:', finalJson);
+            let parsedData = JSON.parse(finalJson);
+            console.log('Deconstructor parsedData:', parsedData);
+            if (!Array.isArray(parsedData)) {
+                parsedData = [parsedData];
+            }
+            // Map perk data to ability schema
+            const mappedData = parsedData.map(item => {
+                // Extract cooldown from description string
+                let cooldown = item.internal_cooldown_seconds || item.internal_cooldown || item.cooldown || item.cooldown_seconds || 0;
+                if (!cooldown && item.description) {
+                    const match = item.description.match(/\((\d+)s cooldown\)/i);
+                    if (match) {
+                        cooldown = parseInt(match[1], 10);
+                    }
+                }
+                return {
+                    ability_id: item.perk_id || item.ability_id || '',
+                    name: item.name || '',
+                    type: item.type || item.category || 'PERK',
+                    trigger: item.trigger || item.perk_bucket || '',
+                    effects_to_apply: item.linked_effects || item.effects_to_apply || [],
+                    prerequisites: item.prerequisites || [],
+                    internal_cooldown_seconds: cooldown,
+                    description: item.description || '',
+                    category: item.category || '',
+                    perk_bucket: item.perk_bucket || '',
+                    exclusive_to: item.exclusive_to || '',
+                    build_archetype: item.build_archetype || '',
+                    synergy_notes: item.synergy_notes || '',
+                    // Preserve any extra fields from the original item
+                    ...item
+                };
+            });
+            setStagedData(mappedData);
             setActiveTab('Migration');
             addLog('success', 'Enriched data has been sent to the Migration Staging Area.');
         } catch (e) {
