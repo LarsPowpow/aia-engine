@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import JSONCleaner from './JSONCleaner.jsx';
 import DeconstructorTestbed from './DeconstructorTestbed.jsx';
@@ -26,6 +27,35 @@ const ForgePanel = ({
 }) => {
     const [rawJsonFromScribe, setRawJsonFromScribe] = useState('');
     const [cleanJsonForDeconstructor, setCleanJsonForDeconstructor] = useState('');
+    const [selectedScribePromptId, setSelectedScribePromptId] = useState(() => {
+        const saved = localStorage.getItem('selectedScribePromptId');
+        return saved || (prompts && prompts.length > 0 ? prompts[0].id : '');
+    });
+    const [selectedDeconstructorPromptId, setSelectedDeconstructorPromptId] = useState(() => {
+        const saved = localStorage.getItem('selectedDeconstructorPromptId');
+        return saved || '';
+    });
+
+    // Update selectedScribePromptId if prompts change and no prompt is selected
+    React.useEffect(() => {
+        if ((!selectedScribePromptId || !prompts.find(p => p.id === selectedScribePromptId)) && prompts && prompts.length > 0) {
+            setSelectedScribePromptId(prompts[0].id);
+        }
+    }, [prompts]);
+
+    // Persist Scribe selection
+    React.useEffect(() => {
+        if (selectedScribePromptId) {
+            localStorage.setItem('selectedScribePromptId', selectedScribePromptId);
+        }
+    }, [selectedScribePromptId]);
+
+    // Persist Deconstructor selection
+    React.useEffect(() => {
+        if (selectedDeconstructorPromptId) {
+            localStorage.setItem('selectedDeconstructorPromptId', selectedDeconstructorPromptId);
+        }
+    }, [selectedDeconstructorPromptId]);
 
     return (
         <div className="flex flex-col space-y-8">
@@ -33,8 +63,8 @@ const ForgePanel = ({
             <ScribePanel
                 onImageData={setRawJsonFromScribe}
                 prompts={prompts}
-                onPromptSelect={onPromptSelect}
-                selectedPromptId={selectedPromptId}
+                onPromptSelect={setSelectedScribePromptId}
+                selectedPromptId={selectedScribePromptId}
                 addLog={addLog}
                 apiKey={apiKey}
                 onScribe={onScribe}
@@ -58,6 +88,8 @@ const ForgePanel = ({
                 setStagedData={setStagedData}
                 setActiveTab={setActiveTab}
                 onDeconstruct={onDeconstruct}
+                selectedPromptId={selectedDeconstructorPromptId}
+                onPromptSelect={setSelectedDeconstructorPromptId}
             />
 
             {/* SystemLog removed from ForgePanel. Only global SystemLog remains. */}

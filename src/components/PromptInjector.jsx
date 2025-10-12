@@ -7,8 +7,15 @@ const PromptInjector = ({
     onPromptSelect, 
     onPromptContentChange, 
     onSaveNewPrompt, 
-    onDeletePrompt
+    onDeletePrompt, 
+    promptName, 
+    onPromptNameChange
 }) => {
+
+    // Diagnostic logging for prompts prop
+    React.useEffect(() => {
+        console.log('prompts in PromptInjector:', prompts);
+    }, [prompts]);
 
     return (
         <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700 col-span-1 lg:col-span-3">
@@ -16,6 +23,19 @@ const PromptInjector = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Left Column: Controls */}
                 <div className="md:col-span-1 space-y-4">
+                    <div>
+                        <label htmlFor="prompt-name" className="block text-sm font-medium text-gray-300 mb-1">
+                            Prompt Name (for new version)
+                        </label>
+                        <input
+                            id="prompt-name"
+                            type="text"
+                            value={promptName}
+                            onChange={e => onPromptNameChange(e.target.value)}
+                            className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 mb-2"
+                            placeholder="Enter a name for your prompt..."
+                        />
+                    </div>
                     <div>
                         <label htmlFor="prompt-select" className="block text-sm font-medium text-gray-300 mb-1">
                             Select Prompt Version
@@ -26,9 +46,12 @@ const PromptInjector = ({
                             onChange={(e) => onPromptSelect(e.target.value)}
                             className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
                         >
-                            {prompts.map(prompt => (
-                                <option key={prompt.id} value={prompt.id}>{prompt.name || prompt.id}</option>
-                            ))}
+                            {Array.isArray(prompts) && prompts.length > 0
+                                ? prompts.map(prompt => (
+                                    <option key={prompt.id} value={prompt.id}>{prompt.name || prompt.id}</option>
+                                ))
+                                : <option value="">No prompts available</option>
+                            }
                         </select>
                     </div>
                     <button

@@ -22,7 +22,9 @@ const AdminPanel = ({
     addLog,
     UKB_SCHEMAS,
     onSchemaChange,
-    onUpsertData 
+    onUpsertData,
+    promptName,
+    onPromptNameChange
 }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -44,6 +46,8 @@ const AdminPanel = ({
                     onSaveNewPrompt={onSaveNewPrompt}
                     onDeletePrompt={onDeletePrompt}
                     addLog={addLog}
+                    promptName={promptName}
+                    onPromptNameChange={onPromptNameChange}
                 /> 
                 <ManualUpsertPanel
                     db={db}

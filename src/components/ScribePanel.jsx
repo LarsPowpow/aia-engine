@@ -1,10 +1,15 @@
 // FILE: src/components/ScribePanel.jsx
 import React, { useState, useRef, useEffect } from 'react';
 
-const ScribePanel = ({ onImageData, prompts, onPromptSelect, selectedPromptId, addLog }) => {
+const ScribePanel = ({ onImageData, prompts, onPromptSelect, selectedPromptId, addLog, apiKey }) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [isPasteActive, setIsPasteActive] = useState(false);
     const fileInputRef = useRef(null);
+
+    // Diagnostic logging for prompts prop
+    useEffect(() => {
+        console.log('prompts in ScribePanel:', prompts);
+    }, [prompts]);
 
     const handlePaste = (e) => {
         const items = (e.clipboardData || e.originalEvent.clipboardData).items;
@@ -32,62 +37,89 @@ const ScribePanel = ({ onImageData, prompts, onPromptSelect, selectedPromptId, a
         }
     };
 
-    const processImage = (blob) => {
-        setIsProcessing(true);
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const base64ImageData = event.target.result.split(',')[1];
-            // Compose the prompt from the selected prompt
-            const selectedPrompt = scribePrompts.find(p => p.id === selectedPromptId);
-            const promptText = selectedPrompt ? selectedPrompt.content : '';
-            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-            const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-            const payload = {
-                contents: [
-                    {
-                        parts: [
-                            { text: promptText },
-                            { inline_data: { mime_type: blob.type, data: base64ImageData } }
-                        ]
-                    }
-                ]
-            };
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-goog-api-key': apiKey
-                    },
-                    body: JSON.stringify(payload)
-                });
-                if (!response.ok) {
-                    const errorBody = await response.text();
-                    addLog('error', `API Error: ${response.status} ${response.statusText} - ${errorBody}`);
-                } else {
-                    const result = await response.json();
-                    const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (jsonText) {
-                        const cleanedJson = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
-                        if (typeof onImageData === 'function') {
-                            onImageData(cleanedJson);
-                        }
-                        addLog('success', 'Scribe analysis complete.');
-                    } else {
-                        addLog('error', 'No valid JSON content returned from API.');
-                    }
+
+    // Gemini Vision API call - CORRECTED
+
+    const callScribeAPI = async (base64ImageData) => {
+        if (!apiKey) {
+            addLog('error', 'Scribe Error: Gemini API key is missing.');
+            return null;
+        }
+        addLog('info', 'Calling Scribe AI (gemini-2.0-flash)...');
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
+
+        // Compose the prompt from the selected prompt
+        const selectedPrompt = scribePrompts.find(p => p.id === selectedPromptId);
+        const promptText = selectedPrompt ? selectedPrompt.content : "You are an expert data entry assistant for the game New World. Your task is to analyze an image of a tooltip or list of tooltips and extract the name and description for each item into a structured JSON object. Return a single JSON array containing all the extracted objects. If there is only one object, still return it inside an array.";
+
+        const payload = {
+            contents: [
+                {
+                    parts: [
+                        { text: promptText },
+                        { inline_data: { mime_type: 'image/png', data: base64ImageData } }
+                    ]
                 }
-            } catch (error) {
-                addLog('error', `Project Scribe AI Error: ${error.message}`);
-            } finally {
-                setIsProcessing(false);
+            ]
+        };
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-goog-api-key': apiKey
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody}`);
             }
-        };
-        reader.onerror = () => {
-            addLog('error', 'Failed to read image file.');
+            const result = await response.json();
+            console.log('OCR raw output:', result);
+            if (result.candidates && result.candidates[0].content.parts[0].text) {
+                const rawText = result.candidates[0].content.parts[0].text;
+                addLog('success', 'Scribe AI call successful. Raw text received.');
+                return rawText;
+            } else {
+                if (result.candidates && result.candidates[0].finishReason === 'SAFETY') {
+                    throw new Error("Content blocked by API safety filters.");
+                }
+                console.error("Unexpected Scribe API response:", result);
+                throw new Error("Scribe AI did not return valid text content.");
+            }
+        } catch (error) {
+            addLog('error', `Scribe API call failed: ${error.message}`);
+            console.error("Scribe API Error:", error);
+            return null;
+        }
+    };
+
+    // Convert image blob to base64 and process - CORRECTED
+    const processImage = async (imageBlob) => {
+        setIsProcessing(true);
+    addLog('info', 'Processing image for Scribe...');
+        try {
+            const reader = new FileReader();
+            reader.readAsDataURL(imageBlob);
+            reader.onloadend = async () => {
+                let base64 = reader.result;
+                base64 = base64.split(',')[1];
+                const rawJsonText = await callScribeAPI(base64);
+                if (rawJsonText) {
+                    onImageData(rawJsonText); 
+                }
+                setIsProcessing(false);
+            };
+            reader.onerror = () => {
+                addLog('error', 'Failed to read image file.');
+                setIsProcessing(false);
+            };
+        } catch (error) {
+            addLog('error', `Image processing error: ${error.message}`);
             setIsProcessing(false);
-        };
-        reader.readAsDataURL(blob);
+        }
     };
     
     useEffect(() => {
@@ -121,7 +153,10 @@ const ScribePanel = ({ onImageData, prompts, onPromptSelect, selectedPromptId, a
                                 disabled={isProcessing}
                             >
                                 <option value="">-- Select a Prompt --</option>
-                                {scribePrompts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {Array.isArray(scribePrompts) && scribePrompts.length > 0
+                                    ? scribePrompts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                                    : <option value="">No prompts available</option>
+                                }
                             </select>
                         </div>
                     </div>

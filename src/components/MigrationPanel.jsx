@@ -1,0 +1,213 @@
+// Utility: Strip trailing commas from JSON before parsing
+function stripTrailingCommas(jsonString) {
+        return jsonString.replace(/,\s*([}\]])/g, '$1');
+}
+import React, { useState, useEffect } from 'react';
+
+// UKB_SCHEMAS will be passed as a prop from App.jsx
+
+// --- COMPONENT: MigrationForm ---
+function MigrationForm({ schema, initialData, formId, onDataChange, allEffects = [], onOpenOverrideModal, perkId, fieldPathPrefix, schemaName }) {
+        const [formData, setFormData] = useState(initialData || {});
+        useEffect(() => { setFormData(initialData || {}); }, [initialData]);
+        const triggerChange = (newData) => { setFormData(newData); onDataChange(newData); };
+        const handleChange = (e) => {
+                const { name, value, type, checked } = e.target;
+                let newValue;
+                if (type === 'checkbox') { newValue = checked; }
+                else if (type === 'number') { newValue = parseFloat(value) || 0; }
+                else if (schema[name]?.type === 'textarea' && (name === 'synergy_tags' || name === 'prerequisites')) {
+                        newValue = value.split(',').map(s => s.trim()).filter(Boolean);
+                } else { newValue = value; }
+                triggerChange({ ...formData, [name]: newValue });
+        };
+        const handleMultiSelectChange = (e) => {
+                const { value, checked } = e.target;
+                const currentValues = formData.effects_to_apply || [];
+                let newValues;
+                if (checked) { newValues = [...currentValues, value]; }
+                else { newValues = currentValues.filter(val => val !== value); }
+                triggerChange({ ...formData, effects_to_apply: newValues });
+        };
+        return (
+                <form id={formId} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(schema).map(([key, field]) => {
+                                        let value = (formData && formData[key]) ? formData[key] : '';
+                                        if (Array.isArray(value) && (key === 'synergy_tags' || key === 'prerequisites')) {
+                                                value = value.join(', ');
+                                        }
+                                        if (field.type === 'multiselect') {
+                                                return (
+                                                        <div key={key} className="md:col-span-2 lg:col-span-3">
+                                                                <label className="block text-sm font-medium text-gray-300">{field.label}</label>
+                                                                <div className="mt-2 h-32 overflow-y-auto bg-gray-900/50 p-2 rounded-md border border-gray-700 grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                                        {allEffects.sort((a,b) => a.localeCompare(b)).map(effectId => (
+                                                                                <label key={effectId} className="flex items-center space-x-2 text-sm font-mono">
+                                                                                        <input type="checkbox" value={effectId} checked={(formData.effects_to_apply || []).includes(effectId)} onChange={handleMultiSelectChange} className="bg-gray-800 border-gray-600 rounded h-4 w-4 text-emerald-500 focus:ring-emerald-600" />
+                                                                                        <span className="truncate">{effectId}</span>
+                                                                                </label>
+                                                                        ))}
+                                                                </div>
+                                                        </div>
+                                                );
+                                        }
+                                        return (
+                                                <div key={key} className={field.type === 'textarea' ? 'md:col-span-2 lg:col-span-3' : ''}>
+                                                        <label htmlFor={`${formId}-${key}`} className="flex items-center text-sm font-medium text-gray-300">
+                                                                {field.label}
+                                                                {field.overridable && (
+                                                                        <button
+                                                                                type="button"
+                                                                                onClick={() => onOpenOverrideModal(perkId, `${fieldPathPrefix}.${key}`, field.label, key, schemaName)}
+                                                                                className="ml-2 text-xs bg-purple-700 hover:bg-purple-600 text-white font-bold py-0.5 px-1.5 rounded-sm"
+                                                                                title={`Create a permanent override rule for this field.`}
+                                                                        >
+                                                                                O
+                                                                        </button>
+                                                                )}
+                                                        </label>
+                                                        {field.type === 'textarea' ? (
+                                                                <textarea id={`${formId}-${key}`} name={key} value={value} onChange={handleChange} rows={2} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 text-sm" />
+                                                        ) : field.type === 'select' ? (
+                                                                <select id={`${formId}-${key}`} name={key} value={value} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 text-sm">
+                                                                        <option value="">-- Select --</option>
+                                                                        {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                                </select>
+                                                        ) : field.type === 'checkbox' ? (
+                                                                <div className="flex items-center h-full mt-1">
+                                                                        <input id={`${formId}-${key}`} name={key} type="checkbox" checked={!!value} onChange={handleChange} className="bg-gray-700 border-gray-600 rounded h-5 w-5 text-amber-500 focus:ring-amber-600" />
+                                                                </div>
+                                                        ) : (
+                                                                <input id={`${formId}-${key}`} name={key} type={field.type} value={value} onChange={handleChange} className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 text-sm" />
+                                                        )}
+                                                </div>
+                                        );
+                                })}
+                        </div>
+                </form>
+        );
+}
+
+// --- COMPONENT: MigrationPanel ---
+function MigrationPanel({ stagedData, setStagedData, addLog, db, effectsManifest, onOpenOverrideModal, UKB_SCHEMAS }) {
+        const handleDataChange = (itemIndex, dataType, effectIndex, newData) => {
+                const newStagedData = JSON.parse(JSON.stringify(stagedData));
+                if (dataType === 'ability') { newStagedData[itemIndex].ability_to_create = newData; }
+                else if (dataType === 'effect') { newStagedData[itemIndex].effects_to_create[effectIndex] = newData; }
+                setStagedData(newStagedData);
+        };
+        const handleClearAll = () => { setStagedData([]); addLog('info', 'Migration staging area has been cleared.'); };
+        const handleCommitAll = async () => {
+                if (!db || stagedData.length === 0) { addLog('error', 'Commit failed: No data staged or database not connected.'); return; }
+                addLog('special', `Initiating commit of ${stagedData.length} item(s) to UKB...`);
+                const batch = writeBatch(db);
+                let effectCount = 0; let abilityCount = 0;
+                stagedData.forEach(item => {
+                        let abilityToCommit = null;
+                        if (item.ability_to_create) {
+                                abilityToCommit = item.ability_to_create;
+                        } else if (item.ability_id) {
+                                abilityToCommit = item;
+                        }
+                        if (abilityToCommit && abilityToCommit.ability_id) {
+                                let targetCollection = 'abilities';
+                                if (abilityToCommit.type === 'ATTRIBUTE_BONUS') {
+                                        targetCollection = 'attribute_bonuses';
+                                }
+                                const abilityRef = doc(db, targetCollection, abilityToCommit.ability_id);
+                                batch.set(abilityRef, abilityToCommit, { merge: true });
+                                abilityCount++;
+                        }
+                        if (item.effects_to_create && Array.isArray(item.effects_to_create)) {
+                                item.effects_to_create.forEach(effect => {
+                                        if (effect.effect_id) {
+                                                const effectRef = doc(db, 'effects', effect.effect_id);
+                                                batch.set(effectRef, effect, { merge: true });
+                                                effectCount++;
+                                        }
+                                });
+                        }
+                });
+                try {
+                        await batch.commit();
+                        addLog('success', `Commit successful: ${abilityCount} ability(s) and ${effectCount} effect(s) saved to UKB.`);
+                        handleClearAll();
+                } catch (e) { addLog('error', `Error committing to UKB: ${e.message}`); }
+        };
+                // If stagedData is a string (raw JSON), clean and parse it
+                let safeStagedData = stagedData;
+                if (typeof stagedData === 'string') {
+                        try {
+                                safeStagedData = JSON.parse(stripTrailingCommas(stagedData));
+                        } catch (e) {
+                                addLog('error', 'Failed to parse staged data: ' + e.message);
+                                safeStagedData = [];
+                        }
+                }
+                if (!Array.isArray(safeStagedData)) safeStagedData = [];
+        return (
+                <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-amber-500/50">
+                        <h2 className="text-2xl font-semibold text-amber-300 mb-4 text-center">Migration Workshop</h2>
+                        <div className="max-h-[70vh] overflow-y-auto pr-2 space-y-8">
+                                {safeStagedData.length > 0 ? (
+                                        safeStagedData.map((item, itemIndex) => (
+                                                <div key={itemIndex} className="bg-gray-800/50 p-4 rounded-lg border border-gray-600 space-y-4">
+                                                        <h3 className="text-xl font-semibold text-amber-400">Staged Item #{itemIndex + 1}: {item.original_perk?.name || item.name || 'Untitled'}</h3>
+                                                        <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                                                                <h4 className="text-lg font-semibold text-emerald-300 mb-2 border-b border-emerald-500/50 pb-1">Proposed Ability</h4>
+                                                                <MigrationForm
+                                                                        schema={UKB_SCHEMAS.abilities}
+                                                                        initialData={item.ability_to_create || item}
+                                                                        formId={`ability-${itemIndex}`}
+                                                                        allEffects={effectsManifest ? effectsManifest.map(e => e.effect_id || e.id) : []}
+                                                                        onDataChange={(newData) => handleDataChange(itemIndex, 'ability', null, newData)}
+                                                                        onOpenOverrideModal={onOpenOverrideModal}
+                                                                        perkId={item.original_perk?.id || item.ability_id || ''}
+                                                                        fieldPathPrefix="ability"
+                                                                        schemaName="abilities"
+                                                                />
+                                                        </div>
+                                                        {item.effects_to_create && (
+                                                                <div>
+                                                                        <h4 className="text-lg font-semibold text-sky-300 mb-2 mt-4 border-b border-sky-500/50 pb-1">Proposed Effects</h4>
+                                                                        <div className="space-y-4">
+                                                                                {Array.isArray(item.effects_to_create) && item.effects_to_create.length > 0 ? (
+                                                                                        item.effects_to_create.map((effect, effectIndex) => (
+                                                                                                <div key={effectIndex} className="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                                                                                                        <MigrationForm
+                                                                                                                schema={UKB_SCHEMAS.effects}
+                                                                                                                initialData={effect}
+                                                                                                                formId={`effect-${itemIndex}-${effectIndex}`}
+                                                                                                                onDataChange={(newData) => handleDataChange(itemIndex, 'effect', effectIndex, newData)}
+                                                                                                                onOpenOverrideModal={onOpenOverrideModal}
+                                                                                                                perkId={item.original_perk?.id || ''}
+                                                                                                                fieldPathPrefix={`effect.${effectIndex}`}
+                                                                                                                schemaName="effects"
+                                                                                                        />
+                                                                                                </div>
+                                                                                        ))
+                                                                                ) : (
+                                                                                        <p className="text-gray-500 italic">No effects were generated for this item.</p>
+                                                                                )}
+                                                                        </div>
+                                                                </div>
+                                                        )}
+                                                </div>
+                                        ))
+                                ) : (
+                                        <p className="text-center text-gray-400"> The workshop is empty. Run the Deconstructor in The Forge to stage items for verification. </p>
+                                )}
+                        </div>
+                        {safeStagedData.length > 0 && (
+                                <div className="mt-6 flex flex-col sm:flex-row gap-4">
+                                        <button onClick={handleCommitAll} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition"> Approve & Commit All ({safeStagedData.length}) </button>
+                                        <button onClick={handleClearAll} className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 px-6 rounded-lg text-lg transition"> Reject and Clear All ({safeStagedData.length}) </button>
+                                </div>
+                        )}
+                </div>
+        );
+}
+
+export default MigrationPanel;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
