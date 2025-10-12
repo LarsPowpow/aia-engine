@@ -18,6 +18,7 @@ const AdminPanel = ({
     onPromptSelect,
     onPromptContentChange,
     onSaveNewPrompt,
+    onDeletePrompt,
     addLog,
     UKB_SCHEMAS,
     onSchemaChange,
@@ -41,6 +42,7 @@ const AdminPanel = ({
                     onPromptSelect={onPromptSelect}
                     onPromptContentChange={onPromptContentChange}
                     onSaveNewPrompt={onSaveNewPrompt}
+                    onDeletePrompt={onDeletePrompt}
                     addLog={addLog}
                 /> 
                 <ManualUpsertPanel

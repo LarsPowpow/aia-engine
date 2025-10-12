@@ -1,0 +1,30 @@
+{
+  "effect_id": "status_bleed",
+  "name": "Bleed",
+  "type": "Debuff",
+  "category": "Damage over Time"
+}
+{
+  "effect_id": "status_disease",
+  "name": "Disease",
+  "type": "Debuff",
+  "category": "Healing Reduction"
+}
+{
+  "effect_id": "status_rend",
+  "name": "Rend",
+  "type": "Debuff",
+  "category": "Offensive"
+}
+{
+  "effect_id": "status_exhaust",
+  "name": "Exhaust",
+  "type": "Debuff",
+  "category": "Stamina"
+}
+{
+  "effect_id": "status_taunt",
+  "name": "Taunt",
+  "type": "Debuff",
+  "category": "Crowd Control"
+}

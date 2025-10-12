@@ -3,7 +3,10 @@ import React, { useState } from 'react';
 console.log('stagedData:', stagedData, 'Type:', typeof stagedData);
 import { getFirestore, writeBatch, doc } from "firebase/firestore";
 
-const MigrationPanel = ({ stagedData, setStagedData, addLog, db }) => {
+const MigrationPanel = ({ stagedData, setStagedData, addLog, db, effectsManifest }) => {
+    // Debug: log stagedData and effectsManifest
+    console.log('MigrationPanel stagedData:', stagedData);
+    console.log('MigrationPanel effectsManifest:', effectsManifest);
     const [targetCollection, setTargetCollection] = useState('perks'); // Default to 'perks' for our current mission
 
     const handleClearAll = () => {
@@ -79,7 +82,9 @@ const MigrationPanel = ({ stagedData, setStagedData, addLog, db }) => {
                     </div>
 
                     <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-4 border-t border-b border-gray-700 py-4">
-                        {safeStagedData.map((item, index) => (
+                        {safeStagedData.map((item, index) => {
+                            console.log(`Item #${index} effects_to_apply:`, item.effects_to_apply);
+                            return (
                             <div key={index} className="bg-gray-900/50 p-4 rounded-lg">
                                 <h3 className="text-lg font-semibold text-amber-400 font-mono break-all">
                                     {item.name || item.perk_id || item.ability_id || item.description || `Item ${index + 1}`}
@@ -87,8 +92,36 @@ const MigrationPanel = ({ stagedData, setStagedData, addLog, db }) => {
                                 <pre className="mt-2 text-xs text-gray-300 bg-black p-2 rounded-md overflow-x-auto">
                                     {JSON.stringify(item, null, 2)}
                                 </pre>
+                                <MigrationForm
+                                    schema={UKB_SCHEMAS.abilities}
+                                    initialData={item.ability_to_create || item}
+                                    formId={`ability-${index}`}
+                                    allEffects={effectsManifest ? effectsManifest.map(e => e.effect_id || e.id) : []}
+                                    onDataChange={(newData) => handleDataChange(index, 'ability', null, newData)}
+                                    onOpenOverrideModal={onOpenOverrideModal}
+                                    perkId={item.original_perk?.id || item.ability_id || ''}
+                                    fieldPathPrefix="ability"
+                                    schemaName="abilities"
+                                />
+                                {/* Effects to Apply Details */}
+                                {Array.isArray(item.effects_to_apply) && item.effects_to_apply.length > 0 && (
+                                    <div className="mt-2">
+                                        <h4 className="text-sm font-semibold text-sky-300 mb-1">Effects to Apply Details:</h4>
+                                        <ul className="text-xs text-gray-200 bg-gray-900 p-2 rounded-md">
+                                            {item.effects_to_apply.map((eff, idx) => {
+                                                const effectObj = typeof eff === 'string' && effectsManifest ? effectsManifest.find(e => e.id === eff || e.effect_id === eff) : eff;
+                                                return (
+                                                    <li key={idx} className="mb-1">
+                                                        {effectObj && typeof effectObj === 'object' ? JSON.stringify(effectObj, null, 2) : String(eff)}
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                        );
+                        })}
                     </div>
 
                     <div className="mt-6 flex flex-col sm:flex-row gap-4">

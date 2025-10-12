@@ -6,7 +6,8 @@ const DeconstructorTestbed = ({
     addLog,
     cleanJson,
     setStagedData,
-    setActiveTab
+    setActiveTab,
+    effectsManifest
 }) => {
     const [selectedDeconstructorPromptId, setSelectedDeconstructorPromptId] = useState('');
     const [activeDeconstructorPrompt, setActiveDeconstructorPrompt] = useState('');
@@ -68,10 +69,11 @@ const DeconstructorTestbed = ({
             console.log('Deconstructor finalJson:', finalJson);
             let parsedData = JSON.parse(finalJson);
             console.log('Deconstructor parsedData:', parsedData);
+            console.log('Deconstructor effectsManifest:', effectsManifest);
             if (!Array.isArray(parsedData)) {
                 parsedData = [parsedData];
             }
-            // Map perk data to ability schema
+            // Map perk data to ability schema, enrich effects_to_apply with full effect objects
             const mappedData = parsedData.map(item => {
                 // Extract cooldown from description string
                 let cooldown = item.internal_cooldown_seconds || item.internal_cooldown || item.cooldown || item.cooldown_seconds || 0;
@@ -81,12 +83,16 @@ const DeconstructorTestbed = ({
                         cooldown = parseInt(match[1], 10);
                     }
                 }
+                // Always use effect IDs (strings) for effects_to_apply
+                let effectIds = item.linked_effects || item.effects_to_apply || [];
+                if (!Array.isArray(effectIds)) effectIds = [];
+                const effectsToApply = effectIds;
                 return {
                     ability_id: item.perk_id || item.ability_id || '',
                     name: item.name || '',
                     type: item.type || item.category || 'PERK',
                     trigger: item.trigger || item.perk_bucket || '',
-                    effects_to_apply: item.linked_effects || item.effects_to_apply || [],
+                    effects_to_apply: effectsToApply,
                     prerequisites: item.prerequisites || [],
                     internal_cooldown_seconds: cooldown,
                     description: item.description || '',
@@ -99,6 +105,7 @@ const DeconstructorTestbed = ({
                     ...item
                 };
             });
+            console.log('Deconstructor mappedData:', mappedData);
             setStagedData(mappedData);
             setActiveTab('Migration');
             addLog('success', 'Enriched data has been sent to the Migration Staging Area.');
