@@ -1,8 +1,9 @@
+// FILE: src/components/AdminPanel.jsx
 import React from 'react';
 import PromptInjector from './PromptInjector.jsx';
 import SchemaGovernorPanel from './SchemaGovernorPanel.jsx';
 import DangerZone from './DangerZone.jsx';
-import ManualUpsertPanel from './ManualUpsertPanel.jsx'; // Import the new component
+import ManualUpsertPanel from './ManualUpsertPanel.jsx';
 
 const AdminPanel = ({ 
     onClearUkb, 
@@ -24,12 +25,29 @@ const AdminPanel = ({
     onSchemaChange,
     onUpsertData,
     promptName,
-    onPromptNameChange
+    onPromptNameChange,
+    handleRunSimulation
 }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* --- LEFT COLUMN (2/3 width) --- */}
             <div className="lg:col-span-2 flex flex-col space-y-8">
+                
+                {/* === NEW: COMBAT ENGINE TESTBED === */}
+                <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-cyan-500/30">
+                    <h3 className="text-2xl font-semibold text-cyan-300 mb-4">Combat Engine Testbed</h3>
+                    <p className="text-sm text-gray-400 mb-6">
+                        This is the temporary command interface for the Combat Simulator. Currently, it runs a hardcoded simulation (Player vs. Target Dummy) and outputs the results to the browser's developer console.
+                    </p>
+                    <button
+                        onClick={handleRunSimulation}
+                        className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-lg"
+                    >
+                        Run Sim v1.0 (Check Console)
+                    </button>
+                </div>
+                {/* ================================= */}
+
                 <SchemaGovernorPanel
                     db={db}
                     addLog={addLog}

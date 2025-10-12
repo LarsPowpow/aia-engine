@@ -1,3 +1,4 @@
+import { runSimulation, loadUKBDocument } from './simulation/engine.js';
 import { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, setDoc, updateDoc, arrayUnion, deleteDoc, getDoc } from "firebase/firestore";
@@ -83,10 +84,33 @@ function App() {
     const [activePromptContent, setActivePromptContent] = useState('');
     // --- Combat Simulator Test Button ---
     const handleRunSimulation = async () => {
-        const { Combatant, Target, runSimulation } = await import('./simulation/engine.js');
-        const combatLog = runSimulation(Combatant, Target);
-        console.log('Combat Simulation Log:', combatLog);
-        alert('Combat simulation complete! Check the browser console for the log.');
+        addLog('special', 'Running Combat Simulation v3.0 (Two-Actor)...');
+        
+        // Define two combatants with different stats
+        const playerConfig = {
+            id: 'player',
+            name: 'Player',
+            health: 1200,
+            base_damage: 55,
+            attack_speed: 1.1 // in seconds (e.g., a Sword)
+        };
+
+        const enemyConfig = {
+            id: 'corrupted_swordsman',
+            name: 'Corrupted Swordsman',
+            health: 900,
+            base_damage: 40,
+            attack_speed: 1.3 // in seconds
+        };
+        
+        addLog('info', `Simulating: ${playerConfig.name} vs ${enemyConfig.name}`);
+
+        const combatLog = runSimulation(playerConfig, enemyConfig);
+
+        console.log('--- COMBAT SIMULATION LOG (v3.0) ---');
+        console.table(combatLog);
+        console.log('--- END OF LOG ---');
+        addLog('success', `Gladiator simulation complete. ${combatLog.length - 2} events logged to console.`);
     };
     // Removed stray addLog call
 
@@ -387,6 +411,7 @@ function App() {
                             promptName={promptName}
                             onPromptNameChange={setPromptName}
                             onUpsertData={handleUpsertData}
+                            handleRunSimulation={handleRunSimulation}
                         />;
             default: return null;
         }
@@ -421,21 +446,6 @@ function App() {
                     </header>
                     <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
                         <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-                        {/* --- Combat Simulator Test Button --- */}
-                        <div style={{ padding: '1rem', background: '#222', color: '#fff', margin: '1rem 0', borderRadius: '8px' }}>
-                            <h3>Combat Engine Test</h3>
-                            <button onClick={handleRunSimulation} style={{ padding: '0.5rem 1rem', fontSize: '1rem', cursor: 'pointer' }}>
-                                Run Combat Simulation
-                            </button>
-                            <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Check the browser console for the combat log output.</p>
-                        </div>
-                            <div style={{ padding: '1rem', background: '#222', color: '#fff', margin: '1rem 0', borderRadius: '8px' }}>
-                                <h3>Combat Engine Test</h3>
-                                <button onClick={handleRunSimulation} style={{ padding: '0.5rem 1rem', fontSize: '1rem', cursor: 'pointer' }}>
-                                    Run Combat Simulation
-                                </button>
-                                <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Check the browser console for the combat log output.</p>
-                            </div>
                         <main className="flex-grow p-4 md:p-8 overflow-y-auto">
                             {renderContent()}
                         </main>
