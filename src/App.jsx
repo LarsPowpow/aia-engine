@@ -376,40 +376,36 @@ function App() {
         fetchAllData();
     }, [addLog, fetchPrompts]);
     
-    // --- DECONSTRUCTOR: Calls backend Gemini proxy ---
+    // --- DECONSTRUCTOR: Backend Integration ---
     const handleDeconstruct = async (prompt, jsonInput) => {
         addLog('info', 'Deconstructor initiated. Sending request to backend...');
-        if (!apiKey) {
-            addLog('error', 'Deconstructor Error: Gemini API Key not set.');
-            return JSON.stringify({ error: 'Gemini API Key not set.' });
-        }
-        if (!jsonInput.trim()) {
-            addLog('error', 'Deconstructor Error: Input JSON is empty.');
-            return JSON.stringify({ error: 'Input JSON is empty.' });
-        }
+        // Always use the provided Codespaces public backend URL
+        const backendUrl = 'https://zany-barnacle-wrq99qjjvr4xcgg5v-3001.app.github.dev/deconstruct';
         try {
-            const response = await fetch('/server/deconstruct', {
+            const response = await fetch(backendUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, jsonInput, apiKey })
+                body: JSON.stringify({ prompt, jsonInput })
             });
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Unknown error from backend');
+                let errorMsg = 'Unknown error from backend';
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.error || errorMsg;
+                } catch {}
+                addLog('error', `Deconstructor Error: ${errorMsg}`);
+                return JSON.stringify({ error: errorMsg });
             }
             const data = await response.json();
             if (!data.result) {
-                throw new Error('AI returned an empty response. The request may have been blocked.');
+                addLog('error', 'Deconstructor Error: AI returned an empty response.');
+                return JSON.stringify({ error: 'AI returned an empty response.' });
             }
             addLog('success', 'Deconstruction successful. AI analysis complete.');
             return data.result;
         } catch (error) {
-            console.error('DECONSTRUCTOR CRITICAL FAILURE:', error);
-            addLog('error', `FATAL ERROR in Deconstructor: ${error.message}`);
-            return JSON.stringify({
-                error: 'Deconstructor AI call failed. See System Log for details.',
-                details: error.message
-            }, null, 2);
+            addLog('error', `Deconstructor Error: ${error.message}`);
+            return JSON.stringify({ error: error.message });
         }
     };
 
@@ -649,7 +645,7 @@ function App() {
                             onPromptContentChange={handlePromptContentChange}
                             onSaveNewPrompt={handleSaveNewPromptVersion}
                             onDeletePrompt={handleDeletePrompt}
-                            onDeconstruct={handleDeconstruct} // <-- FIX: Connect the real function
+                            onDeconstruct={handleDeconstruct}
                         />;
             case 'migration':
                 return <MigrationPanel 
