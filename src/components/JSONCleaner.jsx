@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 const JSONCleaner = ({ addLog, onDataCleaned, initialData }) => {
     const [rawJson, setRawJson] = useState('');
-    const [fieldsToExtract, setFieldsToExtract] = useState('id, name, description, PerkType, ExclusiveLabels, condition');
+    const [fieldsToExtract, setFieldsToExtract] = useState('perk_id, name, description, type, category, perk_bucket, exclusive_to');
     const [cleanedJson, setCleanedJson] = useState('');
 
     // --- UPGRADED REPAIR PROTOCOL ---

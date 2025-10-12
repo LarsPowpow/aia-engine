@@ -3,11 +3,15 @@ import { collection, addDoc } from 'firebase/firestore';
 import JSONCleaner from './JSONCleaner.jsx';
 import DeconstructorTestbed from './DeconstructorTestbed.jsx';
 import ScribePanel from './ScribePanel.jsx';
+import SystemLog from './SystemLog.jsx';
 // Removed broken import for callGeminiVisionApi
 
 const ForgePanel = ({ 
     db, 
     addLog, 
+    logs, 
+    isLogExpanded, 
+    setIsLogExpanded, 
     apiKey, 
     onApiKeyChange, 
     setStagedData, 
@@ -105,8 +109,74 @@ const ForgePanel = ({
         reader.readAsDataURL(blob);
     };
 
+    // --- AI Deconstructor API Handler ---
+    const handleDeconstruct = async (prompt, cleanJson) => {
+        try {
+            if (!apiKey) {
+                addLog('error', 'Deconstructor Error: API Key is missing.');
+                throw new Error('API Key is missing.');
+            }
+            if (!prompt) {
+                addLog('error', 'Deconstructor Error: No prompt provided.');
+                throw new Error('No prompt provided.');
+            }
+            if (!cleanJson) {
+                addLog('error', 'Deconstructor Error: No clean JSON provided.');
+                throw new Error('No clean JSON provided.');
+            }
+            // Validate cleanJson is valid JSON before sending
+            try {
+                JSON.parse(cleanJson);
+            } catch (e) {
+                addLog('error', `Deconstructor Error: Clean JSON is not valid JSON. ${e.message}`);
+                throw new Error('Clean JSON is not valid JSON.');
+            }
+            const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+            const payload = {
+                contents: [
+                    {
+                        parts: [
+                            { text: prompt },
+                            { text: cleanJson }
+                        ]
+                    }
+                ]
+            };
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-goog-api-key': apiKey
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                addLog('error', `Deconstructor API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+                throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody}`);
+            }
+            let result;
+            try {
+                result = await response.json();
+            } catch (e) {
+                addLog('error', `Deconstructor Error: Failed to parse API response as JSON. ${e.message}`);
+                throw new Error('Failed to parse API response as JSON.');
+            }
+            const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!aiText) {
+                addLog('error', 'Deconstructor Error: No valid content returned from AI.');
+                throw new Error('No valid content returned from AI.');
+            }
+            addLog('success', 'Deconstructor API call successful.');
+            return aiText;
+        } catch (error) {
+            addLog('error', `Deconstructor API Error: ${error.message}`);
+            throw error;
+        }
+    };
+
     return (
-        <div className="flex flex-col space-y-8">
+    <div className="flex flex-col space-y-8">
             <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-1">
@@ -166,7 +236,9 @@ const ForgePanel = ({
                 onPromptContentChange={onPromptContentChange}
                 onSaveNewPrompt={onSaveNewPrompt}
                 onDeletePrompt={onDeletePrompt}
+                onDeconstruct={handleDeconstruct}
             />
+            // ...existing code...
         </div>
     );
 };

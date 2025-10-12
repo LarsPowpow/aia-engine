@@ -1,258 +1,151 @@
-import React, { useState } from 'react';
-import { useOverrides } from '../contexts/OverridesContext';
+import React, { useState, useEffect } from 'react';
 
 const DeconstructorTestbed = ({ 
-    apiKey, 
-    onApiKeyChange, 
-    addLog, 
-    cleanJson, 
-    setStagedData, 
-    setActiveTab, 
-    activePromptContent,
-    prompts,
-    selectedPromptId,
-    onPromptSelect,
-    onPromptContentChange,
-    onSaveNewPrompt,
-    onDeletePrompt
+    prompts, 
+    onScribe, // Expecting a function to handle Scribe logic
+    onDeconstruct, // Expecting a function to handle Deconstructor logic
+    addLog 
 }) => {
-    const [promptToSend, setPromptToSend] = useState('');
-    const [rawApiResponse, setRawApiResponse] = useState('');
-    const [isProcessing, setIsProcessing] = useState(false);
-    const overrideRules = useOverrides();
+    const [selectedScribePromptId, setSelectedScribePromptId] = useState('');
+    const [selectedDeconstructorPromptId, setSelectedDeconstructorPromptId] = useState('');
+    const [imageFile, setImageFile] = useState(null);
+    const [rawJson, setRawJson] = useState('');
+    const [fieldsToExtract, setFieldsToExtract] = useState('perk_id, name, description');
+    const [cleanJson, setCleanJson] = useState('');
+    const [finalJson, setFinalJson] = useState('');
+    const [activeScribePrompt, setActiveScribePrompt] = useState('');
+    const [activeDeconstructorPrompt, setActiveDeconstructorPrompt] = useState('');
 
-    const buildPrompt = (promptTemplate, jsonData, chunkData, currentOverrideRules) => {
-        if (!promptTemplate) return '';
-        const safeChunkData = Array.isArray(chunkData) ? chunkData : [];
-        const relevantOverrides = safeChunkData
-            .map(perk => {
-                const perkId = perk.id || perk.ability_id;
-                if (currentOverrideRules && currentOverrideRules[perkId]) {
-                    return { perkId, rules: currentOverrideRules[perkId] };
-                }
-                return null;
-            })
-            .filter(Boolean);
-
-        let overrideBlock = '';
-        if (relevantOverrides.length > 0) {
-            overrideBlock += "IMPORTANT: THE CAPTAIN HAS ISSUED THE FOLLOWING OVERRIDE DIRECTIVES...\n\n";
-            relevantOverrides.forEach(override => {
-                overrideBlock += `--- FOR PERK_ID "${override.perkId}" ---\n`;
-                Object.entries(override.rules).forEach(([field, value]) => {
-                    overrideBlock += `- The field "${field}" MUST be set to exactly: "${value}"\n`;
-                });
-                overrideBlock += '\n';
-            });
-            overrideBlock += "--- END OF OVERRIDE DIRECTIVES. ---\n\n";
+    useEffect(() => {
+        if (prompts && prompts.length > 0) {
+            const initialPromptId = prompts[0].id;
+            setSelectedScribePromptId(initialPromptId);
+            setSelectedDeconstructorPromptId(initialPromptId);
+            setActiveScribePrompt(prompts[0].content);
+            setActiveDeconstructorPrompt(prompts[0].content);
         }
-        const promptWithOverrides = overrideBlock + promptTemplate;
-        return promptWithOverrides.replace('{jsonData}', jsonData);
+    }, [prompts]);
+
+    const handleScribePromptSelect = (e) => {
+        const promptId = e.target.value;
+        setSelectedScribePromptId(promptId);
+        const selected = prompts.find(p => p.id === promptId);
+        setActiveScribePrompt(selected ? selected.content : '');
     };
 
-    const attemptJsonCompletion = (text) => {
-        let repairedText = text.trim();
-        if (repairedText.startsWith('[') && !repairedText.endsWith(']')) {
-            const lastBraceIndex = repairedText.lastIndexOf('}');
-            if (lastBraceIndex !== -1) {
-                repairedText = repairedText.substring(0, lastBraceIndex + 1) + '\n]\n';
-                try {
-                    JSON.parse(repairedText);
-                    return repairedText;
-                } catch (e) { return null; }
-            }
+    const handleDeconstructorPromptSelect = (e) => {
+        const promptId = e.target.value;
+        setSelectedDeconstructorPromptId(promptId);
+        const selected = prompts.find(p => p.id === promptId);
+        setActiveDeconstructorPrompt(selected ? selected.content : '');
+    };
+    
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            addLog(`Image "${file.name}" loaded for Scribe.`);
         }
-        return null;
     };
 
-    const handleDeconstruct = async () => {
-        if (isProcessing) return;
-        if (!apiKey) { addLog('error', 'API Key is missing. Please enter it in the Forge.'); return; }
-        if (!cleanJson) { addLog('error', 'No clean JSON from Cleaner.'); return; }
-        if (!activePromptContent) { addLog('error', 'No AI prompt is loaded.'); return; }
-
-        setIsProcessing(true);
-        setPromptToSend('');
-        setRawApiResponse('');
-
-        const allItems = JSON.parse(cleanJson);
-        const chunkSize = 5;
-        const chunks = [];
-        for (let i = 0; i < allItems.length; i += chunkSize) {
-            chunks.push(allItems.slice(i, i + chunkSize));
+    const handleRunScribe = async () => {
+        if (!imageFile || !activeScribePrompt) {
+            addLog("Scribe Error: An image and a Scribe prompt are required.");
+            return;
         }
+        addLog("Initiating Project Scribe...");
+        const result = await onScribe(activeScribePrompt, imageFile);
+        setRawJson(result);
+        addLog("Scribe finished. Raw JSON populated.");
+    };
 
-        addLog('special', `Deconstructor engaged. Processing ${allItems.length} items in ${chunks.length} batches.`);
-        
-        let allRawResponses = []; // Temporary array to hold raw responses
-        const allDeconstructedData = [];
-
+    // Placeholder for Carwash logic
+    const handleClean = () => {
+        addLog("Initiating Carwash...");
         try {
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                const chunkJsonData = JSON.stringify(chunk, null, 2);
-                const currentPrompt = buildPrompt(activePromptContent, chunkJsonData, chunk, overrideRules);
-
-                addLog('info', `Processing batch ${i + 1} of ${chunks.length}...`);
-                setPromptToSend(prev => prev + `--- BATCH ${i+1} ---\n` + currentPrompt + `\n\n`);
-                
-                const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-                const payload = {
-                    contents: [{ parts: [{ text: currentPrompt }] }],
-                };
-                let rawJsonText = '';
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'X-goog-api-key': apiKey
-                        },
-                        body: JSON.stringify(payload)
-                    });
-                    const result = await response.json();
-                    if (!response.ok) {
-                        const errorDetails = result.error ? result.error.message : `HTTP error! status: ${response.status}`;
-                        throw new Error(errorDetails);
+            // This is a simplified cleaner. A real one would be more complex.
+            const dirty = JSON.parse(rawJson.replace(/```json\n?|\n?```/g, ''));
+            const keys = fieldsToExtract.split(',').map(k => k.trim());
+            const cleaned = dirty.map(item => {
+                const newItem = {};
+                keys.forEach(key => {
+                    if (item.hasOwnProperty(key)) {
+                        newItem[key] = item[key];
                     }
-                    rawJsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (!rawJsonText) {
-                        const safetyFeedback = result.candidates?.[0]?.finishReason;
-                        if(safetyFeedback === 'SAFETY') {
-                             throw new Error('AI response blocked due to safety settings.');
-                        }
-                        throw new Error('No content received from AI.');
-                    }
-                } catch (error) {
-                    throw error;
-                }
-                
-                allRawResponses.push(`--- BATCH ${i+1} RESPONSE ---\n` + rawJsonText + `\n\n`);
-                setRawApiResponse(allRawResponses.join(''));
-
-                let deconstructedChunk;
-                let cleanedJsonText = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
-
-                try {
-                    deconstructedChunk = JSON.parse(cleanedJsonText);
-                } catch (parseError) {
-                    addLog('warning', `Batch ${i + 1}: Initial parse failed. Engaging Auto-Completer...`);
-                    const repairedJson = attemptJsonCompletion(cleanedJsonText);
-                    if (repairedJson) {
-                        addLog('success', `Batch ${i + 1}: Auto-Completer successful.`);
-                        deconstructedChunk = JSON.parse(repairedJson);
-                    } else {
-                        throw new Error(`Auto-Completer failed for Batch ${i + 1}. ${parseError.message}`);
-                    }
-                }
-                
-                if (Array.isArray(deconstructedChunk)) {
-                    allDeconstructedData.push(...deconstructedChunk);
-                    addLog('success', `Batch ${i + 1} complete. ${deconstructedChunk.length} items processed.`);
-                } else {
-                     addLog('warning', `Batch ${i + 1} did not return a valid array. Skipping.`);
-                }
-            }
-
-            const finalData = allDeconstructedData.map(item => {
-                const newItem = { ...item };
-                let cooldown = 0;
-                if (newItem.cooldown_text && typeof newItem.cooldown_text === 'string') {
-                    const match = newItem.cooldown_text.match(/\d+/);
-                    if (match) {
-                        cooldown = parseInt(match[0], 10);
-                    }
-                }
-                newItem.internal_cooldown_seconds = cooldown;
-                delete newItem.cooldown_text;
+                });
                 return newItem;
             });
-
-            addLog('special', `All batches complete. Total items finalized: ${finalData.length}.`);
-            setStagedData(finalData);
-            addLog('success', `Data delivered to Migration Workshop.`);
-            setActiveTab('migration');
-            addLog('info', 'Auto-pilot to Migration Staging.');
-
-        } catch (error) {
-            console.error("Deconstruction Error: ", error);
-            addLog('error', `Deconstruction failed: ${error.message}`);
-            setRawApiResponse(prev => prev + `--- ERROR ---\n` + error.message + `\n\n`);
-        } finally {
-            setIsProcessing(false);
+            const cleanedString = JSON.stringify(cleaned, null, 2);
+            setCleanJson(cleanedString);
+            addLog("Carwash complete. Clean JSON is ready for the Deconstructor.");
+        } catch (e) {
+            addLog(`Carwash Error: Failed to parse or clean JSON. ${e.message}`);
+        }
+    };
+    
+    const handleRunDeconstructor = async () => {
+        try {
+            console.log('Deconstructor Button Clicked');
+            console.log('cleanJson:', cleanJson);
+            console.log('activeDeconstructorPrompt:', activeDeconstructorPrompt);
+            if (!cleanJson || !activeDeconstructorPrompt) {
+                addLog("Deconstructor Error: Clean JSON and a Deconstructor prompt are required.");
+                return;
+            }
+            addLog("Initiating AI Deconstructor...");
+            const result = await onDeconstruct(activeDeconstructorPrompt, cleanJson);
+            setFinalJson(result);
+            addLog("Deconstructor finished. Final JSON is ready for migration.");
+        } catch (e) {
+            addLog(`Deconstructor Error: ${e.message || e}`);
+            console.error('Deconstructor Error:', e);
         }
     };
 
+
     return (
-        <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
-            <h3 className="text-2xl font-semibold text-gray-300 mb-4">AI Deconstructor Workshop</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-4 flex flex-col">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-1"> Gemini API Key </label>
-                            <input type="password" id="apiKey" value={apiKey} onChange={onApiKeyChange} className="w-full bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm" placeholder="Loaded from .env file" />
-                        </div>
-                        <div>
-                            <label htmlFor="prompt-select" className="block text-sm font-medium text-gray-300 mb-1"> Select Prompt Version </label>
-                            <select
-                                id="prompt-select"
-                                value={selectedPromptId}
-                                onChange={(e) => onPromptSelect(e.target.value)}
-                                className="w-full bg-gray-700 border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                disabled={isProcessing}
-                            >
-                                <option value="">-- Select a Prompt --</option>
-                                {(Array.isArray(prompts) ? prompts : []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                        </div>
+        <div className="space-y-8">
+            {/* Project Scribe - AI OCR */}
+            <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
+                <h3 className="text-2xl font-semibold text-sky-300 mb-4">1. Project Scribe - AI OCR</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Select Scribe Prompt:</label>
+                        <select value={selectedScribePromptId} onChange={handleScribePromptSelect} className="w-full bg-gray-900 text-white border border-gray-600 rounded-md p-2">
+                            {prompts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
                     </div>
-                    <div className="flex flex-col flex-grow">
-                        <label htmlFor="cleanJsonInput" className="block text-sm font-medium text-gray-300 mb-1"> Clean JSON from Conveyor Belt </label>
-                        <textarea id="cleanJsonInput" readOnly value={cleanJson} className="w-full h-full min-h-[150px] flex-grow bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none font-mono text-xs" placeholder="Data from the JSON Cleaner will appear here automatically..." />
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Provide Image:</label>
+                        <input type="file" onChange={handleImageUpload} accept="image/*" className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700"/>
                     </div>
-                    <button onClick={handleDeconstruct} disabled={isProcessing} className={`w-full font-bold py-3 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-lg ${isProcessing ? 'bg-gray-500 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}>
-                        {isProcessing ? 'Processing Batches...' : 'Run AI Deconstructor'}
-                    </button>
                 </div>
-                <div className="space-y-4 flex flex-col">
-                     <div className="flex flex-col flex-grow">
-                        <label htmlFor="promptContent" className="block text-sm font-medium text-gray-300 mb-1">Prompt Content</label>
-                        <textarea
-                            id="promptContent"
-                            value={activePromptContent}
-                            onChange={(e) => onPromptContentChange(e.target.value)}
-                            className="w-full flex-grow bg-gray-900 text-gray-300 p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs"
-                            placeholder="Select a prompt to view/edit its content..."
-                            disabled={isProcessing}
-                        />
-                    </div>
-                    {/* --- NEW DIAGNOSTIC PORT --- */}
-                    <div className="flex flex-col flex-grow">
-                        <label htmlFor="rawApiResponse" className="block text-sm font-medium text-gray-400 mb-1">Raw AI Response (Diagnostic)</label>
-                        <textarea
-                            id="rawApiResponse"
-                            readOnly
-                            value={rawApiResponse}
-                            className="w-full flex-grow bg-black/50 text-red-400 p-2 rounded border border-red-500/50 focus:outline-none font-mono text-xs"
-                            placeholder="Raw, unfiltered AI output will appear here..."
-                        />
-                    </div>
-                    <button 
-                        onClick={onSaveNewPrompt} 
-                        disabled={isProcessing}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg"
-                    >
-                        Save as New Version
-                    </button>
-                    <button 
-                        onClick={onDeletePrompt} 
-                        disabled={isProcessing || !selectedPromptId}
-                        className="w-full bg-red-800 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg disabled:bg-gray-500 disabled:cursor-not-allowed"
-                    >
-                        Delete Selected Prompt
-                    </button>
+                 <button onClick={handleRunScribe} className="mt-4 w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-md">Run Scribe</button>
+            </div>
+
+            {/* Carwash - Data Cleaner */}
+            <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
+                <h3 className="text-2xl font-semibold text-yellow-300 mb-4">2. Carwash - Data Cleaner</h3>
+                <textarea value={rawJson} onChange={(e) => setRawJson(e.target.value)} rows="8" className="w-full bg-gray-900 text-white font-mono text-sm border border-gray-600 rounded-md p-2" placeholder="Paste your large, messy JSON object here, or use Project Scribe to auto-populate."></textarea>
+                <div className="my-4">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Fields to Extract (comma-separated):</label>
+                    <input type="text" value={fieldsToExtract} onChange={(e) => setFieldsToExtract(e.target.value)} className="w-full bg-gray-900 text-white font-mono text-sm border border-gray-600 rounded-md p-2" />
                 </div>
+                <button onClick={handleClean} className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-md">Clean</button>
+            </div>
+
+            {/* AI Deconstructor Workshop */}
+            <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
+                <h3 className="text-2xl font-semibold text-emerald-300 mb-4">3. AI Deconstructor Workshop</h3>
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Select Deconstructor Prompt:</label>
+                    <select value={selectedDeconstructorPromptId} onChange={handleDeconstructorPromptSelect} className="w-full bg-gray-900 text-white border border-gray-600 rounded-md p-2">
+                        {prompts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                </div>
+                <textarea value={cleanJson} onChange={(e) => setCleanJson(e.target.value)} rows="8" className="mt-4 w-full bg-gray-900 text-white font-mono text-sm border border-gray-600 rounded-md p-2" placeholder="Clean JSON from Carwash will appear here."></textarea>
+                 <button onClick={handleRunDeconstructor} className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md">Run Deconstructor</button>
+                 <textarea value={finalJson} readOnly rows="8" className="mt-4 w-full bg-black text-lime-400 font-mono text-sm border border-gray-600 rounded-md p-2" placeholder="Final, enriched JSON will appear here."></textarea>
             </div>
         </div>
     );

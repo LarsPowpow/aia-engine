@@ -9,8 +9,11 @@ const COLLECTIONS = [
 ];
 const UKB_SCHEMAS = {
   perks: {
-    type: { filterable: true, type: 'select' },
-    perk_bucket: { filterable: true, type: 'select' },
+    // This is the new, comprehensive schema for perks
+    type: { filterable: true, type: 'select' }, // e.g., Weapon, Armor
+    category: { filterable: true, type: 'select' }, // e.g., Damage, Utility
+    perk_bucket: { filterable: true, type: 'select' }, // e.g., On-Crit, On-Hit
+    exclusive_to: { filterable: true, type: 'select' }, // e.g., Sword, null
   },
   weapon_mastery: {
     type: { filterable: true, type: 'select' },

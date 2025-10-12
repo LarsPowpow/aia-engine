@@ -583,6 +583,9 @@ function App() {
                             db={db} 
                             setStagedData={setStagedData} 
                             addLog={addLog} 
+                            logs={logs}
+                            isLogExpanded={isLogExpanded}
+                            setIsLogExpanded={setIsLogExpanded}
                             setActiveTab={setActiveTab} 
                             apiKey={apiKey} 
                             onApiKeyChange={handleApiKeyChange} 
