@@ -1,228 +1,191 @@
+// FILE: src/simulation/engine.js
 /**
- * AIA-Engine: Combat Simulation Core
- * Phase 3: The Gladiator - Tick-Based Simulation
+ * AIA-Engine: Combat Simulation Core (v4.0 - High-Fidelity)
+ * This file contains the primary simulation loop and the tick-based event processor.
+ * This version implements full choreography, weapon swapping, and a perk/effect system.
  */
 
 import { calculateWeaponDamage } from './formulas.js';
-// import { fetchUKBDocuments } from '../lib/firebase/firestore';
-import { combatChoreography } from './choreography';
+import { getDocs, collection, query, where } from 'firebase/firestore';
 
-const createCombatant = (config) => ({
-    id: config.id,
-    name: config.name,
-    health: config.health,
-    maxHealth: config.health,
-    weaponType: config.weaponType,
-    attack_speed: config.attack_speed,
-    attributes: { ...config.attributes },
-    perks: config.perks ? [...config.perks] : [],
-    next_action_tick: 0,
-});
+// --- UKB DATA LOADER ---
+async function fetchUKBData(docIds, db, collectionName) {
+    if (!docIds || docIds.length === 0) return {};
+    const uniqueIds = [...new Set(docIds)];
+    const ukbData = {};
+    const dataRef = collection(db, collectionName);
+    const batches = [];
+    for (let i = 0; i < uniqueIds.length; i += 30) {
+        batches.push(uniqueIds.slice(i, i + 30));
+    }
+    try {
+        for (const batch of batches) {
+            const q = query(dataRef, where('perk_id', 'in', batch));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                ukbData[data.perk_id] = data; // Use perk_id for perks
+            });
+        }
+        // Also query abilities collection
+        const abilitiesRef = collection(db, 'abilities');
+         for (const batch of batches) {
+            const q = query(abilitiesRef, where('id', 'in', batch));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                ukbData[data.id] = data; // Use id for abilities
+            });
+        }
+    } catch (error) {
+        console.error(`Error fetching UKB data from ${collectionName}:`, error);
+    }
+    return ukbData;
+};
 
-// Simulation loop v2.1: Tick-based, two-actor combat with weapon scaling
+// --- SIMULATION CORE ---
+
 export async function runSimulation(combatant, target, choreography, firestore) {
-  // --- Pre-Flight Briefing ---
-  const uniqueAbilityIds = [...new Set((choreography || combatChoreography).map(action => action.action))];
-  // Ability data cache is currently empty; Firestore fetch is disabled
-  const cachedUKBData = {};
-  console.log("Pre-flight data cache complete:", cachedUKBData);
-  // ...existing code for simulation loop...
-  // Initialize activeEffects for both combatants
-  combatant.activeEffects = [];
-  target.activeEffects = [];
-  // Apply core principle: target damage reduction
-  if (typeof target.damageReduction !== 'number') {
-    target.damageReduction = 0.50;
-  }
-
-  const log = [];
-  let currentTick = 0;
-  let actionIndex = 0;
-  const tickRate = 0.1; // 100ms precision
-
-  // Continue while target is alive OR combatant has active effects
-  while ((target.health > 0 && actionIndex < choreography.length) || combatant.activeEffects.length > 0) {
-    let events = [];
-    // If next action is due, execute it
-    if (actionIndex < choreography.length && choreography[actionIndex].time <= currentTick) {
-      const actionObj = choreography[actionIndex];
-      events = [actionObj.action];
-      // Optionally pass details if needed for processTick
-      // e.g., events = [{ type: actionObj.action, ...actionObj.details }];
-      actionIndex++;
-    }
-    // Always process tick for effect resolution
-    const tickResults = processTick(combatant, target, tickRate, events);
-    // Apply results from the tick
-    if (tickResults.damageDealt) {
-      target.health -= tickResults.damageDealt;
-    }
-    if (tickResults.logEntry) {
-      log.push({ ...tickResults.logEntry, timestamp: currentTick });
-    }
-    currentTick += tickRate;
-  }
-  return log;
-}
-
-// UKB Loader (remains the same)
-/**
- * Resolves active effects for a character, updating durations and removing expired effects.
- * Returns cumulative bonuses from still-active effects.
- * @param {Object} character - The combatant or target object with activeEffects array
- * @param {number} tickDelta - Time elapsed since last tick
- * @returns {Object} - Cumulative bonuses, e.g., { total_damage_modifier: 15 }
- */
-export function resolveActiveEffects(character, tickDelta) {
-  if (!character || !Array.isArray(character.activeEffects) || typeof tickDelta !== 'number') return {};
-  let total_damage_modifier = 0;
-  // Decrement durations and remove expired effects
-  character.activeEffects = character.activeEffects.filter(effect => {
-    effect.duration -= tickDelta;
-    if (effect.duration > 0) {
-      if (effect.type === 'damage_modifier' && typeof effect.power === 'number') {
-        total_damage_modifier += effect.power;
-      }
-      return true;
-    }
-    return false;
-  });
-  return { total_damage_modifier };
-}
-// ...existing code...
-/**
- * Adds new effects to a character, refreshing duration if effect already exists.
- * @param {Object} character - The combatant or target object with activeEffects array
- * @param {Array<Object>} newEffects - Array of effect objects to apply
- */
-export function applyEffects(character, newEffects) {
-  if (!character || !Array.isArray(character.activeEffects) || !Array.isArray(newEffects)) return;
-  for (const effect of newEffects) {
-    if (!effect || !effect.id) continue;
-    const existing = character.activeEffects.find(e => e.id === effect.id);
-    if (existing) {
-      // Refresh duration
-      existing.duration = effect.duration;
-      existing.power = effect.power;
-      // Optionally update other properties
-    } else {
-      character.activeEffects.push({ ...effect });
-    }
-  }
-}
-/**
- * Checks for perk triggers based on events and equipped perks.
- * @param {string[]} events - Array of event names (e.g., ['OnHit', 'OnCrit'])
- * @param {Array<{name: string, trigger: string}>} equippedPerks - List of equipped perks with trigger conditions
- * @returns {string[]} - Array of perk names that triggered
- */
-export function processPerkTriggers(events, equippedPerks) {
-  if (!Array.isArray(events) || !Array.isArray(equippedPerks)) return [];
-  const triggeredEffects = [];
-  // Test case: If a critical hit occurs, return Empower buff object
-  if (events.includes('OnCrit')) {
-    triggeredEffects.push({
-      id: 'keenly_empowered_buff',
-      name: 'Empower',
-      duration: 5,
-      power: 15,
-      type: 'damage_modifier',
-    });
-  }
-  // Future: Add logic for equippedPerks
-  return triggeredEffects;
-}
-/**
- * Master effect processor for each simulation tick.
- * Handles event detection, perk triggering, effect application, and effect resolution.
- * @param {Object} combatant - The combatant object
- * @param {Array<string>} events - Array of event names for this tick
- * @param {number} tickDelta - Time elapsed since last tick
- * @returns {Object} - Active bonuses from resolved effects
- */
-/**
- * Master processor for a simulation tick.
- * This function now calculates final damage according to the Grand Damage Formula.
- */
-// Accept cachedUKBData and currentAction as optional args
-export function processTick(combatant, target, tickDelta, events = [], cachedUKBData = {}, currentAction = null) {
-  // --- 1. EFFECT RESOLUTION ---
-  // At the start of the tick, resolve buffs/debuffs for BOTH combatant and target
-  const combatantBonuses = resolveActiveEffects(combatant, tickDelta);
-  const targetBonuses = resolveActiveEffects(target, tickDelta); // For Rend, etc.
-
-  // --- 2. EVENT DETECTION ---
-  const isCrit = Math.random() < 0.2; // Placeholder crit chance
-  const isBackstabOrHeadshot = false; // Placeholder for positional check
-  // events is now passed as an argument
+    // --- Pre-Flight: Load all necessary data from the UKB ---
+    const requiredAbilityIds = [...new Set(choreography.map(action => action.action).filter(id => id !== 'weapon_swap'))];
+    const linkedEffectIds = combatant.perks.flatMap(p => p.linked_effects?.map(e => e.id) || []);
     
-  // --- 3. PERK TRIGGERING & EFFECT APPLICATION ---
-  const triggeredEffects = processPerkTriggers(events, combatant.perks || []);
-  applyEffects(combatant, triggeredEffects);
+    const allRequiredIds = [...requiredAbilityIds, ...linkedEffectIds];
+    const ukbCache = await fetchUKBData(allRequiredIds, firestore, 'abilities'); // Fetch from both
 
-  // --- 4. GRAND DAMAGE FORMULA CALCULATION ---
-  // Stage 1 & 2: Calculate Ability's Base Damage
-  const weaponDamage = calculateWeaponDamage(combatant.weaponType, combatant.attributes);
-  let abilityDamageMultiplier = 1.0;
-  // If an action is provided, look up its real base_damage_percent
-  if (currentAction && cachedUKBData) {
-    const actionData = cachedUKBData[currentAction.action];
-    if (actionData && actionData.base_damage_percent) {
-      abilityDamageMultiplier = actionData.base_damage_percent / 100;
+    // Add a default 'Light Attack' if not found in DB
+    if (!ukbCache['light_attack']) {
+        ukbCache['light_attack'] = { id: 'light_attack', name: 'Light Attack', base_damage_percent: 100, type: 'Attack' };
     }
-  }
-  const baseDamage = weaponDamage * abilityDamageMultiplier;
+    console.log("AIA Engine: UKB data cache complete.", ukbCache);
 
-  // Term 2: Empower & Rend (with caps)
-  const totalEmpower = Math.min(combatantBonuses.total_damage_modifier || 0, 50); // Cap Empower at 50%
-  const totalRend = Math.min(targetBonuses.total_rend_modifier || 0, 70); // Cap Rend at 70%
-  const empowerRendMultiplier = 1 + (totalEmpower / 100) - (totalRend / 100);
+    // --- Initialization ---
+    let log = [];
+    let currentTick = 0;
+    let actionIndex = 0;
+    const tickRate = 0.1;
 
-  // Term 3: Critical Damage
-  let critMultiplier = 1.0;
-  if (isCrit || isBackstabOrHeadshot) {
-    const baseCritMultiplier = combatant.weaponType === 'Sword' ? 1.3 : 1.2; // Weapon-specific
-    critMultiplier = baseCritMultiplier; // Add perk effects here later
-  }
+    // Set initial active weapon from the first action in the choreography
+    combatant.activeWeapon = choreography[0].weapon;
 
-  // Term 4 & 5: Positional and Misc (placeholders for now)
-  const positionalMultiplier = 1.0;
-  const miscMultiplier = 1.0;
+    combatant.activeEffects = [];
+    target.activeEffects = [];
+    target.health = 50000;
+    target.damageReduction = 0;
 
-  // Final Calculation (before reduction)
-  const finalDamage =
-    baseDamage *
-    empowerRendMultiplier *
-    critMultiplier *
-    positionalMultiplier *
-    miscMultiplier;
+    // --- Main Simulation Loop ---
+    while (target.health > 0 && actionIndex < choreography.length) {
+        const action = choreography[actionIndex];
 
-  // Apply target's damage reduction
-  const damageAfterReduction = finalDamage * (1 - (target.damageReduction || 0));
-  const finalDamageRounded = Math.round(damageAfterReduction);
+        // Process events scheduled for the current tick
+        if (currentTick >= action.time) {
+            if (action.action === 'weapon_swap') {
+                // Find the next action to determine which weapon to swap to
+                const nextAction = choreography.find((a, i) => i > actionIndex && a.weapon !== 'System');
+                if (nextAction) {
+                    combatant.activeWeapon = nextAction.weapon;
+                    log.push({
+                        timestamp: currentTick,
+                        source: 'System',
+                        action: `Weapon Swap to ${combatant.activeWeapon}`,
+                        target: '-',
+                        damage: 0,
+                        isCrit: false,
+                        activeBuffs: combatant.activeEffects.map(e => e.name).join(', ') || '-',
+                    });
+                }
+            } else {
+                const tickResults = processTick(combatant, target, ['OnHit'], action, ukbCache);
+                if (tickResults.damageDealt > 0) {
+                    target.health -= tickResults.damageDealt;
+                }
+                if (tickResults.logEntry) {
+                    log.push({ ...tickResults.logEntry, timestamp: currentTick });
+                }
+            }
+            actionIndex++;
+        }
 
-  // --- 5. GENERATE LOG ENTRY ---
-  const logEntry = {
-    source: combatant.id,
-    action: currentAction ? currentAction.action : 'Light Attack',
-    target: target.id,
-    damage: finalDamageRounded,
-    isCrit: isCrit || isBackstabOrHeadshot,
-    effectsApplied: triggeredEffects.length > 0 ? triggeredEffects.map(e => e.name).join(', ') : '-',
-    activeBuffs: combatant.activeEffects.map(e => `${e.name} (${e.duration.toFixed(1)}s)`).join(', ') || '-',
-  };
+        // Resolve ongoing effects every tick
+        resolveActiveEffects(combatant, tickRate);
+        resolveActiveEffects(target, tickRate);
+        
+        currentTick = parseFloat((currentTick + tickRate).toFixed(2));
+        if (currentTick > 20) break; // Safety break
+    }
 
-  return {
-    damageDealt: finalDamageRounded,
-    logEntry: logEntry
-  };
+    console.log("AIA Engine: Simulation complete.");
+    return log;
 }
-async function loadUKBDocument(firestore, collectionName, docId) {
-    if (!firestore) throw new Error('Firestore instance required');
-    const { getDoc, doc } = await import('firebase/firestore');
-    const ref = doc(firestore, collectionName, docId);
-    const snapshot = await getDoc(ref);
-  if (!snapshot.exists()) throw new Error(`Document ${docId} not found in ${collectionName}`);
-  return { id: snapshot.id, ...snapshot.data() };
+
+
+// --- CORE LOGIC FUNCTIONS ---
+
+function applyEffects(character, effectsToApply, ukbCache) {
+    if (!effectsToApply || effectsToApply.length === 0) return;
+    for (const effectRef of effectsToApply) {
+        const effectData = ukbCache[effectRef.id];
+        if (!effectData) continue;
+        const existingEffect = character.activeEffects.find(e => e.id === effectData.id);
+        if (existingEffect) {
+            existingEffect.duration = effectData.duration_seconds;
+        } else {
+            character.activeEffects.push({ ...effectData, duration: effectData.duration_seconds });
+        }
+    }
 }
-export { loadUKBDocument };
+
+function resolveActiveEffects(character, tickDelta) {
+    if (!character.activeEffects) return;
+    character.activeEffects = character.activeEffects.filter(effect => {
+        effect.duration -= tickDelta;
+        return effect.duration > 0;
+    });
+}
+
+function processPerkTriggers(events, equippedPerks) {
+    const triggeredEffects = [];
+    for (const perk of equippedPerks) {
+        if (events.includes(perk.trigger) && perk.linked_effects) {
+            triggeredEffects.push(...perk.linked_effects);
+        }
+    }
+    return triggeredEffects;
+}
+
+export function processTick(combatant, target, events, currentAction, ukbCache) {
+    const combatantEmpower = combatant.activeEffects.filter(e => e.type === 'EMPOWER').reduce((sum, e) => sum + e.value, 0);
+    const cappedEmpower = Math.min(combatantEmpower, 50);
+
+    let baseCritChance = 0.05;
+    if (combatant.perks.some(p => p.perk_id === 'perk_keen')) baseCritChance += 0.11;
+    
+    let isCrit = Math.random() < baseCritChance;
+    if (isCrit) events.push('OnCrit');
+
+    const triggeredEffects = processPerkTriggers(events, combatant.perks);
+    applyEffects(combatant, triggeredEffects, ukbCache);
+
+    const weaponDamage = calculateWeaponDamage(combatant.activeWeapon, combatant.attributes);
+    const actionData = ukbCache[currentAction.action] || ukbCache['light_attack'];
+    const abilityDamageMultiplier = (actionData.base_damage_percent || 100) / 100;
+    const baseDamage = weaponDamage * abilityDamageMultiplier;
+
+    const empowerRendMultiplier = 1 + (cappedEmpower / 100);
+
+    let critMultiplier = 1.0;
+    if (isCrit) critMultiplier = combatant.activeWeapon === 'Sword' ? 1.3 : 1.2;
+
+    const finalDamage = Math.round(baseDamage * empowerRendMultiplier * critMultiplier);
+    
+    const logEntry = {
+        source: combatant.id,
+        action: actionData.name,
+        target: target.id,
+        damage: finalDamage,
+        isCrit: isCrit,
+        activeBuffs: combatant.activeEffects.map(e => e.name).join(', ') || '-',
+    };
+
+    return { damageDealt: finalDamage, logEntry };
+}

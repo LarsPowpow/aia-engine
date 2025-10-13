@@ -1,70 +1,157 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { fetchPerks } from '../lib/firebase/firestore.js';
 
-const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, firestore }) => {
-  const [perks, setPerks] = useState([]);
-  const [loading, setLoading] = useState(true);
+// --- Custom Hook for Data Fetching ---
+const usePerks = (firestore) => {
+  const [perks, setPerks] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
+    const abortController = new AbortController();
+
     async function loadPerks() {
-      setLoading(true);
-      try {
-        const data = await fetchPerks(firestore);
-        setPerks(data);
-      } catch (err) {
-        console.error("Error fetching perks:", err);
-        setPerks([]);
+      if (!firestore) {
+        setError("Firestore instance not provided.");
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchPerks(firestore);
+        if (!abortController.signal.aborted) {
+          // Sort perks alphabetically by name by default
+          const sortedData = data.sort((a, b) => a.name.localeCompare(b.name));
+          setPerks(sortedData);
+        }
+      } catch (err) {
+        if (!abortController.signal.aborted) {
+          console.error("Failed to load perks:", err);
+          setError("Failed to load perks from UKB.");
+          setPerks([]);
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setLoading(false);
+        }
+      }
     }
+    
     loadPerks();
+
+    return () => {
+      abortController.abort();
+    };
   }, [firestore]);
 
-  const handleToggle = (perkId) => {
-    setEquippedPerks(prev => 
-      prev.includes(perkId) ? prev.filter(id => id !== perkId) : [...prev, perkId]
+  return { perks, loading, error };
+};
+
+
+// --- Main Component ---
+const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, firestore }) => {
+  const { perks, loading, error } = usePerks(firestore);
+  const [nameFilter, setNameFilter] = React.useState('');
+  const [bucketFilter, setBucketFilter] = React.useState('');
+
+  const handleToggle = (perk) => {
+    const isEquipped = equippedPerks.some(p => p.id === perk.id);
+    if (isEquipped) {
+      setEquippedPerks(prev => prev.filter(p => p.id !== perk.id));
+    } else {
+      setEquippedPerks(prev => [...prev, perk]);
+    }
+  };
+
+  const uniqueBuckets = React.useMemo(() => {
+    if (perks.length === 0) return [];
+    // CORRECTED: Using 'perk_bucket' to match Firestore field name
+    const buckets = new Set(perks.map(p => p.perk_bucket || 'None').filter(Boolean));
+    return ['All Buckets', ...Array.from(buckets).sort()];
+  }, [perks]);
+
+  const filteredPerks = React.useMemo(() => {
+    return perks.filter(perk => {
+      const nameMatch = perk.name.toLowerCase().includes(nameFilter.toLowerCase());
+      
+      // CORRECTED: Using 'perk_bucket' to match Firestore field name
+      const bucketValue = perk.perk_bucket || 'None';
+      const bucketMatch = bucketFilter === 'All Buckets' || bucketFilter === '' || bucketValue === bucketFilter;
+
+      return nameMatch && bucketMatch;
+    });
+  }, [perks, nameFilter, bucketFilter]);
+
+  const renderContent = () => {
+    if (loading) {
+      return <div className="text-center text-slate-400 py-8">Loading perks from UKB...</div>;
+    }
+    if (error) {
+      return <div className="text-center text-red-400 py-8">{error}</div>;
+    }
+    if (perks.length === 0) {
+        return <div className="text-center text-slate-500 py-8">No perks found.</div>;
+    }
+    return (
+      <table className="min-w-full text-sm text-left">
+        <thead className="bg-black/20 sticky top-0 backdrop-blur-sm z-10">
+          <tr>
+            <th className="p-2 font-semibold text-slate-300 w-1/6">Use</th>
+            <th className="p-2 font-semibold text-slate-300">
+              <input
+                type="text"
+                placeholder="Search Name..."
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                className="w-full bg-slate-800/50 border border-slate-600 rounded-md px-2 py-1 text-xs text-white focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+              />
+            </th>
+            <th className="p-2 font-semibold text-slate-300">
+              <select
+                value={bucketFilter}
+                onChange={(e) => setBucketFilter(e.target.value)}
+                className="w-full bg-slate-800/50 border border-slate-600 rounded-md px-2 py-1 text-xs text-white focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+              >
+                {uniqueBuckets.map(bucket => (
+                  <option key={bucket} value={bucket}>{bucket}</option>
+                ))}
+              </select>
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-700/50">
+          {filteredPerks.map(perk => (
+            <tr key={perk.id} className="hover:bg-slate-700/50 transition-colors duration-150">
+              <td className="p-2 text-center">
+                <input
+                  type="checkbox"
+                  className="form-checkbox h-4 w-4 bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                  checked={equippedPerks.some(p => p.id === perk.id)}
+                  onChange={() => handleToggle(perk)}
+                />
+              </td>
+              <td className="p-2 whitespace-nowrap">{perk.name}</td>
+              {/* CORRECTED: Using 'perk_bucket' to match Firestore field name */}
+              <td className="p-2 whitespace-nowrap text-slate-400">{perk.perk_bucket || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     );
   };
 
   return (
     <div className="bg-slate-800/40 rounded-xl p-4 flex flex-col space-y-4 border border-slate-700 shadow-lg backdrop-blur-sm">
       <h2 className="text-lg font-bold text-green-400 border-b border-slate-600 pb-2 flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
           <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
           <path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7z" clipRule="evenodd" />
         </svg>
         Perk Loadout
       </h2>
       <div className="flex-grow overflow-auto custom-scrollbar pr-1" style={{maxHeight: '200px'}}>
-        {loading ? (
-          <div className="text-center text-slate-400 py-8">Loading perks...</div>
-        ) : (
-          <table className="min-w-full text-sm text-left">
-            <thead className="bg-black/20 sticky top-0 backdrop-blur-sm z-10">
-              <tr>
-                <th className="p-2 font-semibold text-slate-300 w-1/4">Use</th>
-                <th className="p-2 font-semibold text-slate-300">Name</th>
-                <th className="p-2 font-semibold text-slate-300">Bucket</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              {perks.map(perk => (
-                <tr key={perk.id} className="hover:bg-slate-700/50 transition-colors duration-150">
-                  <td className="p-2 text-center">
-                    <input
-                      type="checkbox"
-                      className="form-checkbox h-4 w-4 bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-500"
-                      checked={equippedPerks.includes(perk.id)}
-                      onChange={() => handleToggle(perk.id)}
-                    />
-                  </td>
-                  <td className="p-2 whitespace-nowrap">{perk.name}</td>
-                  <td className="p-2 whitespace-nowrap text-slate-400">{perk.bucket || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        {renderContent()}
       </div>
     </div>
   );

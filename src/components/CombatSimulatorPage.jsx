@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { calculateWeaponDamage } from '../simulation/formulas.js';
-import { runSimulation } from '../simulation/engine.js';
-import { combatChoreography } from '../simulation/choreography.js';
-import ChoreographerPanel from './ChoreographerPanel.jsx';
-import PerkLoadoutPanel from './PerkLoadoutPanel.jsx';
-import CommandBar from './CommandBar.jsx';
-import { db as firestore } from '../services/firebase.js';
-import InspectorPanel from './InspectorModal.jsx';
+import { calculateWeaponDamage } from '../simulation/formulas';
+import { runSimulation } from '../simulation/engine';
+import { combatChoreography } from '../simulation/choreography';
+import ChoreographerPanel from './ChoreographerPanel';
+import PerkLoadoutPanel from './PerkLoadoutPanel';
+import CommandBar from './CommandBar';
+import { db as firestore } from '../services/firebase';
+import InspectorPanel from './InspectorModal';
 
 // --- Sub-Component: ControlPanel ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
@@ -146,7 +146,13 @@ const CombatSimulatorPage = () => {
     }, [weaponType, attributes]);
 
     const handleRunSimulation = async () => {
-        const combatant = { weaponType, attributes, perks: equippedPerks, id: 'Player' };
+        const combatant = { 
+            id: 'Player',
+            weaponType, 
+            attributes, 
+            perks: equippedPerks, 
+        };
+        
         const target = { id: 'Target Dummy', health: 50000 };
         const log = await runSimulation(combatant, target, combatChoreography, firestore);
         setCombatLog(log);
@@ -159,19 +165,10 @@ const CombatSimulatorPage = () => {
     return (
         <>
         <style>{`
-            .custom-scrollbar::-webkit-scrollbar {
-                width: 8px;
-            }
-            .custom-scrollbar::-webkit-scrollbar-track {
-                background: transparent;
-            }
-            .custom-scrollbar::-webkit-scrollbar-thumb {
-                background: #475569; /* slate-600 */
-                border-radius: 4px;
-            }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                background: #64748b; /* slate-500 */
-            }
+            .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
             .tactical-grid {
                 background-image: 
                     linear-gradient(rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.8)),
