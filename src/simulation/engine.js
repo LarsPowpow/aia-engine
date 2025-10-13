@@ -23,11 +23,8 @@ const createCombatant = (config) => ({
 export async function runSimulation(combatant, target, choreography, firestore) {
   // --- Pre-Flight Briefing ---
   const uniqueAbilityIds = [...new Set((choreography || combatChoreography).map(action => action.action))];
-  // const ukbDataArray = await fetchUKBDocuments(uniqueAbilityIds, firestore);
-  const cachedUKBData = ukbDataArray.reduce((acc, doc) => {
-    acc[doc.id] = doc;
-    return acc;
-  }, {});
+  // Ability data cache is currently empty; Firestore fetch is disabled
+  const cachedUKBData = {};
   console.log("Pre-flight data cache complete:", cachedUKBData);
   // ...existing code for simulation loop...
   // Initialize activeEffects for both combatants
