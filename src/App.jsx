@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { initializeApp } from "firebase/app";
-import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, setDoc, updateDoc, arrayUnion, deleteDoc, getDoc } from "firebase/firestore";
+import { db } from './services/firebase';
 
 // Component Imports
 import ViewerPage from './components/ViewerPage.jsx';
@@ -14,16 +13,6 @@ import CombatSimulatorPage from './components/CombatSimulatorPage.jsx';
 import { OverridesContext } from './contexts/OverridesContext.jsx';
 import { SchemaContext } from './contexts/SchemaContext.jsx';
 
-
-// --- Firebase Configuration ---
-const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
-};
 
 // --- UKB Schemas (The "Hardcoded" Dictionary) ---
 const UKB_SCHEMAS = {
@@ -68,7 +57,6 @@ function App() {
     const [apiKey, setApiKey] = useState('');
     const [activeTab, setActiveTab] = useState('combat_simulator');
     const [logs, setLogs] = useState([]);
-    const [db, setDb] = useState(null);
     const [overrideRules, setOverrideRules] = useState({});
     const [schemaExtensions, setSchemaExtensions] = useState({});
     // --- Modal State ---
@@ -106,11 +94,10 @@ function App() {
         ]);
     }, []);
     
-    const fetchPrompts = useCallback(async (firestore) => {
-        if (!firestore) return;
+    const fetchPrompts = useCallback(async () => {
         addLog('info', 'Refreshing prompt library...');
         try {
-            const querySnapshot = await getDocs(collection(firestore, 'prompts'));
+            const querySnapshot = await getDocs(collection(db, 'prompts'));
             const promptsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             promptsData.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
             setPrompts(promptsData);
@@ -132,11 +119,10 @@ function App() {
         // ... (existing code unchanged)
     }, [addLog]);
     
-    const fetchEffectsManifest = useCallback(async (firestore) => {
-        if (!firestore) return;
+    const fetchEffectsManifest = useCallback(async () => {
         addLog('info', 'Harvesting Effects Manifest from UKB...');
         try {
-            const querySnapshot = await getDocs(collection(firestore, 'effects'));
+            const querySnapshot = await getDocs(collection(db, 'effects'));
             const manifest = querySnapshot.docs.map(doc => ({
                 ...doc.data(),
                 id: doc.id
@@ -164,26 +150,21 @@ function App() {
         }
     }, [addLog]);
 
+    const fetchAllData = async () => {
+        try {
+            addLog('info', 'Fetching all operational data from UKB...');
+            // setOverrideRules(rules); // Removed undefined 'rules' reference
+            // if (Object.keys(rules).length > 0) addLog('success', `Loaded ${Object.keys(rules).length} override rule(s).`);
+            await fetchPrompts();
+            await fetchEffectsManifest();
+
+            addLog('special', 'All operational data loaded.');
+        } catch (error) {
+            console.error("Error fetching all data:", error);
+            addLog('error', `Failed to fetch operational data: ${error.message}`);
+        }
+    };
     useEffect(() => {
-        const app = initializeApp(firebaseConfig);
-        const firestore = getFirestore(app);
-        setDb(firestore);
-        addLog('success', 'Firebase UKB connection established.');
-
-        const fetchAllData = async () => {
-            try {
-                addLog('info', 'Fetching all operational data from UKB...');
-                // setOverrideRules(rules); // Removed undefined 'rules' reference
-                // if (Object.keys(rules).length > 0) addLog('success', `Loaded ${Object.keys(rules).length} override rule(s).`);
-                await fetchPrompts(firestore);
-                await fetchEffectsManifest(firestore);
-
-                addLog('special', 'All operational data loaded.');
-            } catch (error) {
-                console.error("Error fetching all data:", error);
-                addLog('error', `Failed to fetch operational data: ${error.message}`);
-            }
-        };
         fetchAllData();
     }, [addLog, fetchPrompts, fetchSchemaExtensions, fetchEffectsManifest]);
     
@@ -268,7 +249,7 @@ function App() {
             const docRef = await addDoc(collection(db, 'prompts'), newPrompt);
             addLog('success', `New prompt version saved as '${newPrompt.name}'.`);
             setPromptName('');
-            await fetchPrompts(db);
+            await fetchPrompts();
             setSelectedPromptId(docRef.id);
         } catch (error) {
             addLog('error', `Failed to save new prompt: ${error.message}`);
@@ -283,7 +264,7 @@ function App() {
         try {
             await deleteDoc(doc(db, 'prompts', selectedPromptId));
             addLog('success', `Prompt version deleted.`);
-            await fetchPrompts(db);
+            await fetchPrompts();
             setSelectedPromptId(prompts.length > 1 ? prompts[0].id : '');
         } catch (error) {
             addLog('error', `Failed to delete prompt: ${error.message}`);
@@ -372,33 +353,26 @@ function App() {
     return (
         <OverridesContext.Provider value={overrideRules}>
             <SchemaContext.Provider value={schemaExtensions}>
-                <div className="bg-gray-900 text-gray-200 h-screen font-sans flex flex-col">
-                    <OverrideModal 
-                        isOpen={isModalOpen}
-                        onClose={handleModalClose}
-                        onSubmit={handleModalSubmit}
-                        fieldLabel={modalData?.fieldLabel || ''}
-                        allOptions={getModalOptions()}
-                    />
-                    <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg flex-shrink-0">
-                        <div className="w-full max-w-screen-2xl mx-auto">
-                            <h1 className="text-3xl font-bold text-center text-teal-400 tracking-wider">
-                                Aeternum Intelligence Agency
-                            </h1>
-                            <p className="text-center text-teal-600 text-sm">Cockpit v3.0</p>
+                <div className="bg-gray-900 text-gray-200 h-screen font-sans flex flex-row">
+                    {/* Main Content Area */}
+                    <div className="flex-grow flex flex-col h-screen overflow-y-hidden">
+                        <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg flex-shrink-0">
+                            <div className="w-full max-w-screen-2xl mx-auto">
+                                <h1 className="text-3xl font-bold text-center text-teal-400 tracking-wider">
+                                    Aeternum Intelligence Agency
+                                </h1>
+                                <p className="text-center text-teal-600 text-sm">Cockpit v3.0</p>
+                            </div>
+                        </header>
+                        <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
+                            <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+                            <main className="flex-grow p-4 md:p-8 overflow-y-auto">
+                                {renderContent()}
+                            </main>
                         </div>
-                    </header>
-                    <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
-                        <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <main className="flex-grow p-4 md:p-8 overflow-y-auto">
-                            {renderContent()}
-                        </main>
                     </div>
-                    <footer className="flex-shrink-0 bg-gray-900 border-t border-gray-700 p-4">
-                        <div className="w-full max-w-screen-2xl mx-auto">
-                            <SystemLog logs={logs} isExpanded={isLogExpanded} setIsExpanded={setIsLogExpanded} />
-                        </div>
-                    </footer>
+                    {/* Sidebar SystemLog (now on right) */}
+                    <SystemLog logs={logs} isSysLogOpen={isLogExpanded} setIsSysLogOpen={setIsLogExpanded} />
                 </div>
             </SchemaContext.Provider>
         </OverridesContext.Provider>
