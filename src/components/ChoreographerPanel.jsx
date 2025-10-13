@@ -23,9 +23,6 @@ export default function ChoreographerPanel({ onRunChoreography }) {
           ))}
         </tbody>
       </table>
-      <button onClick={onRunChoreography} style={{ marginTop: '1em' }}>
-        Run This Choreography
-      </button>
     </div>
   );
 }

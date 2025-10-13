@@ -4,6 +4,7 @@ import { runSimulation } from '../simulation/engine';
 import { combatChoreography } from '../simulation/choreography.js';
 import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
+import CommandBar from './CommandBar';
 import { db as firestore } from '../services/firebase';
 
 // --- Sub-Component: ControlPanel (No changes needed) ---
@@ -60,19 +61,31 @@ const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, ca
 
 // --- Sub-Component: CombatAnalysisPanel (UPDATED) ---
 const CombatAnalysisPanel = ({ combatLog, clearCombatLog, isFocusMode, setIsFocusMode }) => {
+    const [inspectedIndex, setInspectedIndex] = React.useState(null);
+    const handleRowClick = (index) => setInspectedIndex(index);
+    const handleCloseInspector = () => setInspectedIndex(null);
+
+    // Dummy state and formula breakdown for demonstration
+    const getInspectorData = (entry) => {
+        // In a real implementation, pass full combatant/target state and math breakdown for this tick
+        return {
+            combatantState: { /* ...populate from simulation state... */ },
+            targetState: { /* ...populate from simulation state... */ },
+            formulaBreakdown: 'Damage = ... (show step-by-step math here)' // Replace with real breakdown
+        };
+    };
+
     return (
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 flex flex-col h-full">
             <div className="flex justify-between items-center border-b border-gray-600 pb-2 mb-4">
                 <h2 className="text-xl font-semibold text-white">Combat Analysis</h2>
                 <div className="flex items-center space-x-2">
-                    {/* --- ADD THIS BUTTON --- */}
                     <button 
                         onClick={clearCombatLog}
                         className="p-2 rounded-md hover:bg-gray-700 text-gray-400 hover:text-white" title="Clear Combat Log"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>
-                    {/* --------------------- */}
                     <button 
                         onClick={() => setIsFocusMode(!isFocusMode)}
                         className="p-2 rounded-md hover:bg-gray-700" title="Toggle Focus Mode"
@@ -82,7 +95,6 @@ const CombatAnalysisPanel = ({ combatLog, clearCombatLog, isFocusMode, setIsFocu
                 </div>
             </div>
             <div className="flex-grow overflow-auto">
-                 {/* ... table remains the same ... */}
                  <table className="min-w-full text-sm text-left">
                     <thead className="bg-black/40 sticky top-0">
                         <tr>
@@ -99,7 +111,7 @@ const CombatAnalysisPanel = ({ combatLog, clearCombatLog, isFocusMode, setIsFocu
                     <tbody className="divide-y divide-gray-700/50">
                         {combatLog.length === 0 && ( <tr><td colSpan="8" className="text-center text-gray-500 py-8">No simulation data. Run a simulation to see the results.</td></tr>)}
                         {combatLog.map((entry, index) => (
-                             <tr key={index} className="hover:bg-gray-700/50">
+                             <tr key={index} className="hover:bg-gray-700/50 cursor-pointer" onClick={() => handleRowClick(index)}>
                                 <td className="p-2 whitespace-nowrap text-gray-400">{entry.timestamp.toFixed(1)}s</td>
                                 <td className="p-2 whitespace-nowrap text-cyan-400">{entry.source}</td>
                                 <td className="p-2 whitespace-nowrap">{entry.action}</td>
@@ -113,6 +125,15 @@ const CombatAnalysisPanel = ({ combatLog, clearCombatLog, isFocusMode, setIsFocu
                     </tbody>
                 </table>
             </div>
+            {inspectedIndex !== null && (
+                <InspectorPanel
+                    logEntry={combatLog[inspectedIndex]}
+                    combatantState={getInspectorData(combatLog[inspectedIndex]).combatantState}
+                    targetState={getInspectorData(combatLog[inspectedIndex]).targetState}
+                    formulaBreakdown={getInspectorData(combatLog[inspectedIndex]).formulaBreakdown}
+                    onClose={handleCloseInspector}
+                />
+            )}
         </div>
     );
 };
@@ -136,10 +157,10 @@ const CombatSimulatorPage = () => {
         }
     }, [weaponType, attributes]);
 
-    const handleRunSimulation = () => {
+    const handleRunSimulation = async () => {
         const combatant = { weaponType, attributes, id: 'Player' };
         const target = { id: 'Target Dummy', health: 50000 };
-        const log = runSimulation(combatant, target, combatChoreography);
+        const log = await runSimulation(combatant, target, combatChoreography, firestore);
         setCombatLog(log);
     };
 
@@ -152,29 +173,39 @@ const CombatSimulatorPage = () => {
     return (
         <div className="h-full flex flex-col space-y-4">
             <h1 className="text-2xl font-bold text-white">Combat Simulator</h1>
-            <div className={`flex-grow grid gap-6 ${isFocusMode ? 'grid-cols-1' : 'grid-cols-3'}`}>
+            <CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} />
+            <div
+                className={`flex-grow grid gap-6 ${isFocusMode ? 'grid-cols-1' : 'grid-cols-3'} min-h-[calc(100vh_-_15rem)]`}
+            >
                 <div className={isFocusMode ? 'hidden' : 'col-span-1'}>
-                    <ControlPanel 
-                        attributes={attributes}
-                        setAttributes={setAttributes}
-                        weaponType={weaponType}
-                        setWeaponType={setWeaponType}
-                        calculatedDamage={calculatedDamage}
-                    />
-                    <ChoreographerPanel onRunChoreography={handleRunSimulation} />
-                    <PerkLoadoutPanel 
-                        equippedPerks={equippedPerks}
-                        setEquippedPerks={setEquippedPerks}
-                        firestore={firestore}
-                    />
+                    <div className="flex flex-col h-full overflow-y-auto space-y-6">
+                        <div className="bg-gray-800/50 rounded-lg p-4 flex flex-col space-y-6 border border-gray-700" style={{ minHeight: '600px' }}>
+                            <ControlPanel 
+                                attributes={attributes}
+                                setAttributes={setAttributes}
+                                weaponType={weaponType}
+                                setWeaponType={setWeaponType}
+                                calculatedDamage={calculatedDamage}
+                            />
+                            <PerkLoadoutPanel 
+                                equippedPerks={equippedPerks}
+                                setEquippedPerks={setEquippedPerks}
+                                firestore={firestore}
+                            />
+                            <CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} />
+                            <ChoreographerPanel onRunChoreography={handleRunSimulation} />
+                        </div>
+                    </div>
                 </div>
                 <div className={isFocusMode ? 'col-span-1' : 'col-span-2'}>
-                    <CombatAnalysisPanel 
-                        combatLog={combatLog}
-                        clearCombatLog={clearCombatLog}
-                        isFocusMode={isFocusMode}
-                        setIsFocusMode={setIsFocusMode}
-                    />
+                    <div className="h-full overflow-y-auto">
+                        <CombatAnalysisPanel 
+                            combatLog={combatLog}
+                            clearCombatLog={clearCombatLog}
+                            isFocusMode={isFocusMode}
+                            setIsFocusMode={setIsFocusMode}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

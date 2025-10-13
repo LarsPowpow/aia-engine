@@ -20,10 +20,10 @@ const createCombatant = (config) => ({
 });
 
 // Simulation loop v2.1: Tick-based, two-actor combat with weapon scaling
-export async function runSimulation(combatant, target, choreography) {
+export async function runSimulation(combatant, target, choreography, firestore) {
   // --- Pre-Flight Briefing ---
   const uniqueAbilityIds = [...new Set((choreography || combatChoreography).map(action => action.action))];
-  const ukbDataArray = await fetchUKBDocuments(uniqueAbilityIds);
+  const ukbDataArray = await fetchUKBDocuments(uniqueAbilityIds, firestore);
   const cachedUKBData = ukbDataArray.reduce((acc, doc) => {
     acc[doc.id] = doc;
     return acc;
