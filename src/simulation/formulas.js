@@ -1,3 +1,50 @@
+// --- NEW INTEL: CONSTITUTION-TO-HP SCALING ---
+
+const CON_HP_TABLE = [
+    { "con": 5, "hp": 8024 }, { "con": 24, "hp": 8780 }, { "con": 25, "hp": 8780 },
+    { "con": 26, "hp": 8818 }, { "con": 49, "hp": 9746 }, { "con": 50, "hp": 9784 },
+    { "con": 99, "hp": 11501 }, { "con": 100, "hp": 11880 }, { "con": 149, "hp": 13404 },
+    { "con": 150, "hp": 13434 }, { "con": 199, "hp": 14847 }, { "con": 200, "hp": 14876 },
+    { "con": 249, "hp": 16238 }, { "con": 250, "hp": 16266 }, { "con": 299, "hp": 17579 },
+    { "con": 300, "hp": 17605 }, { "con": 349, "hp": 18867 }, { "con": 350, "hp": 18893 },
+    { "con": 399, "hp": 20104 }, { "con": 400, "hp": 20129 }, { "con": 449, "hp": 21290 },
+    { "con": 450, "hp": 21312 }, { "con": 465, "hp": 21653 }
+];
+
+/**
+ * Calculates a player's total HP based on their Constitution attribute.
+ * Uses linear interpolation between known data points.
+ * @param {number} constitutionPoints - The player's total CON attribute.
+ * @returns {number} - The predicted total HP, rounded to the nearest integer.
+ */
+export const calculateHP = (constitutionPoints) => {
+    if (constitutionPoints <= 5) return CON_HP_TABLE[0].hp;
+
+    // Find the two anchor points that bracket the constitution value
+    let lowerBound = CON_HP_TABLE[0];
+    let upperBound = CON_HP_TABLE[CON_HP_TABLE.length - 1];
+
+    for (let i = 0; i < CON_HP_TABLE.length; i++) {
+        if (CON_HP_TABLE[i].con <= constitutionPoints) {
+            lowerBound = CON_HP_TABLE[i];
+        }
+        if (CON_HP_TABLE[i].con >= constitutionPoints) {
+            upperBound = CON_HP_TABLE[i];
+            break;
+        }
+    }
+
+    // Interpolate to find the total HP at the exact constitution value
+    const totalHP = interpolate(
+        constitutionPoints,
+        lowerBound.con,
+        lowerBound.hp,
+        upperBound.con,
+        upperBound.hp
+    );
+
+    return Math.round(totalHP);
+};
 /**
  * Calculates total weapon damage for a given weapon type and attribute set.
  * @param {string} weaponType - The weapon type string (e.g., 'Sword').
@@ -89,44 +136,138 @@ export const WEAPON_SCALING_DATA = {
 // --- ATTRIBUTE THRESHOLDS (Source of Truth for bonuses) ---
 export const ATTRIBUTE_THRESHOLDS = {
     STR: {
-        50: { description: "+5% damage to Melee light attacks.", effects: { melee_light_attack_damage_percent: 5 } },
-        100: { description: "+10% damage to Melee heavy attacks.", effects: { melee_heavy_attack_damage_percent: 10 } },
-        150: { description: "+50% stamina damage from Melee light and heavy attacks.", effects: { melee_stamina_damage_percent: 50 } },
-        200: { description: "+10% damage on stunned, slowed, or rooted enemies.", effects: { conditional_damage_percent: 10, condition: ['stunned', 'slowed', 'rooted'] } },
-        250: { description: "Stamina regeneration is continued while performing Melee light and heavy attacks.", effects: { grants_special_ability: 'uninterruptible_stamina_regen' } },
-        300: { description: "Melee light and heavy attacks gain GRIT.", effects: { grants_special_ability: 'grit_on_melee_attacks' } },
+        50: { 
+            description: "+10% damage to Melee weapon light attacks.", 
+            effects: { melee_light_attack_damage_percent: 10 } 
+        },
+        100: { 
+            description: "+5% damage to Melee weapon heavy attacks.", 
+            effects: { melee_heavy_attack_damage_percent: 5 } 
+        },
+        150: { 
+            description: "+50% stamina damage from Melee weapon light and heavy attacks.", 
+            effects: { melee_stamina_damage_percent: 50 } 
+        },
+        200: { 
+            description: "+10% damage on stunned, slowed, or rooted enemies.", 
+            effects: { conditional_damage_percent: 10, condition: ['stunned', 'slowed', 'rooted'] } 
+        },
+        250: { 
+            description: "Stamina regeneration is continued while performing Melee weapon light and heavy attacks.", 
+            effects: { grants_special_ability: 'uninterruptible_stamina_regen' } 
+        },
+        300: { 
+            description: "Melee weapon attacks gain GRIT.", 
+            effects: { grants_special_ability: 'grit_on_melee_attacks' } 
+        },
     },
     DEX: {
-        50: { description: "+5% chance to crit.", effects: { crit_chance_percent: 5 } },
-        100: { description: "+5% thrust damage.", effects: { thrust_damage_percent: 5 } },
-        150: { description: "Dodging cost 10 less stamina.", effects: { dodge_stamina_cost_reduction: 10 } },
-        200: { description: "+10% bonus backstab and headshot damage.", effects: { backstab_damage_percent: 10, headshot_damage_percent: 10 } },
-        250: { description: "+10% damage on stunned, slowed, or rooted enemies.", effects: { conditional_damage_percent: 10, condition: ['stunned', 'slowed', 'rooted'] } },
-        300: { description: "Ammo has a 15% chance of being returned. Guaranteed crit after a dodge roll.", effects: { ammo_return_chance: 15, grants_special_ability: 'guaranteed_crit_after_dodge' } },
+        50: { 
+            description: "+10% chance to critical hit.", 
+            effects: { crit_chance_percent: 10 } 
+        },
+        100: { 
+            description: "+5% thrust damage.", 
+            effects: { thrust_damage_percent: 5 } 
+        },
+        150: { 
+            description: "Dodging cost 10 less stamina.", 
+            effects: { dodge_stamina_cost_reduction: 10 } 
+        },
+        200: { 
+            description: "+10% bonus backstab and headshot damage.", 
+            effects: { backstab_damage_percent: 10, headshot_damage_percent: 10 } 
+        },
+        250: { 
+            description: "+10% damage on stunned, slowed, or rooted enemies.", 
+            effects: { conditional_damage_percent: 10, condition: ['stunned', 'slowed', 'rooted'] } 
+        },
+        300: { 
+            description: "Ammo has a 15% chance of being returned. Guaranteed crit after a dodge roll.", 
+            effects: { ammo_return_chance: 15, grants_special_ability: 'guaranteed_crit_after_dodge' } 
+        },
     },
     INT: {
-        50: { description: "+10% damage to light and heavy magic attacks.", effects: { magic_attack_damage_percent: 10 } },
-        100: { description: "+10% crit damage.", effects: { crit_damage_percent: 10 } },
-        150: { description: "+15% to elemental damage.", effects: { elemental_damage_percent: 15 } },
-        200: { description: "+10 mana after a dodge.", effects: { mana_on_dodge_flat: 10 } },
-        250: { description: "+30% duration to damage of self buffs.", effects: { self_dot_duration_percent: 30 } },
-        300: { description: "+30% damage on first hit on full health target.", effects: { first_hit_full_health_damage_percent: 30 } },
+        50: { 
+            description: "+10% damage to light and heavy magic attacks.", 
+            effects: { magic_attack_damage_percent: 10 } 
+        },
+        100: { 
+            description: "+10% crit damage.", 
+            effects: { crit_damage_percent: 10 } 
+        },
+        150: { 
+            description: "+15% to elemental damage.", 
+            effects: { elemental_damage_percent: 15 } 
+        },
+        200: { 
+            description: "+10 mana after a dodge.", 
+            effects: { mana_on_dodge_flat: 10 } 
+        },
+        250: { 
+            description: "+30% duration to damage of self buffs.", 
+            effects: { self_dot_duration_percent: 30 } 
+        },
+        300: { 
+            description: "+30% damage on first hit on full health target.", 
+            effects: { first_hit_full_health_damage_percent: 30 } 
+        },
     },
     FOC: {
-        50: { description: "+10% mana regeneration rate.", effects: { mana_regen_rate_percent: 10 } },
-        100: { description: "+20 to mana pool.", effects: { mana_pool_flat: 20 } },
-        150: { description: "+20% healing output.", effects: { healing_output_percent: 20 } },
-        200: { description: "+20% duration on casted buffs.", effects: { casted_buff_duration_percent: 20 } },
-        250: { description: "+30 mana on any self or group kill with a life staff.", effects: { mana_on_kill_flat: 30 } },
-        300: { description: "When mana drops below 10%, gain 200% mana regen for 10s.", effects: { grants_special_ability: 'low_mana_regen_buff' } },
+        50: { 
+            description: "+10% mana regeneration rate.", 
+            effects: { mana_regen_rate_percent: 10 } 
+        },
+        100: { 
+            description: "+20 to mana pool.", 
+            effects: { mana_pool_flat: 20 } 
+        },
+        150: { 
+            description: "+20% healing output.", 
+            effects: { healing_output_percent: 20 } 
+        },
+        200: { 
+            description: "+20% duration on casted buffs.", 
+            effects: { casted_buff_duration_percent: 20 } 
+        },
+        250: { 
+            description: "+30 mana on any self or group kill.", 
+            effects: { mana_on_kill_flat: 30 } 
+        },
+        300: { 
+            description: "When mana drops below 50%, gain 200% mana regen for 10s. (1min cooldown)", 
+            effects: { grants_special_ability: 'low_mana_regen_buff' } 
+        },
     },
     CON: {
-        50: { description: "All health consumables 20% stronger.", effects: { consumable_healing_percent: 20 } },
-        100: { description: "Increase max health by 10% of physical armor.", effects: { max_health_from_physical_armor_percent: 10 } },
-        150: { description: "10% reduction to crit damage taken.", effects: { crit_damage_reduction_percent: 10 } },
-        200: { description: "20% increase to armor.", effects: { armor_increase_percent: 20 } },
-        250: { description: "80% damage reduction when full health.", effects: { full_health_damage_reduction_percent: 80 } },
-        300: { description: "20% longer duration on stun, slow, and root spells.", effects: { cc_duration_on_target_percent: 20 } },
+        50: { 
+            description: "All health and mana consumables 10% stronger.", 
+            effects: { consumable_strength_percent: 10 } 
+        },
+        100: { 
+            description: "Increase max health by 10% of physical armor.", 
+            effects: { max_health_from_physical_armor_percent: 10 } 
+        },
+        150: { 
+            description: "10% reduction to crit damage taken.", 
+            effects: { crit_damage_reduction_percent: 10 } 
+        },
+        200: { 
+            description: "20% increase to armor.", 
+            effects: { armor_increase_percent: 20 } 
+        },
+        250: { 
+            description: "80% damage reduction when full health (30s cooldown).", 
+            effects: { full_health_damage_reduction_percent: 80 } 
+        },
+        300: { 
+            description: "20% longer duration on stun, slow, and root spells.", 
+            effects: { cc_duration_on_target_percent: 20 } 
+        },
+        350: {
+            description: "+10 Base Health Regen",
+            effects: { base_health_regen_flat: 10 }
+        }
     },
 };
 /**
@@ -135,13 +276,7 @@ export const ATTRIBUTE_THRESHOLDS = {
  * @param {number} score - The attribute score.
  * @returns {Array} Array of effect objects for all thresholds <= score.
  */
-export function getActiveAttributeEffects(attrKey, score) {
-    const thresholds = ATTRIBUTE_THRESHOLDS[attrKey];
-    if (!thresholds) return [];
-    return Object.entries(thresholds)
-        .filter(([threshold]) => score >= Number(threshold))
-        .map(([_, obj]) => obj.effects);
-}
+
 /**
  * AIA-Engine: Combat Formulas (The "Book of Law")
  * This file contains the definitive, pure functions for all combat calculations.
@@ -149,54 +284,7 @@ export function getActiveAttributeEffects(attrKey, score) {
  */
 
 // --- ATTRIBUTE SCALING INTERPOLATION TABLE (Source of Truth) ---
-// This table translates raw attribute scores into a damage multiplier.
-const ATTRIBUTE_SCALING_TABLE = {
-    50: 0.05625,
-    100: 0.1625,
-    150: 0.31875,
-    200: 0.525,
-    250: 0.78125,
-    300: 1.0875,
-    350: 1.44375
-};
 
-/**
- * Calculates the attribute scaling bonus based on player attributes and weapon type.
- * For now, this is a simplified version for a Sword (STR primary, DEX secondary).
- * @param {object} attributes - The combatant's attributes { str, dex, ... }.
- * @returns {number} The attribute scaling bonus multiplier.
- */
-export function calculateAttributeBonus(attributes) {
-    // This is a simplified linear interpolation for now.
-    // We will upgrade this to a more complex function later if needed.
-    
-    // Find the two STR breakpoints the player is between.
-    const strPoints = Object.keys(ATTRIBUTE_SCALING_TABLE).map(Number);
-    let lowerStr = 0;
-    let upperStr = 50;
-
-    for (const point of strPoints) {
-        if (attributes.str >= point) {
-            lowerStr = point;
-        } else {
-            upperStr = point;
-            break;
-        }
-    }
-    
-    // Calculate the scaling bonus
-    const lowerBonus = ATTRIBUTE_SCALING_TABLE[lowerStr] || 0;
-    const upperBonus = ATTRIBUTE_SCALING_TABLE[upperStr] || lowerBonus;
-
-    const range = upperStr - lowerStr;
-    const progress = (attributes.str - lowerStr) / range;
-    
-    const strBonus = lowerBonus + (upperBonus - lowerBonus) * progress;
-
-    // For now, we are only calculating the primary attribute (STR).
-    // Secondary attribute scaling (DEX) will be added in a future pass.
-    return strBonus;
-}
 
 /**
  * Formula 1: Base Weapon Damage
@@ -204,7 +292,4 @@ export function calculateAttributeBonus(attributes) {
  * @param {object} attributes - The combatant's attributes.
  * @returns {number} The calculated base damage before other modifiers.
  */
-export function calculateBaseDamage(weaponBaseDamage, attributes) {
-    const attributeBonus = calculateAttributeBonus(attributes);
-    return weaponBaseDamage * (1 + attributeBonus);
-}
+
