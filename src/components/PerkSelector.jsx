@@ -67,17 +67,19 @@ const PerkSelector = ({ allPerks = [], selectedPerks = [], onPerkAdd, onPerkRemo
           placeholder="-- Search for a Perk --"
           className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
         />
-        <div className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-b-md mt-1 max-h-48 overflow-y-auto">
-          {filteredPerks.length > 0 ? filteredPerks.map(perk => (
-            <div 
-              key={perk.id}
-              onClick={() => handleAdd(perk.id)}
-              className="p-2 hover:bg-cyan-700 cursor-pointer"
-            >
-              {renderPerkItem(perk)}
-            </div>
-          )) : <p className="p-2 text-sm text-gray-500">No matching perks found.</p>}
-        </div>
+        {searchTerm && (
+          <div className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-b-md mt-1 max-h-48 overflow-y-auto">
+            {filteredPerks.length > 0 ? filteredPerks.map(perk => (
+              <div 
+                key={perk.id}
+                onClick={() => handleAdd(perk.id)}
+                className="p-2 hover:bg-cyan-700 cursor-pointer"
+              >
+                {renderPerkItem(perk)}
+              </div>
+            )) : <p className="p-2 text-sm text-gray-500">No matching perks found.</p>}
+          </div>
+        )}
       </div>
     </div>
   );
