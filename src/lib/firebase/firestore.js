@@ -1,3 +1,22 @@
+/**
+ * Fetch multiple abilities documents by their IDs using Firestore 'in' operator.
+ * @param {object} firestore - The Firestore instance
+ * @param {Array<string>} docIds - Array of document IDs to fetch
+ * @returns {Promise<Array<object>>} Array of ability documents
+ */
+export const fetchUKBDocuments = async (docIds, firestore) => {
+  if (!docIds || docIds.length === 0) {
+    return [];
+  }
+  const abilitiesRef = collection(firestore, 'abilities');
+  const q = query(abilitiesRef, where('id', 'in', docIds));
+  const querySnapshot = await getDocs(q);
+  const documents = [];
+  querySnapshot.forEach((doc) => {
+    documents.push({ firestoreId: doc.id, ...doc.data() });
+  });
+  return documents;
+};
 // src/lib/firebase/firestore.js
 // Fetches all documents from the 'abilities' collection where type === 'perk'
 

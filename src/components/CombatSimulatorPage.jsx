@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { calculateWeaponDamage } from '../simulation/formulas';
 import { runSimulation } from '../simulation/engine';
+import { combatChoreography } from '../simulation/choreography.js';
+import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
 import { db as firestore } from '../services/firebase';
 
 // --- Sub-Component: ControlPanel (No changes needed) ---
-const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage, onRunSimulation }) => {
+const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
     // ...existing code...
     const handleAttributeChange = (attr, value) => {
         const numValue = value === '' ? '' : parseInt(value, 10);
@@ -51,13 +53,7 @@ const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, ca
                  </div>
             </div>
             <div className="flex-grow"></div>
-            <button 
-                onClick={onRunSimulation}
-                className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-lg shadow-cyan-600/20 disabled:bg-gray-600 disabled:shadow-none"
-                disabled={calculatedDamage === 0}
-            >
-                Run Simulation
-            </button>
+            {/* Run Simulation button removed; now handled by ChoreographerPanel */}
         </div>
     );
 };
@@ -143,7 +139,7 @@ const CombatSimulatorPage = () => {
     const handleRunSimulation = () => {
         const combatant = { weaponType, attributes, id: 'Player' };
         const target = { id: 'Target Dummy', health: 50000 };
-        const log = runSimulation(combatant, target);
+        const log = runSimulation(combatant, target, combatChoreography);
         setCombatLog(log);
     };
 
@@ -164,8 +160,8 @@ const CombatSimulatorPage = () => {
                         weaponType={weaponType}
                         setWeaponType={setWeaponType}
                         calculatedDamage={calculatedDamage}
-                        onRunSimulation={handleRunSimulation}
                     />
+                    <ChoreographerPanel onRunChoreography={handleRunSimulation} />
                     <PerkLoadoutPanel 
                         equippedPerks={equippedPerks}
                         setEquippedPerks={setEquippedPerks}

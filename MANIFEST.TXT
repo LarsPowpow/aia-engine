@@ -1,0 +1,78 @@
+.
+|____src.zip
+|____index.html
+|____MANIFEST.TXT
+|____README.md
+|____eslint.config.js
+|____src
+| |____index.css.DEACTIVATED
+| |____components
+| | |____PromptInjector.jsx
+| | |____ScribePanel.jsx
+| | |____DangerZone.jsx
+| | |____CombatLogPanel.jsx
+| | |____Scribe.jsx
+| | |____AdminPanel.jsx
+| | |____InspectorModal.jsx
+| | |____TabNavigation.jsx
+| | |____SchemaGovernorPanel.jsx
+| | |____SystemLog.jsx
+| | |____JSONCleaner.jsx
+| | |____OverrideModal.jsx
+| | |____ForgePanel.jsx
+| | |____ViewerPage.jsx
+| | |____PerkLoadoutPanel.jsx
+| | |____DataTable.jsx
+| | |____DeconstructorTestbed.jsx
+| | |____PerkSelector.jsx
+| | |____Forge.jsx
+| | |____ForgeForm.jsx
+| | |____ChoreographerPanel.jsx
+| | |____MigrationPanel.jsx
+| | |____CombatSimulatorPage.jsx
+| | |____SimulationSetupPanel.jsx
+| | |____ManualUpsertPanel.jsx
+| | |____CombatantPanel.jsx
+| | |____CommandCenter.jsx
+| |____main.jsx
+| |____lib
+| | |____firebase.js
+| | |____firebase
+| | | |____firestore.js
+| | |____logUtils.js
+| |____simulation
+| | |____choreography.js
+| | |____formulas.js
+| | |____engine.js
+| |____services
+| | |____firebase.js
+| |____TabNavigation.jsx
+| |____assets
+| | |____react.svg
+| |____firebase
+| | |____config.js
+| |____App.jsx
+| |____MigrationPanel.jsx
+| |____contexts
+| | |____OverridesContext.jsx
+| | |____SchemaContext.jsx
+|____.gitignore
+|____aia-sot-manifest.txt
+|____postcss.config.cjs.DEACTIVATED
+|____package-lock.json
+|____package.json
+|____project_manifest.txt
+|____public
+| |____vite.svg
+|____.env
+|____server
+| |____add_effects_to_firestore.js
+| |____effects_to_add.json
+| |____test-deconstruct.js
+| |____.env.example
+| |____package-lock.json
+| |____package.json
+| |____index.js
+| |____.env
+|____vite.config.js
+|____tailwind.config.cjs.DEACTIVATED

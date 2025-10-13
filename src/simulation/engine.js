@@ -4,6 +4,8 @@
  */
 
 import { calculateWeaponDamage } from './formulas.js';
+import { fetchUKBDocuments } from '../lib/firebase/firestore';
+import { combatChoreography } from './choreography';
 
 const createCombatant = (config) => ({
     id: config.id,
@@ -18,29 +20,51 @@ const createCombatant = (config) => ({
 });
 
 // Simulation loop v2.1: Tick-based, two-actor combat with weapon scaling
-export function runSimulation(combatant, target) {
+export async function runSimulation(combatant, target, choreography) {
+  // --- Pre-Flight Briefing ---
+  const uniqueAbilityIds = [...new Set((choreography || combatChoreography).map(action => action.action))];
+  const ukbDataArray = await fetchUKBDocuments(uniqueAbilityIds);
+  const cachedUKBData = ukbDataArray.reduce((acc, doc) => {
+    acc[doc.id] = doc;
+    return acc;
+  }, {});
+  console.log("Pre-flight data cache complete:", cachedUKBData);
+  // ...existing code for simulation loop...
+  // Initialize activeEffects for both combatants
+  combatant.activeEffects = [];
+  target.activeEffects = [];
+  // Apply core principle: target damage reduction
+  if (typeof target.damageReduction !== 'number') {
+    target.damageReduction = 0.50;
+  }
 
-    // Initialize activeEffects for both combatants
-    combatant.activeEffects = [];
-    target.activeEffects = [];
+  const log = [];
+  let currentTick = 0;
+  let actionIndex = 0;
+  const tickRate = 0.1; // 100ms precision
 
-    const log = [];
-    let currentTick = 0;
-    const attackSpeed = 1.2; 
-
-    while (target.health > 0 && currentTick < 30) {
-        // The main loop is now extremely simple. It just asks the tick processor for the results.
-        const tickResults = processTick(combatant, target, attackSpeed);
-
-        // Apply results from the tick
-        target.health -= tickResults.damageDealt;
-        if (tickResults.logEntry) {
-            log.push({ ...tickResults.logEntry, timestamp: currentTick });
-        }
-        
-        currentTick += attackSpeed;
+  // Continue while target is alive OR combatant has active effects
+  while ((target.health > 0 && actionIndex < choreography.length) || combatant.activeEffects.length > 0) {
+    let events = [];
+    // If next action is due, execute it
+    if (actionIndex < choreography.length && choreography[actionIndex].time <= currentTick) {
+      const actionObj = choreography[actionIndex];
+      events = [actionObj.action];
+      // Optionally pass details if needed for processTick
+      // e.g., events = [{ type: actionObj.action, ...actionObj.details }];
+      actionIndex++;
     }
-
+    // Always process tick for effect resolution
+    const tickResults = processTick(combatant, target, tickRate, events);
+    // Apply results from the tick
+    if (tickResults.damageDealt) {
+      target.health -= tickResults.damageDealt;
+    }
+    if (tickResults.logEntry) {
+      log.push({ ...tickResults.logEntry, timestamp: currentTick });
+    }
+    currentTick += tickRate;
+  }
   return log;
 }
 
@@ -123,7 +147,8 @@ export function processPerkTriggers(events, equippedPerks) {
  * Master processor for a simulation tick.
  * This function now calculates final damage according to the Grand Damage Formula.
  */
-export function processTick(combatant, target, tickDelta) {
+// Accept cachedUKBData and currentAction as optional args
+export function processTick(combatant, target, tickDelta, events = [], cachedUKBData = {}, currentAction = null) {
   // --- 1. EFFECT RESOLUTION ---
   // At the start of the tick, resolve buffs/debuffs for BOTH combatant and target
   const combatantBonuses = resolveActiveEffects(combatant, tickDelta);
@@ -132,17 +157,23 @@ export function processTick(combatant, target, tickDelta) {
   // --- 2. EVENT DETECTION ---
   const isCrit = Math.random() < 0.2; // Placeholder crit chance
   const isBackstabOrHeadshot = false; // Placeholder for positional check
-  const events = isCrit || isBackstabOrHeadshot ? ['OnHit', 'OnCrit'] : ['OnHit'];
+  // events is now passed as an argument
     
   // --- 3. PERK TRIGGERING & EFFECT APPLICATION ---
   const triggeredEffects = processPerkTriggers(events, combatant.perks || []);
   applyEffects(combatant, triggeredEffects);
 
   // --- 4. GRAND DAMAGE FORMULA CALCULATION ---
-
   // Stage 1 & 2: Calculate Ability's Base Damage
   const weaponDamage = calculateWeaponDamage(combatant.weaponType, combatant.attributes);
-  const abilityDamageMultiplier = 1.0; // For a basic Light Attack
+  let abilityDamageMultiplier = 1.0;
+  // If an action is provided, look up its real base_damage_percent
+  if (currentAction && cachedUKBData) {
+    const actionData = cachedUKBData[currentAction.action];
+    if (actionData && actionData.base_damage_percent) {
+      abilityDamageMultiplier = actionData.base_damage_percent / 100;
+    }
+  }
   const baseDamage = weaponDamage * abilityDamageMultiplier;
 
   // Term 2: Empower & Rend (with caps)
@@ -161,28 +192,31 @@ export function processTick(combatant, target, tickDelta) {
   const positionalMultiplier = 1.0;
   const miscMultiplier = 1.0;
 
-  // Final Calculation
-  const finalDamage = Math.round(
+  // Final Calculation (before reduction)
+  const finalDamage =
     baseDamage *
     empowerRendMultiplier *
     critMultiplier *
     positionalMultiplier *
-    miscMultiplier
-  );
+    miscMultiplier;
+
+  // Apply target's damage reduction
+  const damageAfterReduction = finalDamage * (1 - (target.damageReduction || 0));
+  const finalDamageRounded = Math.round(damageAfterReduction);
 
   // --- 5. GENERATE LOG ENTRY ---
   const logEntry = {
     source: combatant.id,
-    action: 'Light Attack',
+    action: currentAction ? currentAction.action : 'Light Attack',
     target: target.id,
-    damage: finalDamage,
+    damage: finalDamageRounded,
     isCrit: isCrit || isBackstabOrHeadshot,
     effectsApplied: triggeredEffects.length > 0 ? triggeredEffects.map(e => e.name).join(', ') : '-',
     activeBuffs: combatant.activeEffects.map(e => `${e.name} (${e.duration.toFixed(1)}s)`).join(', ') || '-',
   };
 
   return {
-    damageDealt: finalDamage,
+    damageDealt: finalDamageRounded,
     logEntry: logEntry
   };
 }
