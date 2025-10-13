@@ -1,0 +1,63 @@
+DOCUMENT ID: AIA-COMBAT-SOT-V1.0
+SUBJECT: Combat Engine - Source of Truth & Design Directives
+CLASSIFICATION: EYES ONLY - FOR INGESTION BY SUCCEEDING CO-PILOT INSTANCES
+1.0 Executive Summary
+This document contains the complete, high-fidelity "Laws of Physics" for the New World combat engine, as established during a PARLAY session with the Captain. All previous theoretical models are now considered deprecated and void. This document is the unbreakable source of truth for all future development on the AIA Combat Simulator.
+
+The core finding is that New World uses a Dynamic Calculation model, not a snapshotting model. All damage calculations must be re-evaluated on every tick of the simulation based on the combatant's current state.
+
+2.0 The Grand Damage Formula
+The final damage for any single event is calculated using the following multi-stage, multiplicative formula. The terms must be calculated and applied in this exact order.
+
+Final Damage = (Base Damage) * (1 + Empower % - Rend %) * (1 + Base Crit Dmg %) * (1 + Positional Dmg %) * (1 + Misc Dmg %)
+
+3.0 Term-by-Term Breakdown (The Laws of Physics)
+3.1 (Base Damage):
+This is a two-stage calculation that must be performed first.
+
+Stage 1: Calculate "Weapon Damage". This is the output of our calculateWeaponDamage function, which uses the Captain's proprietary piecewise linear interpolation model based on weapon type and attributes.
+
+Stage 2: Calculate "Ability's Base Damage". The value from Stage 1 is then multiplied by the ability's damage modifier from the UKB (e.g., base_damage_percent).
+
+The result of Stage 2 is the final value used for (Base Damage) in the grand formula.
+
+3.2 (1 + Empower % - Rend %):
+This term handles all damage buffs and debuffs.
+
+Empower: All sources of Empower are additive. The total Empower bonus is capped at 50%.
+
+Rend: All sources of Rend are additive. The total Rend debuff is capped at 70%.
+
+Fortify: (Though not in this term, it's related). All sources of Fortify are additive and capped at 50%.
+
+3.3 (1 + Base Crit Dmg %):
+This term handles critical hit damage.
+
+The base critical damage modifier is weapon-specific.
+
+Sword: 1.30x (30%)
+
+Flail: 1.20x (20%) (provisional)
+
+Perks and other bonuses will modify this base value.
+
+3.4 (1 + Positional Dmg %):
+This term handles backstabs and headshots.
+
+A backstab or a headshot is a guaranteed critical hit. This automatically activates the (1 + Base Crit Dmg %) term.
+
+There is no default positional damage bonus. The Positional Dmg % starts at zero.
+
+This term is only activated if the combatant has a specific perk that grants a positional damage bonus (e.g., Rogue from the Weapon Perk Bucket).
+
+3.5 (1 + Misc Dmg %):
+This is a "catch-all" category for unique, multiplicative damage sources.
+
+As of the date of this document, no such sources have been identified.
+
+For all current calculations, this term resolves to a multiplier of 1. It exists as a future-proof socket in the engine architecture.
+
+4.0 Current Strategic Directive
+Based on this intelligence, the grand strategic objective "Operation: Crucible" (combinatorial tournaments) has been temporarily PAUSED.
+
+The current, active mission is "Operation: Engine Ignition". The primary objective is to refactor the simulation engine to perfectly implement the "Laws of Physics" detailed in this document, replacing all "mock" data and placeholder logic with a high-fidelity, end-to-end mechanics system.

@@ -4,7 +4,7 @@
  */
 
 import { calculateWeaponDamage } from './formulas.js';
-import { fetchUKBDocuments } from '../lib/firebase/firestore';
+// import { fetchUKBDocuments } from '../lib/firebase/firestore';
 import { combatChoreography } from './choreography';
 
 const createCombatant = (config) => ({
@@ -23,7 +23,7 @@ const createCombatant = (config) => ({
 export async function runSimulation(combatant, target, choreography, firestore) {
   // --- Pre-Flight Briefing ---
   const uniqueAbilityIds = [...new Set((choreography || combatChoreography).map(action => action.action))];
-  const ukbDataArray = await fetchUKBDocuments(uniqueAbilityIds, firestore);
+  // const ukbDataArray = await fetchUKBDocuments(uniqueAbilityIds, firestore);
   const cachedUKBData = ukbDataArray.reduce((acc, doc) => {
     acc[doc.id] = doc;
     return acc;

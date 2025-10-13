@@ -1,0 +1,67 @@
+DOCUMENT ID: AIA-COMBAT-PHYSICS-V3.2
+SUBJECT: The Definitive Combat & Mitigation Formulas
+This document establishes the fundamental "physics" of our analytical universe. It contains every core game mechanic formula we have defined and proven for calculating damage and mitigation. All future simulation development will be based on these exact calculations.
+
+1.0 Core Operational Assumptions
+Max Gear Score Environment: All calculations for perks, armor mitigation, and other gear-dependent effects will assume the current maximum Gear Score (e.g., 700). The simulation of sub-optimal Gear Scores is not a requirement for the current operational scope.
+
+PvP Focus: All formulas are oriented towards Player-vs-Player combat unless explicitly stated otherwise.
+
+2.0 Definitive Combat Damage Formulas
+Formula 1: Base Weapon Damage
+Calculates the initial damage of an attack before any modifiers are applied. This is the bedrock of all outgoing damage calculations.
+
+Base Damage = (Weapon's Base Damage) * (1 + Attribute Scaling Bonus)
+
+Formula 2: Final Damage Calculation
+Calculates the final damage number after all offensive modifiers are applied.
+
+Final Damage = (Base Damage) * (1 + Empower% - Rend%) * (1 + Crit Dmg Multiplier) * (1) * (1)
+
+Bucket Breakdown:
+
+(1 + Empower% - Rend%): This is the Buff/Debuff Bucket. The engine sums all active Empower effects on the attacker (capping at +50%) and all active Rend effects on the defender (capping at +70%).
+
+(1 + Crit Dmg Multiplier): This is the Critical Hit Bucket.
+
+Condition: This bucket only applies if the attack is a critical hit. A crit occurs if a random roll succeeds OR the attack is a backstab OR it is a headshot with a valid weapon.
+
+Value: If a crit occurs, the value is the weapon's base critical damage multiplier plus any additive bonuses from perks (e.g., Vicious). Otherwise, the value is 1.
+
+(1) (Formerly Positional Dmg%): This bucket's base value is always 1. The effects of backstabs and headshots are fully handled by guaranteeing a critical hit and by firing specific events (OnBackstab, OnHeadshot) for the Perk Engine to process.
+
+(1) (Formerly Misc Dmg%): This bucket's value is 1. We have not identified any core game mechanics that exist in this multiplicative bucket. It is reserved for future expansion if new intelligence comes to light.
+
+3.0 Definitive Damage Mitigation Formulas
+Formula 1: Armor Mitigation
+Determines the percentage of incoming damage absorbed by the target's armor rating.
+
+Dmg Reduction % = Armor Rating / (Armor Rating + (Attacker's GS * 10))
+
+Formula 2: Perk-Based Mitigation
+Calculates how multiple perk-based damage reduction effects stack.
+CRITICAL NOTE: Buffs of the same type (e.g., multiple Fortify sources) are added together first. This total is then applied as a single multiplicative reduction. Different types of buffs (e.g., Fortify and Weaken) are multiplicative with each other.
+
+Final Dmg = Initial Dmg * (1 - Total Fortify%) * (1 - Other Perk 1%)...
+
+Formula 3: Critical Damage Mitigation (By Armor Class)
+Calculates the inherent reduction in bonus critical hit damage based on the target's equipped armor weight. This is a baseline PvP mitigation.
+
+Light Armor: Reduces bonus critical damage by 15%.
+
+Medium Armor: Reduces bonus critical damage by 20%.
+
+Heavy Armor: Reduces bonus critical damage by 25%.
+
+Final Bonus Crit Dmg = Bonus Crit Dmg * (1 - Armor Class Crit Mitigation %)
+
+4.0 Core Principles & Stacking Rules
+Additive Stacking: Buffs and debuffs of the same type stack additively up to their respective caps.
+
+Empower: +50% Cap
+
+Fortify: +50% Cap
+
+Rend: +70% Cap
+
+Multiplicative Stacking: Effects of different types stack multiplicatively (e.g., Empower, Base Crit Damage, Armor Mitigation are all separate multiplicative buckets).

@@ -1,0 +1,111 @@
+### **Objective:**
+Create a set of functions to accurately predict the in-game UI damage for the Sword and Flail weapons in New World, based on a provided set of post-patch attribute data tables.
+
+### **Core Methodology: The Interpolation Table Model**
+The damage calculation is not based on a single continuous formula. Instead, it relies on linear interpolation between a series of known data points ("anchor points"). The total UI damage is the sum of the weapon's base damage and the damage added by each of its scaling attributes.
+
+The formula is:
+`Total Damage = Base Damage + Added Damage (Primary) + Added Damage (Secondary)`
+
+Where:
+-   **Base Damage:** A constant value for each weapon at 5 attribute points.
+-   **Added Damage:** The damage gained from an attribute above the baseline of 5. This value must be calculated for each relevant attribute by finding its contribution from the data tables.
+
+### **Implementation Steps:**
+
+1.  **Store the Data:** The provided data tables are the source of truth. Store them in a suitable data structure (e.g., arrays of objects, dictionaries).
+2.  **Create an Interpolation Function:** Write a generic linear interpolation function `interpolate(targetX, x1, y1, x2, y2)`. This function will calculate the `y` value at `targetX` on the line between points `(x1, y1)` and `(x2, y2)`.
+3.  **Create Attribute Damage Functions:** For each of the four data tables, create a specific function (e.g., `getSwordStrDamage(strengthPoints)`) that:
+    a. Takes an attribute value as input (e.g., 350 STR).
+    b. Finds the two closest anchor points in the corresponding data table that bracket the input value.
+    c. Uses the `interpolate` function to find the UI Damage at that exact attribute value.
+    d. Subtracts the weapon's Base Damage from the result to get the `Added Damage` for that attribute.
+4.  **Create a Master Calculator Function:** Create a main function, `calculateDamage(weaponType, str, dex, foc)`, that:
+    a. Takes the weapon type and all relevant attributes as input.
+    b. Sets the correct `Base Damage` based on the weapon type.
+    c. Calls the appropriate attribute damage functions (e.g., for "Sword", it would call `getSwordStrDamage(str)` and `getSwordDexDamage(dex)`).
+    d. Sums the `Base Damage` and all calculated `Added Damage` values to get the final predicted UI damage.
+    e. Returns the final, rounded integer value.
+
+---
+
+### **Source of Truth: Final Post-Patch Data Tables**
+
+**Weapon Constants:**
+-   **Sword Base Damage:** 546 (at 5 STR / 5 DEX)
+-   **Flail Base Damage:** 566 (at 5 STR / 5 FOC)
+
+**Table 1: Sword - Primary Scaling (Strength)**
+```json
+[
+  {"attr": 5, "dmg": 546}, {"attr": 24, "dmg": 567}, {"attr": 25, "dmg": 568},
+  {"attr": 26, "dmg": 569}, {"attr": 49, "dmg": 595}, {"attr": 50, "dmg": 596},
+  {"attr": 51, "dmg": 597}, {"attr": 99, "dmg": 648}, {"attr": 100, "dmg": 649},
+  {"attr": 101, "dmg": 650}, {"attr": 149, "dmg": 700}, {"attr": 150, "dmg": 701},
+  {"attr": 151, "dmg": 702}, {"attr": 199, "dmg": 749}, {"attr": 200, "dmg": 750},
+  {"attr": 201, "dmg": 751}, {"attr": 249, "dmg": 796}, {"attr": 250, "dmg": 797},
+  {"attr": 251, "dmg": 797}, {"attr": 299, "dmg": 840}, {"attr": 300, "dmg": 841},
+  {"attr": 301, "dmg": 842}, {"attr": 349, "dmg": 883}, {"attr": 350, "dmg": 883},
+  {"attr": 351, "dmg": 884}, {"attr": 399, "dmg": 923}, {"attr": 400, "dmg": 924},
+  {"attr": 401, "dmg": 924}, {"attr": 449, "dmg": 961}, {"attr": 450, "dmg": 961},
+  {"attr": 465, "dmg": 972}
+]
+Table 2: Sword - Secondary Scaling (Dexterity)
+
+JSON
+
+[
+  {"attr": 5, "dmg": 546}, {"attr": 24, "dmg": 562}, {"attr": 25, "dmg": 563},
+  {"attr": 26, "dmg": 564}, {"attr": 49, "dmg": 585}, {"attr": 50, "dmg": 586},
+  {"attr": 51, "dmg": 587}, {"attr": 99, "dmg": 634}, {"attr": 100, "dmg": 635},
+  {"attr": 101, "dmg": 636}, {"attr": 149, "dmg": 683}, {"attr": 150, "dmg": 684},
+  {"attr": 151, "dmg": 684}, {"attr": 199, "dmg": 729}, {"attr": 200, "dmg": 730},
+  {"attr": 201, "dmg": 731}, {"attr": 249, "dmg": 773}, {"attr": 250, "dmg": 774},
+  {"attr": 251, "dmg": 775}, {"attr": 299, "dmg": 815}, {"attr": 300, "dmg": 816},
+  {"attr": 301, "dmg": 817}, {"attr": 349, "dmg": 856}, {"attr": 350, "dmg": 857},
+  {"attr": 351, "dmg": 858}, {"attr": 399, "dmg": 896}, {"attr": 400, "dmg": 897},
+  {"attr": 401, "dmg": 898}, {"attr": 449, "dmg": 934}, {"attr": 450, "dmg": 935}
+]
+Table 3: Flail - Primary Scaling (Strength)
+
+JSON
+
+[
+  {"attr": 5, "dmg": 566}, {"attr": 24, "dmg": 610}, {"attr": 25, "dmg": 613},
+  {"attr": 26, "dmg": 615}, {"attr": 49, "dmg": 668}, {"attr": 50, "dmg": 671},
+  {"attr": 51, "dmg": 673}, {"attr": 99, "dmg": 780}, {"attr": 100, "dmg": 782},
+  {"attr": 101, "dmg": 784}, {"attr": 149, "dmg": 886}, {"attr": 150, "dmg": 888},
+  {"attr": 151, "dmg": 890}, {"attr": 199, "dmg": 988}, {"attr": 200, "dmg": 990},
+  {"attr": 201, "dmg": 992}, {"attr": 249, "dmg": 1085}, {"attr": 250, "dmg": 1087},
+  {"attr": 251, "dmg": 1089}, {"attr": 299, "dmg": 1178}, {"attr": 300, "dmg": 1180},
+  {"attr": 301, "dmg": 1181}, {"attr": 349, "dmg": 1266}, {"attr": 350, "dmg": 1268},
+  {"attr": 351, "dmg": 1269}, {"attr": 399, "dmg": 1349}, {"attr": 400, "dmg": 1351},
+  {"attr": 401, "dmg": 1352}, {"attr": 449, "dmg": 1428}, {"attr": 450, "dmg": 1429},
+  {"attr": 465, "dmg": 1452}
+]
+Table 4: Flail - Secondary Scaling (Focus)
+
+JSON
+
+[
+  {"attr": 5, "dmg": 566}, {"attr": 24, "dmg": 600}, {"attr": 25, "dmg": 602},
+  {"attr": 26, "dmg": 604}, {"attr": 49, "dmg": 644}, {"attr": 50, "dmg": 646},
+  {"attr": 51, "dmg": 648}, {"attr": 99, "dmg": 729}, {"attr": 100, "dmg": 731},
+  {"attr": 101, "dmg": 733}, {"attr": 149, "dmg": 811}, {"attr": 150, "dmg": 812},
+  {"attr": 151, "dmg": 814}, {"attr": 199, "dmg": 889}, {"attr": 200, "dmg": 890},
+  {"attr": 201, "dmg": 892}, {"attr": 249, "dmg": 963}, {"attr": 250, "dmg": 965},
+  {"attr": 251, "dmg": 966}, {"attr": 299, "dmg": 1034}, {"attr": 300, "dmg": 1035},
+  {"attr": 301, "dmg": 1037}, {"attr": 349, "dmg": 1101}, {"attr": 350, "dmg": 1103},
+  {"attr": 351, "dmg": 1104}, {"attr": 399, "dmg": 1165}, {"attr": 400, "dmg": 1166},
+  {"attr": 401, "dmg": 1167}, {"attr": 449, "dmg": 1225}, {"attr": 450, "dmg": 1226}
+]
+Validation / Final Exam Test Case:
+Use this to verify the correctness of your implementation.
+
+Input: weaponType="Sword", str=350, dex=25, foc=50
+
+Expected Output: 901
+
+Input: weaponType="Flail", str=350, dex=25, foc=50
+
+Expected Output: 1347

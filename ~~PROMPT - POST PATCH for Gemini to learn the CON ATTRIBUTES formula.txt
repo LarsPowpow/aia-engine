@@ -1,0 +1,53 @@
+### **Objective:**
+Create a function to accurately predict a player's total Health Points (HP) in New World based on their Constitution (CON) attribute.
+
+### **Core Methodology: The Interpolation Table Model**
+The HP calculation is not based on a single continuous formula. Instead, it relies on linear interpolation between a series of known data points ("anchor points"). The relationship between CON and HP exhibits diminishing returns at specific breakpoints.
+
+### **Implementation Steps:**
+
+1.  **Store the Data:** The provided `CON_HP_TABLE` is the source of truth. Store it in a suitable data structure (e.g., an array of objects or a dictionary) that can be easily accessed.
+2.  **Create an Interpolation Function:** Write a generic linear interpolation function `interpolate(targetX, x1, y1, x2, y2)`. This function will calculate the `y` value (HP) at `targetX` (the desired CON value) on the straight line between the two closest anchor points `(x1, y1)` and `(x2, y2)`.
+3.  **Create the Calculator Function:** Write a main function, `calculateHP(constitutionPoints)`, that:
+    a. Takes a single integer `constitutionPoints` as input.
+    b. Finds the two closest anchor points in the `CON_HP_TABLE` that bracket the input value. For example, if the input is `67`, the bracketing points are `50` and `99`.
+    c. Passes these two anchor points and the target CON value to the `interpolate` function.
+    d. Returns the final, rounded integer value for the predicted HP.
+
+---
+
+### **Source of Truth: Raw Constitution to HP Data Table**
+This table contains the known "anchor points" for the interpolation calculation.
+
+```json
+[
+  {"con": 5, "hp": 8024},
+  {"con": 24, "hp": 8780},
+  {"con": 25, "hp": 8780},
+  {"con": 26, "hp": 8818},
+  {"con": 49, "hp": 9746},
+  {"con": 50, "hp": 9784},
+  {"con": 99, "hp": 11501},
+  {"con": 100, "hp": 11880},
+  {"con": 149, "hp": 13404},
+  {"con": 150, "hp": 13434},
+  {"con": 199, "hp": 14847},
+  {"con": 200, "hp": 14876},
+  {"con": 249, "hp": 16238},
+  {"con": 250, "hp": 16266},
+  {"con": 299, "hp": 17579},
+  {"con": 300, "hp": 17605},
+  {"con": 349, "hp": 18867},
+  {"con": 350, "hp": 18893},
+  {"con": 399, "hp": 20104},
+  {"con": 400, "hp": 20129},
+  {"con": 449, "hp": 21290},
+  {"con": 450, "hp": 21312},
+  {"con": 465, "hp": 21653}
+]
+Validation / Test Case:
+Use this to verify the correctness of the implementation.
+
+Input: constitutionPoints = 67
+
+Expected Output: 10368
