@@ -1,25 +1,23 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
 
-// Your web app's Firebase configuration.
+// Your web app's Firebase configuration
+// This should be populated with your actual Firebase project credentials.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+    apiKey: "AIzaSyArlZ2RyYDBAPufSoq8_oiWUlf77Ox3i5M",
+  authDomain: "aeternumintelligence.firebaseapp.com",
+  projectId: "aeternumintelligence",
+  storageBucket: "aeternumintelligence.firebasestorage.app",
+  messagingSenderId: "581686312895",
+  appId: "1:581686312895:web:710b0fe93be5790fed2b0a",
+  measurementId: "G-NF5TESZ9B4"
 };
-
-// --- CRITICAL DIAGNOSTIC ---
-// Verify that the environment variables have been loaded correctly.
-if (!firebaseConfig.projectId) {
-    console.error("Firebase projectId is missing. Check your .env file and Vite configuration.");
-}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Initialize Cloud Firestore and get a reference to the service
 const db = getFirestore(app);
 
+// Export the single, authoritative db instance for the entire application
 export { db };

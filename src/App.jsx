@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from './services/firebase';
-// --- CORRECTED FIREBASE IMPORTS ---
 import { collection, getDocs, addDoc, doc, deleteDoc } from 'firebase/firestore';
 
 // Component Imports
@@ -47,57 +46,40 @@ const UKB_SCHEMAS = {
 
 // --- MAIN APP COMPONENT ---
 function App() {
-    // --- Prompt Name State ---
     const [promptName, setPromptName] = useState('');
-    // --- Staged Data State ---
     const [stagedData, setStagedData] = useState([]);
-    // --- Effects Manifest State ---
     const [effectsManifest, setEffectsManifest] = useState([]);
-    // --- Log Expansion State ---
     const [isLogExpanded, setIsLogExpanded] = useState(false);
-    // --- API Key State ---
     const [apiKey, setApiKey] = useState('');
     const [activeTab, setActiveTab] = useState('combat_simulator');
     const [logs, setLogs] = useState([]);
     const [overrideRules, setOverrideRules] = useState({});
     const [schemaExtensions, setSchemaExtensions] = useState({});
-    // --- Modal State ---
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalData, setModalData] = useState(null);
-    // --- Covenant State ---
     const [covenant, setCovenant] = useState(null);
-    // --- Prompts State ---
     const [prompts, setPrompts] = useState([]);
-    // --- Selected Prompt State ---
     const [selectedPromptId, setSelectedPromptId] = useState('');
-    // --- Active Prompt Content State ---
     const [activePromptContent, setActivePromptContent] = useState('');
 
-    // Modal open/close handlers
-    const handleOpenOverrideModal = (data) => {
-        setModalData(data);
-        setIsModalOpen(true);
-    };
-    const handleModalClose = () => {
-        setIsModalOpen(false);
-        setModalData(null);
-    };
-    const handleModalSubmit = (result) => {
-        // Handle modal submit logic here if needed
-        setIsModalOpen(false);
-        setModalData(null);
-    };
-
-    const addLog = useCallback((type, message) => {
+    const addLog = useCallback((logEntry) => {
         const timestamp = new Date().toLocaleTimeString();
-        setLogs(prevLogs => [
-            ...prevLogs,
-            { type, message, timestamp }
-        ]);
+        // Ensure logEntry is an object with type and message
+        if (typeof logEntry === 'object' && logEntry.message) {
+             setLogs(prevLogs => [
+                ...prevLogs,
+                { ...logEntry, timestamp }
+            ]);
+        } else if (typeof logEntry === 'string') { // Legacy support for simple string messages
+             setLogs(prevLogs => [
+                ...prevLogs,
+                { type: 'info', message: logEntry, timestamp }
+            ]);
+        }
     }, []);
     
     const fetchPrompts = useCallback(async () => {
-        addLog('info', 'Refreshing prompt library...');
+        addLog({ type: 'info', message: 'Refreshing prompt library...' });
         try {
             const querySnapshot = await getDocs(collection(db, 'prompts'));
             const promptsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -105,38 +87,41 @@ function App() {
             setPrompts(promptsData);
             if (promptsData.length > 0) {
                 const latestPrompt = promptsData[0];
+                setSelectedPromptId(latestPrompt.id); // Auto-select the latest
                 setActivePromptContent(latestPrompt.content);
-                addLog('success', `Prompt library refreshed. Auto-selected "${latestPrompt.name}".`);
+                addLog({ type: 'success', message: `Prompt library refreshed. Auto-selected "${latestPrompt.name}".` });
             } else {
-                addLog('warning', 'Prompt library is empty.');
+                addLog({ type: 'warning', message: 'Prompt library is empty.' });
                 setSelectedPromptId('');
                 setActivePromptContent('');
             }
         } catch (error) {
-            addLog('error', `Failed to refresh prompts: ${error.message}`);
+            addLog({ type: 'error', message: `Failed to refresh prompts: ${error.message}` });
         }
-    }, [addLog]);
-    
-    const fetchSchemaExtensions = useCallback(async (firestore) => {
-        // ... (existing code unchanged)
     }, [addLog]);
     
     const fetchEffectsManifest = useCallback(async () => {
-        addLog('info', 'Harvesting Effects Manifest from UKB...');
+        addLog({ type: 'info', message: 'Harvesting Effects Manifest from UKB...' });
         try {
-            const querySnapshot = await getDocs(collection(db, 'effects'));
-            const manifest = querySnapshot.docs.map(doc => ({
-                ...doc.data(),
-                id: doc.id
-            }));
+            const querySnapshot = await getDocs(collection(db, 'ukb_effects_v2')); // <-- Corrected collection name
+            const manifest = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setEffectsManifest(manifest);
-            addLog('success', 'Deconstruction successful. AI analysis complete.');
-            addLog('success', `Effects Manifest harvested. ${manifest.length} effects loaded.`);
+            addLog({ type: 'success', message: `Effects Manifest harvested. ${manifest.length} effects loaded.` });
         } catch (error) {
-            addLog('error', `Failed to harvest Effects Manifest: ${error.message}`);
-            addLog('error', `FATAL ERROR in Deconstructor: ${error.message}`);
+            addLog({ type: 'error', message: `Failed to harvest Effects Manifest: ${error.message}` });
         }
     }, [addLog]);
+
+    // --- CORRECTED useEffect to prevent infinite loop ---
+    useEffect(() => {
+        const fetchAllData = async () => {
+            addLog({ type: 'info', message: 'Fetching all operational data from UKB...' });
+            await fetchPrompts();
+            await fetchEffectsManifest();
+            addLog({ type: 'special', message: 'All operational data loaded.' });
+        };
+        fetchAllData();
+    }, [addLog]); // Only re-run if addLog function itself changes (which it won't)
 
 
     useEffect(() => {
@@ -147,42 +132,15 @@ function App() {
             const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
             if (envApiKey) {
                 setApiKey(envApiKey);
-                addLog('info', 'Gemini API Key loaded from secure environment.');
+                addLog({ type: 'info', message: 'Gemini API Key loaded from secure environment.' });
             }
         }
     }, [addLog]);
 
-    const fetchAllData = async () => {
-        try {
-            addLog('info', 'Fetching all operational data from UKB...');
-            // setOverrideRules(rules); // Removed undefined 'rules' reference
-            // if (Object.keys(rules).length > 0) addLog('success', `Loaded ${Object.keys(rules).length} override rule(s).`);
-            await fetchPrompts();
-            await fetchEffectsManifest();
-
-            addLog('special', 'All operational data loaded.');
-        } catch (error) {
-            console.error("Error fetching all data:", error);
-            addLog('error', `Failed to fetch operational data: ${error.message}`);
-        }
-    };
-    useEffect(() => {
-        fetchAllData();
-    }, [addLog, fetchPrompts, fetchSchemaExtensions, fetchEffectsManifest]);
-    
     const handleDeconstruct = async (prompt, jsonInput) => {
-        addLog('info', `Deconstructor initiated. Injecting Effects Manifest...`);
-        
-        if (effectsManifest.length === 0) {
-            addLog('error', 'Deconstructor Error: Effects Manifest is empty. Cannot proceed.');
-            return JSON.stringify({ error: "Effects Manifest is empty." });
-        }
-
-        const manifestString = effectsManifest.map(e => `- ${e.name} (effect_id: ${e.id})`).join('\n');
-        const finalPrompt = prompt.replace('{{EFFECTS_MANIFEST_PLACEHOLDER}}', manifestString);
-
-        addLog('info', 'Manifest injected. Sending request to backend...');
-
+        addLog({ type: 'info', message: 'Deconstructor initiated...' });
+        const finalPrompt = prompt.replace('{{EFFECTS_MANIFEST_PLACEHOLDER}}', JSON.stringify(effectsManifest, null, 2));
+        addLog({ type: 'info', message: 'Sending request to backend...' });
         try {
             const response = await fetch('https://zany-barnacle-wrq99qjjvr4xcgg5v-3001.app.github.dev/deconstruct', {
                 method: 'POST',
@@ -194,190 +152,84 @@ function App() {
                 throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
-            if (!data.result) {
-                throw new Error('AI returned an empty response.');
-            }
-            addLog('success', 'Deconstruction successful. AI analysis complete.');
+            if (!data.result) throw new Error('AI returned an empty response.');
+            addLog({ type: 'success', message: 'Deconstruction successful. AI analysis complete.' });
             return data.result;
         } catch (error) {
-            console.error("DECONSTRUCTOR CRITICAL FAILURE:", error);
-            addLog('error', `FATAL ERROR in Deconstructor: ${error.message}`);
-            return JSON.stringify({
-                "error": "Deconstructor call failed. See System Log for details.",
-                "details": error.message
-            }, null, 2);
+            addLog({ type: 'error', message: `FATAL ERROR in Deconstructor: ${error.message}` });
+            return JSON.stringify({ error: "Deconstructor call failed.", details: error.message }, null, 2);
         }
     };
-
-
-    const handleApiKeyChange = (e) => {
-        // ... (existing code unchanged)
-    };
-
-    const handleSchemaChange = useCallback(async () => {
-        // ... (existing code unchanged)
-    }, [db, fetchSchemaExtensions]);
-
-    // Remove duplicate modal handler declarations
-    // Use the modal handlers defined at the top of App()
-
-    const handlePromptSelect = (promptId) => {
-        setSelectedPromptId(promptId);
-        const selected = prompts.find(p => p.id === promptId);
-        setActivePromptContent(selected ? selected.content : '');
-    };
-
-    const handlePromptContentChange = (newContent) => {
-        setActivePromptContent(newContent);
-        // Optionally update the prompt in local state for immediate UI feedback
-        setPrompts(prev => prev.map(p => p.id === selectedPromptId ? { ...p, content: newContent } : p));
-    };
-
+    
     const handleSaveNewPromptVersion = async () => {
-        if (!db || !activePromptContent) {
-            addLog('error', 'Cannot save: No database connection or prompt content.');
-            return;
-        }
-        if (!promptName || promptName.trim() === '') {
-            addLog('error', 'Please enter a name for your prompt before saving.');
-            return;
-        }
+        if (!db || !activePromptContent) return addLog({ type: 'error', message: 'Cannot save: No DB connection or prompt content.'});
+        if (!promptName.trim()) return addLog({ type: 'error', message: 'Please enter a name for the prompt.'});
         try {
-            const newPrompt = {
-                name: promptName,
-                content: activePromptContent,
-                timestamp: new Date()
-            };
+            const newPrompt = { name: promptName, content: activePromptContent, timestamp: new Date() };
             const docRef = await addDoc(collection(db, 'prompts'), newPrompt);
-            addLog('success', `New prompt version saved as '${newPrompt.name}'.`);
+            addLog({ type: 'success', message: `New prompt version saved as '${newPrompt.name}'.`});
             setPromptName('');
             await fetchPrompts();
             setSelectedPromptId(docRef.id);
         } catch (error) {
-            addLog('error', `Failed to save new prompt: ${error.message}`);
+            addLog({ type: 'error', message: `Failed to save new prompt: ${error.message}`});
         }
     };
-
+    
     const handleDeletePrompt = async () => {
-        if (!db || !selectedPromptId) {
-            addLog('error', 'Cannot delete: No database connection or prompt selected.');
-            return;
-        }
+        if (!db || !selectedPromptId) return addLog({ type: 'error', message: 'Cannot delete: No DB or prompt selected.'});
         try {
             await deleteDoc(doc(db, 'prompts', selectedPromptId));
-            addLog('success', `Prompt version deleted.`);
+            addLog({ type: 'success', message: `Prompt version deleted.`});
             await fetchPrompts();
-            setSelectedPromptId(prompts.length > 1 ? prompts[0].id : '');
         } catch (error) {
-            addLog('error', `Failed to delete prompt: ${error.message}`);
+            addLog({ type: 'error', message: `Failed to delete prompt: ${error.message}`});
         }
     };
-
-    const handleCreateOverride = async (perkId, fieldToOverride, correctValue) => {
-        // ... (existing code unchanged)
-    };
     
-    const handleClearSystemLog = () => {
-        // ... (existing code unchanged)
-    };
-
-    const deleteCollection = async (collectionName) => {
-        // ... (existing code unchanged)
-    };
-    
-    const handleClearUkb = () => {
-        // ... (existing code unchanged)
-    };
-    
-    const handleClearArchive = () => {
-        // ... (existing code unchanged)
-    };
-    
-    const handleBootstrapData = () => {
-        // ... (existing code unchanged)
-    };
-
-    const handleUpsertData = async (collectionName, jsonData, onComplete) => {
-        // ... (existing code unchanged)
-    };
-    
-    const handleGenerateCovenant = async () => {
-        // ... (existing code unchanged)
-    };
-
     const renderContent = () => {
         switch (activeTab) {
-            case 'viewer':
-                return <ViewerPage db={db} addLog={addLog} />;
-            case 'forge':
-                return <ForgePanel db={db} setStagedData={setStagedData} addLog={addLog} logs={logs} isLogExpanded={isLogExpanded} setIsLogExpanded={setIsLogExpanded} setActiveTab={setActiveTab} apiKey={apiKey} onApiKeyChange={handleApiKeyChange} activePromptContent={activePromptContent} prompts={prompts} selectedPromptId={selectedPromptId} onPromptSelect={handlePromptSelect} onPromptContentChange={handlePromptContentChange} onSaveNewPrompt={handleSaveNewPromptVersion} onDeletePrompt={handleDeletePrompt} promptName={promptName} onPromptNameChange={setPromptName} onDeconstruct={handleDeconstruct} />;
-            case 'migration':
-                return <MigrationPanel stagedData={stagedData} setStagedData={setStagedData} addLog={addLog} db={db} effectsManifest={effectsManifest} onOpenOverrideModal={handleOpenOverrideModal} UKB_SCHEMAS={UKB_SCHEMAS} />;
-            case 'combat_simulator':
-                return <CombatSimulatorPage
-                            addLog={addLog} // Pass addLog down
-                        />;
-            case 'admin':
-                return <AdminPanel 
-                            db={db} 
-                            addLog={addLog} 
-                            UKB_SCHEMAS={UKB_SCHEMAS} 
-                            onSchemaChange={handleSchemaChange} 
-                            onClearUkb={handleClearUkb} 
-                            onClearArchive={handleClearArchive} 
-                            onBootstrapData={handleBootstrapData} 
-                            covenant={covenant} 
-                            onGenerateCovenant={handleGenerateCovenant} 
-                            onClearSystemLog={handleClearSystemLog} 
-                            prompts={prompts} 
-                            selectedPromptId={selectedPromptId} 
-                            activePromptContent={activePromptContent} 
-                            onPromptSelect={handlePromptSelect} 
-                            onPromptContentChange={handlePromptContentChange} 
-                            onSaveNewPrompt={handleSaveNewPromptVersion} 
-                            onDeletePrompt={handleDeletePrompt} 
-                            promptName={promptName} 
-                            onPromptNameChange={setPromptName} 
-                            onUpsertData={handleUpsertData} />;
-            default:
-                return null;
+            case 'viewer': return <ViewerPage db={db} addLog={addLog} />;
+            case 'forge': return <ForgePanel onDeconstruct={handleDeconstruct} addLog={addLog} />;
+            case 'migration': return <MigrationPanel addLog={addLog} db={db} />;
+            case 'combat_simulator': return <CombatSimulatorPage addLog={addLog} />;
+            case 'admin': return (
+                <AdminPanel 
+                    db={db} 
+                    addLog={addLog} 
+                    prompts={prompts} 
+                    selectedPromptId={selectedPromptId} 
+                    activePromptContent={activePromptContent} 
+                    onPromptSelect={setSelectedPromptId} 
+                    onPromptContentChange={setActivePromptContent} 
+                    onSaveNewPrompt={handleSaveNewPromptVersion} 
+                    onDeletePrompt={handleDeletePrompt} 
+                    promptName={promptName} 
+                    onPromptNameChange={setPromptName} 
+                />
+            );
+            default: return null;
         }
-    };
-
-    const getModalOptions = () => {
-        if (!modalData) return [];
-        const { fieldKey, schemaName } = modalData;
-        const standardOptions = UKB_SCHEMAS[schemaName]?.[fieldKey]?.options || [];
-        const customOptions = schemaExtensions[fieldKey] || [];
-        return [...new Set([...standardOptions, ...customOptions])];
     };
 
     return (
-        <OverridesContext.Provider value={overrideRules}>
-            <SchemaContext.Provider value={schemaExtensions}>
-                <div className="bg-gray-900 text-gray-200 h-screen font-sans flex flex-row">
-                    {/* Main Content Area */}
-                    <div className="flex-grow flex flex-col h-screen overflow-y-hidden">
-                        <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg flex-shrink-0">
-                            <div className="w-full max-w-screen-2xl mx-auto">
-                                <h1 className="text-3xl font-bold text-center text-teal-400 tracking-wider">
-                                    Aeternum Intelligence Agency
-                                </h1>
-                                <p className="text-center text-teal-600 text-sm">Cockpit v3.0</p>
-                            </div>
-                        </header>
-                        <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
-                            <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
-                            <main className="flex-grow p-4 md:p-8 overflow-y-auto">
-                                {renderContent()}
-                            </main>
-                        </div>
+        <div className="bg-gray-900 text-gray-200 h-screen font-sans flex flex-row">
+            <div className="flex-grow flex flex-col h-screen overflow-y-hidden">
+                <header className="bg-gray-800 border-b border-gray-700 p-4 shadow-lg flex-shrink-0">
+                    <div className="w-full max-w-screen-2xl mx-auto">
+                        <h1 className="text-3xl font-bold text-center text-teal-400 tracking-wider">Aeternum Intelligence Agency</h1>
+                        <p className="text-center text-teal-600 text-sm">Cockpit v3.0</p>
                     </div>
-                    {/* Sidebar SystemLog (now on right) */}
-                    <SystemLog logs={logs} isSysLogOpen={isLogExpanded} setIsSysLogOpen={setIsLogExpanded} />
+                </header>
+                <div className="w-full max-w-screen-2xl mx-auto flex-grow overflow-hidden flex flex-col">
+                    <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <main className="flex-grow p-4 md:p-8 overflow-y-auto">
+                        {renderContent()}
+                    </main>
                 </div>
-            </SchemaContext.Provider>
-        </OverridesContext.Provider>
+            </div>
+            <SystemLog logs={logs} isSysLogOpen={isLogExpanded} setIsSysLogOpen={setIsLogExpanded} />
+        </div>
     );
 }
 

@@ -1,35 +1,33 @@
 import React from 'react';
-import { fetchPerks } from '../lib/firebase/firestore.js';
+// CHANGED: We now import the new, authoritative fetchSources function.
+import { fetchSources } from '../lib/firebase/firestore.js';
 
-// --- Custom Hook for Data Fetching ---
-const usePerks = (firestore) => {
-  const [perks, setPerks] = React.useState([]);
+// --- Custom Hook for Data Fetching (Refactored) ---
+const useSources = () => {
+  // CHANGED: Renamed state variables for clarity (perks -> sources).
+  const [sources, setSources] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
     const abortController = new AbortController();
 
-    async function loadPerks() {
-      if (!firestore) {
-        setError("Firestore instance not provided.");
-        setLoading(false);
-        return;
-      }
+    async function loadSources() {
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchPerks(firestore);
+        // CHANGED: Calling the new fetchSources function.
+        const data = await fetchSources();
         if (!abortController.signal.aborted) {
-          // Sort perks alphabetically by name by default
+          // Sort sources alphabetically by name by default.
           const sortedData = data.sort((a, b) => a.name.localeCompare(b.name));
-          setPerks(sortedData);
+          setSources(sortedData);
         }
       } catch (err) {
         if (!abortController.signal.aborted) {
-          console.error("Failed to load perks:", err);
-          setError("Failed to load perks from UKB.");
-          setPerks([]);
+          console.error("Failed to load sources:", err);
+          setError("Failed to load sources from UKB.");
+          setSources([]);
         }
       } finally {
         if (!abortController.signal.aborted) {
@@ -38,60 +36,62 @@ const usePerks = (firestore) => {
       }
     }
     
-    loadPerks();
+    loadSources();
 
     return () => {
       abortController.abort();
     };
-  }, [firestore]);
+  }, []); // Removed firestore dependency as it's now handled in the service layer.
 
-  return { perks, loading, error };
+  // CHANGED: Returning 'sources' instead of 'perks'.
+  return { sources, loading, error };
 };
 
 
-// --- Main Component ---
-const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, firestore }) => {
-  const { perks, loading, error } = usePerks(firestore);
+// --- Main Component (Refactored) ---
+// CHANGED: Removed firestore prop as it's no longer needed here.
+const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
+  // CHANGED: Using the refactored hook and variable names.
+  const { sources, loading, error } = useSources();
   const [nameFilter, setNameFilter] = React.useState('');
   const [bucketFilter, setBucketFilter] = React.useState('');
 
-  const handleToggle = (perk) => {
-    const isEquipped = equippedPerks.some(p => p.id === perk.id);
+  const handleToggle = (source) => {
+    const isEquipped = equippedPerks.some(p => p.id === source.id);
     if (isEquipped) {
-      setEquippedPerks(prev => prev.filter(p => p.id !== perk.id));
+      setEquippedPerks(prev => prev.filter(p => p.id !== source.id));
     } else {
-      setEquippedPerks(prev => [...prev, perk]);
+      // We still call them "perks" in the equipped list for now.
+      setEquippedPerks(prev => [...prev, source]);
     }
   };
 
   const uniqueBuckets = React.useMemo(() => {
-    if (perks.length === 0) return [];
-    // CORRECTED: Using 'perk_bucket' to match Firestore field name
-    const buckets = new Set(perks.map(p => p.perk_bucket || 'None').filter(Boolean));
+    if (sources.length === 0) return [];
+    const buckets = new Set(sources.map(p => p.perk_bucket || 'None').filter(Boolean));
     return ['All Buckets', ...Array.from(buckets).sort()];
-  }, [perks]);
+  }, [sources]);
 
-  const filteredPerks = React.useMemo(() => {
-    return perks.filter(perk => {
-      const nameMatch = perk.name.toLowerCase().includes(nameFilter.toLowerCase());
+  const filteredSources = React.useMemo(() => {
+    return sources.filter(source => {
+      const nameMatch = source.name.toLowerCase().includes(nameFilter.toLowerCase());
       
-      // CORRECTED: Using 'perk_bucket' to match Firestore field name
-      const bucketValue = perk.perk_bucket || 'None';
+      const bucketValue = source.perk_bucket || 'None';
       const bucketMatch = bucketFilter === 'All Buckets' || bucketFilter === '' || bucketValue === bucketFilter;
 
       return nameMatch && bucketMatch;
     });
-  }, [perks, nameFilter, bucketFilter]);
+  }, [sources, nameFilter, bucketFilter]);
 
   const renderContent = () => {
     if (loading) {
-      return <div className="text-center text-slate-400 py-8">Loading perks from UKB...</div>;
+      return <div className="text-center text-slate-400 py-8">Loading sources from UKB...</div>;
     }
     if (error) {
       return <div className="text-center text-red-400 py-8">{error}</div>;
     }
-    if (perks.length === 0) {
-        return <div className="text-center text-slate-500 py-8">No perks found.</div>;
+    if (sources.length === 0) {
+        return <div className="text-center text-slate-500 py-8">No sources found in UKB.</div>;
     }
     return (
       <table className="min-w-full text-sm text-left">
@@ -121,19 +121,18 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, firestore }) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-700/50">
-          {filteredPerks.map(perk => (
-            <tr key={perk.id} className="hover:bg-slate-700/50 transition-colors duration-150">
+          {filteredSources.map(source => (
+            <tr key={source.id} className="hover:bg-slate-700/50 transition-colors duration-150">
               <td className="p-2 text-center">
                 <input
                   type="checkbox"
                   className="form-checkbox h-4 w-4 bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
-                  checked={equippedPerks.some(p => p.id === perk.id)}
-                  onChange={() => handleToggle(perk)}
+                  checked={equippedPerks.some(p => p.id === source.id)}
+                  onChange={() => handleToggle(source)}
                 />
               </td>
-              <td className="p-2 whitespace-nowrap">{perk.name}</td>
-              {/* CORRECTED: Using 'perk_bucket' to match Firestore field name */}
-              <td className="p-2 whitespace-nowrap text-slate-400">{perk.perk_bucket || '-'}</td>
+              <td className="p-2 whitespace-nowrap">{source.name}</td>
+              <td className="p-2 whitespace-nowrap text-slate-400">{source.perk_bucket || '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -158,4 +157,3 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, firestore }) => {
 };
 
 export default PerkLoadoutPanel;
-
