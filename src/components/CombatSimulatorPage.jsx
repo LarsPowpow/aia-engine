@@ -6,7 +6,7 @@ import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
 import CommandBar from './CommandBar';
 import { db as firestore } from '../services/firebase';
-import InspectorPanel from './InspectorModal';
+import InspectorPanel from './InspectorPanel.jsx';
 import CombatLogPanel from './CombatLogPanel'; 
 
 // --- Sub-Component: ControlPanel (No Changes) ---
@@ -32,23 +32,32 @@ const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, ca
     );
 };
 
-// --- Sub-Component: CombatAnalysisPanel (No Changes) ---
+// --- Sub-Component: CombatAnalysisPanel ---
 const CombatAnalysisPanel = ({ combatLog, isFocusMode, setIsFocusMode }) => {
-    const [inspectedIndex, setInspectedIndex] = React.useState(null);
+    const [inspectedIndex, setInspectedIndex] = useState(null);
     const handleRowClick = (index) => setInspectedIndex(index);
     const handleCloseInspector = () => setInspectedIndex(null);
-    const getInspectorData = (entry) => ({ combatantState: { health: '100/100', stamina: '50/100', buffs: entry.activeBuffs || 'None' }, targetState: { health: '45000/50000', debuffs: entry.effectsApplied || 'None' }, formulaBreakdown: `Base: 500 * (1 + STR Bonus: 0.5) * (1 - Armor Mit: 0.2) = ${entry.damage}` });
+
     return (
         <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700 flex flex-col h-full shadow-lg backdrop-blur-sm">
             <div className="flex justify-between items-center border-b border-slate-600 pb-2 mb-2"><h2 className="text-lg font-bold text-slate-100 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-violet-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a1 1 0 001 1h12a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1-1zm2 4a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 4a1 1 0 100 2h3a1 1 0 100-2H6z" clipRule="evenodd" /></svg>Combat Analysis</h2><div className="flex items-center space-x-2"><button onClick={() => setIsFocusMode(!isFocusMode)} className="p-2 rounded-md hover:bg-slate-700 text-slate-400 hover:text-white transition" title="Toggle Focus Mode"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg></button></div></div>
             <div className="flex-grow overflow-auto custom-scrollbar pr-1"><table className="min-w-full text-sm text-left"><thead className="bg-black/20 sticky top-0 backdrop-blur-sm z-10"><tr><th className="p-2 font-semibold text-slate-300">Time</th><th className="p-2 font-semibold text-slate-300">Source</th><th className="p-2 font-semibold text-slate-300">Action</th><th className="p-2 font-semibold text-slate-300">Target</th><th className="p-2 font-semibold text-slate-300 text-center">Crit?</th><th className="p-2 font-semibold text-slate-300 text-right">Damage</th></tr></thead><tbody className="divide-y divide-slate-700/50">{combatLog.length === 0 && ( <tr><td colSpan="6" className="text-center text-slate-500 py-16">Run a simulation to see the results.</td></tr>)}{combatLog.map((entry, index) => (<tr key={index} className="hover:bg-slate-700/50 cursor-pointer transition-colors duration-150 even:bg-slate-800/20" onClick={() => handleRowClick(index)}><td className="p-2 whitespace-nowrap text-slate-400 font-mono">{entry.timestamp.toFixed(1)}s</td><td className="p-2 whitespace-nowrap text-green-400 font-semibold">{entry.source}</td><td className="p-2 whitespace-nowrap">{entry.action}</td><td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td><td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td><td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td></tr>))}</tbody></table></div>
-            {inspectedIndex !== null && (<InspectorPanel logEntry={combatLog[inspectedIndex]} combatantState={getInspectorData(combatLog[inspectedIndex]).combatantState} targetState={getInspectorData(combatLog[inspectedIndex]).targetState} formulaBreakdown={getInspectorData(combatLog[inspectedIndex]).formulaBreakdown} onClose={handleCloseInspector} />)}
+            
+            {inspectedIndex !== null && combatLog[inspectedIndex] && (
+                <InspectorPanel
+                    logEntry={combatLog[inspectedIndex]}
+                    combatantState={combatLog[inspectedIndex].snapshot.combatant}
+                    targetState={combatLog[inspectedIndex].snapshot.target}
+                    formulaBreakdown={"Formula breakdown not yet implemented."}
+                    onClose={handleCloseInspector}
+                />
+            )}
         </div>
     );
 };
 
 // --- Main Page Component ---
-const CombatSimulatorPage = () => {
+const CombatSimulatorPage = ({ addLog }) => {
     const [weaponType, setWeaponType] = useState('Sword');
     const [attributes, setAttributes] = useState({ STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105 });
     const [calculatedDamage, setCalculatedDamage] = useState(0);
@@ -67,19 +76,26 @@ const CombatSimulatorPage = () => {
         }
     }, [weaponType, attributes]);
 
-    // --- UPDATED to be async and pass the db connection ---
     const handleRunSimulation = async () => {
+        addLog('info', 'Simulation initiated...');
         const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks };
         const target = { id: 'Target Dummy', health: 50000 };
         
-        const { rawLog, analysisLog } = await runSimulationV2(combatant, target, midComboBlockChoreography, firestore);
-        setRawEngineLog(rawLog);
-        setCombatLog(analysisLog);
+        try {
+            const { rawLog, analysisLog } = await runSimulationV2(combatant, target, midComboBlockChoreography, firestore);
+            setRawEngineLog(rawLog);
+            setCombatLog(analysisLog);
+            addLog('success', 'Simulation complete.');
+        } catch (error) {
+            console.error("Simulation failed:", error);
+            addLog('error', `Simulation failed: ${error.message}`);
+        }
     };
 
     const clearCombatLog = () => {
         setCombatLog([]);
         setRawEngineLog([]);
+        addLog('info', 'Combat logs cleared.');
     };
 
     return (

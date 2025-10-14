@@ -1,7 +1,7 @@
 /**
- * AIA-Engine: The "Glass Engine" (v2.9 - Feature Complete Core)
- * This version generates a structured analysisLog, connecting the engine's
- * calculations to the main Combat Analysis UI panel.
+ * AIA-Engine: The "Glass Engine" (v2.10 - State Snapshot)
+ * This version captures a complete "state snapshot" with each damage event,
+ * packaging all active effects into the analysisLog for the Inspector Modal.
  */
 import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { handleDamageModifier, handleStatusEffect } from './effectHandlers.js';
@@ -34,7 +34,7 @@ const fetchUKBData = async (ids, collectionName, db) => {
 // --- SIMULATION CORE ---
 export const runSimulationV2 = async (combatant, target, choreography, db) => {
     const rawLog = [];
-    const analysisLog = []; // <-- The new structured log
+    const analysisLog = [];
     rawLog.push(`[0.0s] SIMULATION START: ${combatant.id} vs. ${target.id}`);
     
     // === PRE-FLIGHT DATA HARVEST (No Changes) ===
@@ -54,12 +54,12 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
     }
     const effectCache = await fetchUKBData([...new Set(requiredEffectIds)], 'ukb_effects_v2', db);
     
-    // === INITIAL STATE SETUP ===
+    // === INITIAL STATE SETUP (No Changes) ===
     const simulationState = {
         combatant: { ...combatant, activeEffects: [], passiveEffects: [] },
         target: { ...target, activeEffects: [], passiveEffects: [] },
         rawLog,
-        analysisLog, // Pass the new log to the state
+        analysisLog,
         sourceCache,
         effectCache,
     };
@@ -96,7 +96,7 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
     }
 
     rawLog.push(`[${currentTick.toFixed(2)}s] SIMULATION END: Time elapsed.`);
-    return { rawLog, analysisLog }; // Return both logs
+    return { rawLog, analysisLog };
 };
 
 // --- DURATION RESOLVER (No Changes) ---
@@ -116,7 +116,6 @@ const processEvent = (event, state, currentTick) => {
     // Step 1: Handle Damage Calculation
     if (['ABILITY', 'LIGHT_ATTACK', 'HEAVY_ATTACK'].includes(event.action)) {
         let weaponDamage = calculateWeaponDamage(state.combatant.weaponType, state.combatant.attributes);
-        state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Base Weapon Damage: ${weaponDamage}.`);
         
         let abilityDamageMultiplier = 1.0;
         let actionName = event.action;
@@ -128,7 +127,6 @@ const processEvent = (event, state, currentTick) => {
                 if (procDamageEffectId) {
                     const procEffect = state.effectCache[procDamageEffectId];
                     abilityDamageMultiplier = parseFloat(procEffect.valueFormula);
-                    state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Applying Ability Power from '${procEffect.name}' (${abilityDamageMultiplier * 100}%).`);
                 }
             }
         }
@@ -160,18 +158,33 @@ const processEvent = (event, state, currentTick) => {
         }
         
         const finalDamage = Math.round(damage);
-        state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Final damage for this event: ${finalDamage}.`);
 
-        // --- NEW: Populate the Analysis Log ---
+        // --- NEW: CAPTURE STATE SNAPSHOT ---
+        const stateSnapshot = {
+            combatant: {
+                // Create a deep copy of active effects with their full data for inspection
+                activeEffects: state.combatant.activeEffects.map(activeEffect => ({
+                    ...state.effectCache[activeEffect.id],
+                    duration: activeEffect.duration // ensure the current duration is accurate
+                }))
+            },
+            target: {
+                activeEffects: state.target.activeEffects.map(activeEffect => ({
+                    ...state.effectCache[activeEffect.id],
+                    duration: activeEffect.duration
+                }))
+            },
+        };
+
+        // Populate the Analysis Log with the snapshot
         state.analysisLog.push({
             timestamp: currentTick,
             source: state.combatant.id,
             action: actionName,
             target: state.target.id,
-            isCrit: false, // Placeholder
+            isCrit: false,
             damage: finalDamage,
-            activeBuffs: state.combatant.activeEffects.map(e => e.name).join(', ') || 'None',
-            effectsApplied: state.target.activeEffects.map(e => e.name).join(', ') || 'None',
+            snapshot: stateSnapshot // <-- Attach the snapshot here
         });
     }
 
@@ -185,8 +198,7 @@ const processEvent = (event, state, currentTick) => {
                 if (!effect) continue;
                 if (effect.category === 'STATUS_EFFECT') {
                     const targetCharacter = effect.target === 'SELF' ? state.combatant : state.target;
-                    const logMessage = handleStatusEffect(effect, targetCharacter);
-                    state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: ${logMessage}`);
+                    handleStatusEffect(effect, targetCharacter);
                 }
             }
         }
