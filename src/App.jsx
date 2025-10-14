@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
+// NEW: Import auth functions
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { db } from './services/firebase';
-import { collection, getDocs, addDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, deleteDoc, setDoc } from 'firebase/firestore'; // Added setDoc
 
 // Component Imports
 import ViewerPage from './components/ViewerPage.jsx';
 import TabNavigation from './components/TabNavigation.jsx';
 import SystemLog from './components/SystemLog.jsx';
 import ForgePanel from './components/ForgePanel.jsx';
-import AdminPanel from './components/AdminPanel.jsx';
+import SysAdminPanel from './components/SysAdminPanel.jsx';
 import OverrideModal from './components/OverrideModal.jsx';
 import MigrationPanel from "./components/MigrationPanel.jsx";
 import CombatSimulatorPage from './components/CombatSimulatorPage.jsx';
@@ -46,12 +48,13 @@ const UKB_SCHEMAS = {
 
 // --- MAIN APP COMPONENT ---
 function App() {
+    const [user, setUser] = useState(null); // NEW: State to hold user auth info
     const [promptName, setPromptName] = useState('');
     const [stagedData, setStagedData] = useState([]);
     const [effectsManifest, setEffectsManifest] = useState([]);
     const [isLogExpanded, setIsLogExpanded] = useState(false);
     const [apiKey, setApiKey] = useState('');
-    const [activeTab, setActiveTab] = useState('combat_simulator');
+    const [activeTab, setActiveTab] = useState('admin');
     const [logs, setLogs] = useState([]);
     const [overrideRules, setOverrideRules] = useState({});
     const [schemaExtensions, setSchemaExtensions] = useState({});
@@ -64,19 +67,36 @@ function App() {
 
     const addLog = useCallback((logEntry) => {
         const timestamp = new Date().toLocaleTimeString();
-        // Ensure logEntry is an object with type and message
         if (typeof logEntry === 'object' && logEntry.message) {
              setLogs(prevLogs => [
                 ...prevLogs,
                 { ...logEntry, timestamp }
             ]);
-        } else if (typeof logEntry === 'string') { // Legacy support for simple string messages
+        } else if (typeof logEntry === 'string') {
              setLogs(prevLogs => [
                 ...prevLogs,
                 { type: 'info', message: logEntry, timestamp }
             ]);
         }
     }, []);
+
+    // NEW: useEffect for handling authentication
+    useEffect(() => {
+        const auth = getAuth();
+        addLog({ type: 'info', message: 'Auth service initialized. Checking status...' });
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            if (currentUser) {
+                setUser(currentUser);
+                addLog({ type: 'success', message: `Authentication successful. UID: ${currentUser.uid}` });
+            } else {
+                addLog({ type: 'warning', message: 'User not authenticated. Attempting anonymous sign-in...' });
+                signInAnonymously(auth).catch((error) => {
+                    addLog({ type: 'error', message: `Anonymous sign-in failed: ${error.message}` });
+                });
+            }
+        });
+        return () => unsubscribe(); // Cleanup subscription on unmount
+    }, [addLog]);
     
     const fetchPrompts = useCallback(async () => {
         addLog({ type: 'info', message: 'Refreshing prompt library...' });
@@ -87,7 +107,7 @@ function App() {
             setPrompts(promptsData);
             if (promptsData.length > 0) {
                 const latestPrompt = promptsData[0];
-                setSelectedPromptId(latestPrompt.id); // Auto-select the latest
+                setSelectedPromptId(latestPrompt.id);
                 setActivePromptContent(latestPrompt.content);
                 addLog({ type: 'success', message: `Prompt library refreshed. Auto-selected "${latestPrompt.name}".` });
             } else {
@@ -103,7 +123,7 @@ function App() {
     const fetchEffectsManifest = useCallback(async () => {
         addLog({ type: 'info', message: 'Harvesting Effects Manifest from UKB...' });
         try {
-            const querySnapshot = await getDocs(collection(db, 'ukb_effects_v2')); // <-- Corrected collection name
+            const querySnapshot = await getDocs(collection(db, 'ukb_effects_v2'));
             const manifest = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setEffectsManifest(manifest);
             addLog({ type: 'success', message: `Effects Manifest harvested. ${manifest.length} effects loaded.` });
@@ -112,16 +132,17 @@ function App() {
         }
     }, [addLog]);
 
-    // --- CORRECTED useEffect to prevent infinite loop ---
     useEffect(() => {
-        const fetchAllData = async () => {
-            addLog({ type: 'info', message: 'Fetching all operational data from UKB...' });
-            await fetchPrompts();
-            await fetchEffectsManifest();
-            addLog({ type: 'special', message: 'All operational data loaded.' });
-        };
-        fetchAllData();
-    }, [addLog]); // Only re-run if addLog function itself changes (which it won't)
+        if (user) { // Only fetch data if the user is authenticated
+            addLog({ type: 'info', message: 'User authenticated. Fetching all operational data...' });
+            const fetchAllData = async () => {
+                await fetchPrompts();
+                await fetchEffectsManifest();
+                addLog({ type: 'special', message: 'All operational data loaded.' });
+            };
+            fetchAllData();
+        }
+    }, [user, addLog, fetchPrompts, fetchEffectsManifest]);
 
 
     useEffect(() => {
@@ -186,15 +207,34 @@ function App() {
             addLog({ type: 'error', message: `Failed to delete prompt: ${error.message}`});
         }
     };
+
+    const handleUpsertData = async (collectionName, data) => {
+        addLog({ type: 'info', message: `Upserting ${data.length} documents to '${collectionName}'...` });
+        try {
+            for (const item of data) {
+                if (!item.id) {
+                    throw new Error('Document is missing an "id" field.');
+                }
+                const docRef = doc(db, collectionName, item.id);
+                await setDoc(docRef, item, { merge: true });
+            }
+            addLog({ type: 'success', message: `Successfully upserted ${data.length} documents.` });
+        } catch (error) {
+            addLog({ type: 'error', message: `Firestore Upsert Failed: ${error.message}` });
+        }
+    }
     
     const renderContent = () => {
+        if (!user) {
+            return <div className="text-center p-8">Authenticating...</div>; // NEW: Show auth status
+        }
         switch (activeTab) {
             case 'viewer': return <ViewerPage db={db} addLog={addLog} />;
             case 'forge': return <ForgePanel onDeconstruct={handleDeconstruct} addLog={addLog} />;
             case 'migration': return <MigrationPanel addLog={addLog} db={db} />;
             case 'combat_simulator': return <CombatSimulatorPage addLog={addLog} />;
             case 'admin': return (
-                <AdminPanel 
+                <SysAdminPanel
                     db={db} 
                     addLog={addLog} 
                     prompts={prompts} 
@@ -205,7 +245,8 @@ function App() {
                     onSaveNewPrompt={handleSaveNewPromptVersion} 
                     onDeletePrompt={handleDeletePrompt} 
                     promptName={promptName} 
-                    onPromptNameChange={setPromptName} 
+                    onPromptNameChange={setPromptName}
+                    onUpsertData={handleUpsertData}
                 />
             );
             default: return null;

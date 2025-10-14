@@ -147,7 +147,7 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
         </svg>
         Perk Loadout
       </h2>
-      <div className="flex-grow overflow-auto custom-scrollbar pr-1" style={{maxHeight: '200px'}}>
+   <div className="flex-grow overflow-auto custom-scrollbar pr-1 h-48">
         {renderContent()}
       </div>
     </div>

@@ -1,49 +1,66 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const CombatLogPanel = ({ log }) => {
   const logContainerRef = useRef(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const getEntryColor = (entry) => {
-    if (entry.toLowerCase().includes('attacks')) return 'text-gray-300';
-    if (entry.toLowerCase().includes('defeated')) return 'text-red-400 font-bold';
-    if (entry.toLowerCase().includes('start') || entry.toLowerCase().includes('end')) return 'text-cyan-400';
-    return 'text-gray-400';
+  useEffect(() => {
+    // Auto-scroll to the bottom of the log when new entries are added
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [log]);
+
+
+  // UPDATED: Now expects a log entry object and checks the 'message' property.
+  const getEntryColor = (message) => {
+    const lowerCaseMessage = message.toLowerCase();
+    if (lowerCaseMessage.includes('attack')) return 'text-slate-300';
+    if (lowerCaseMessage.includes('fatal') || lowerCaseMessage.includes('error')) return 'text-red-400 font-bold';
+    if (lowerCaseMessage.includes('start') || lowerCaseMessage.includes('end')) return 'text-cyan-400 font-bold';
+    if (lowerCaseMessage.includes('applying') || lowerCaseMessage.includes('found passive')) return 'text-amber-400';
+    if (lowerCaseMessage.includes('initializing')) return 'text-violet-400';
+    return 'text-slate-400';
   };
 
   const toggleExpand = () => {
     setIsExpanded(!isExpanded);
   };
 
-  // Determine container classes based on the expanded state
   const containerClasses = isExpanded
-    ? 'overflow-visible font-mono text-sm pr-2 bg-black/20 rounded' // Expanded state: let it grow freely
-    : 'h-96 overflow-auto font-mono text-sm pr-2 resize min-h-[10rem] max-h-[50vh] bg-black/20 rounded'; // Collapsed state: fixed height, resizable
+    ? 'overflow-auto font-mono text-xs flex-grow custom-scrollbar pr-2'
+    : 'h-full overflow-auto font-mono text-xs custom-scrollbar pr-2'; 
 
   return (
-    <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 mt-6">
-      <div className="flex justify-between items-center mb-3 border-b border-gray-600 pb-2">
-        <h3 className="text-xl font-semibold text-gray-300">Live Combat Log</h3>
-        {/* --- NEW EXPAND/COLLAPSE BUTTON --- */}
+    <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700 flex flex-col h-full shadow-lg backdrop-blur-sm">
+      <div className="flex justify-between items-center border-b border-slate-600 pb-2 mb-2">
+        <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
+            Live Combat Log
+        </h2>
         <button
           onClick={toggleExpand}
-          className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-md transition"
-          disabled={log.length === 0}
+          className="p-2 rounded-md hover:bg-slate-700 text-slate-400 hover:text-white transition"
+          disabled={!log || log.length === 0}
+          title={isExpanded ? 'Collapse Log' : 'Expand Log'}
         >
-          {isExpanded ? 'Collapse Log' : 'Expand to Full Log'}
+          {isExpanded 
+            ? <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L10 12.586l3.293-3.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+            : <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 7.414 6.707 10.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+          }
         </button>
-        {/* ---------------------------------- */}
       </div>
       
       <div ref={logContainerRef} className={containerClasses}>
-        {log.length > 0 ? (
+        {log && log.length > 0 ? (
           log.map((entry, index) => (
-            <p key={index} className={`whitespace-pre-wrap leading-relaxed ${getEntryColor(entry)}`}>
-              {entry}
-            </p>
+            <div key={index} className={`whitespace-pre-wrap leading-relaxed py-1 border-b border-slate-800/50 flex`}>
+              <span className="text-slate-500 w-16 flex-shrink-0">{entry.timestamp.toFixed(2)}s</span>
+              <span className={`${getEntryColor(entry.message)}`}>{entry.message}</span>
+            </div>
           ))
         ) : (
-          <p className="text-gray-500 italic text-center pt-16">Simulation has not been run. Press "Run Simulation" to begin.</p>
+          <p className="text-slate-500 italic text-center py-16">Run simulation to view engine log.</p>
         )}
       </div>
     </div>

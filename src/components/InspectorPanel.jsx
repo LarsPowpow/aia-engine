@@ -5,13 +5,13 @@ const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cy
     return (
         <div>
             <h4 className="font-semibold text-slate-300 border-b border-slate-600 mb-2 pb-1">{title}</h4>
-            {effects.length > 0 ? (
+            {effects && effects.length > 0 ? (
                 <ul className="space-y-1 text-sm">
-                    {effects.map(effect => (
-                        <li key={effect.id} className="flex justify-between items-center bg-slate-800/50 p-1 rounded">
+                    {effects.map((effect, index) => (
+                        <li key={effect.id || index} className="flex justify-between items-center bg-slate-800/50 p-1 rounded">
                             <span className="text-slate-400">{effect.name}</span>
                             <span className={`font-mono font-bold ${textColor}`}>
-                                {`${(Math.abs(parseFloat(effect[valueKey])) * 100).toFixed(0)}${unit}`}
+                                {`${(Math.abs(parseFloat(effect[valueKey] || 0)) * (unit === '%' ? 100 : 1)).toFixed(0)}${unit}`}
                             </span>
                         </li>
                     ))}
@@ -27,31 +27,35 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
     if (!logEntry) return null;
 
     const { action, timestamp, damage } = logEntry;
-
-    // --- FINAL, CORRECTED Effect Filtering ---
-
-    // Player's (Combatant) State: Self-applied buffs
-    const empowerEffects = combatantState.activeEffects.flatMap(e => 
+    
+    // --- UPGRADED EFFECT FILTERING LOGIC ---
+    const modificationEmpower = combatantState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
-    );
-    const fortifyEffects = combatantState.activeEffects.flatMap(e => 
+    ) || [];
+    const statModifierEmpower = combatantState.activeEffects?.filter(e => e.category === 'STAT_MODIFIER' && e.statusId === 'EMPOWER')
+        .map(e => ({ ...e, value: (parseFloat(e.valueFormula) / 100).toString() })) || [];
+    const empowerEffects = [...modificationEmpower, ...statModifierEmpower];
+
+    const fortifyEffects = combatantState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
-    );
-    // NEW: Filter for uncapped damage modifiers
-    const uncappedDamageEffects = combatantState.activeEffects.filter(e => e.category === 'DAMAGE_MODIFIER');
+    ) || [];
     
-    // Enemy's (Target) State: Debuffs applied to them
-    const rendEffects = targetState.activeEffects.flatMap(e => 
+    const uncappedDamageEffects = combatantState.activeEffects?.filter(e => e.category === 'DAMAGE_MODIFIER') || [];
+    
+    // Target State
+    const rendEffects = targetState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
-    );
-    const weakenEffects = targetState.activeEffects.flatMap(e => 
+    ) || [];
+
+    const weakenEffects = targetState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
-    );
-    const dotEffects = targetState.activeEffects.filter(e => e.category === 'PROC_DAMAGE' && e.duration > 0);
+    ) || [];
+        
+    const dotEffects = targetState.activeEffects?.filter(e => e.category === 'PROC_DAMAGE' && e.duration > 0) || [];
 
     return (
         <div 
@@ -64,20 +68,24 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
             >
                 <div className="flex justify-between items-center p-4 border-b border-slate-700 flex-shrink-0">
                     <h2 className="text-2xl font-bold text-cyan-400">Inspector: <span className="text-white">{action}</span></h2>
-                    <div className="font-mono text-slate-400 bg-slate-800 px-3 py-1 rounded-md text-lg">@{timestamp.toFixed(2)}s</div>
+                    <div className="font-mono text-slate-400 bg-slate-800 px-3 py-1 rounded-md text-lg">
+                        @{typeof timestamp === 'number' ? timestamp.toFixed(2) : '0.00'}s
+                    </div>
                 </div>
 
                 <div className="p-6 overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Combatant State */}
                     <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700 space-y-4">
                         <h3 className="text-xl font-semibold text-green-400 mb-4 border-b border-slate-600 pb-2">Combatant State</h3>
+                        {/* THE FIX: Add the Healing Done display */}
                         <div className="mb-4">
                             <h4 className="font-semibold text-slate-300 mb-1">Healing Done</h4>
-                            <p className="text-3xl font-bold text-green-400 font-mono">0</p>
+                            <p className="text-3xl font-bold text-green-400 font-mono">
+                                {combatantState.stats?.healingDone || 0}
+                            </p>
                         </div>
                         <EffectList title="Empower" effects={empowerEffects} valueKey="value" textColor="text-green-400" />
                         <EffectList title="Fortify" effects={fortifyEffects} valueKey="value" textColor="text-blue-400" />
-                        {/* --- NEW: UN CAPPED DAMAGE SECTION --- */}
                         <EffectList title="Uncapped Damage %" effects={uncappedDamageEffects} valueKey="valueFormula" textColor="text-yellow-400" />
                     </div>
 
