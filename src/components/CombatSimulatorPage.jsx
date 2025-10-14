@@ -90,8 +90,8 @@ const CombatSimulatorPage = ({ addLog }) => {
             const buildData = {
                 name: buildName,
                 attributes,
-                equippedPerks, // Storing full objects now for simplicity
-                equippedMasteries, // Storing full objects
+                equippedPerks, 
+                equippedMasteries,
                 timestamp: serverTimestamp(),
             };
             await addDoc(collection(firestore, 'ukb_builds'), buildData);
@@ -158,6 +158,7 @@ const CombatSimulatorPage = ({ addLog }) => {
                     <OCRScannerPanel 
                         addLog={addLog}
                         setEquippedMasteries={setEquippedMasteries}
+                        equippedMasteries={equippedMasteries} // <-- Pass current state
                     />
                     <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                     <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>

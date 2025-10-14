@@ -45,6 +45,7 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
     const processFile = (file) => {
         if (file && file.type.startsWith('image/')) {
             setSelectedFile(file);
+            if (previewUrl) URL.revokeObjectURL(previewUrl); // Clean up previous blob URL
             setPreviewUrl(URL.createObjectURL(file));
             setOcrResult('');
             setTriageList([]);
@@ -76,7 +77,9 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
 
     const handleScanAndAnalyze = async () => {
         if (!selectedFile) return addLog({ type: 'error', message: 'No file selected for scanning.' });
-        // ... (rest of the function is the same, but sets triageList on success)
+        if (!parserPrompt) return addLog({ type: 'error', message: 'Mastery Parser Prompt not loaded. Cannot analyze.' });
+        if (masteryManifest.length === 0) return addLog({ type: 'error', message: 'Mastery Manifest not loaded. Cannot analyze.' });
+
         setIsScanning(true);
         setOcrResult('');
         setTriageList([]);
@@ -100,9 +103,7 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
             if (!analysisResponse.ok) throw new Error(analysisResult.error || 'AI analysis failed.');
             
             addLog({ type: 'success', message: 'AI analysis complete. Found masteries are ready for triage.' });
-            setOcrResult(analysisResult.result); // Keep raw text for debugging
             
-            // --- NEW: Parse result and set up for triage ---
             const foundMasteries = JSON.parse(analysisResult.result);
             setTriageList(foundMasteries.map(m => ({ ...m, isSelected: false })));
 
@@ -122,7 +123,6 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
 
     const handleAddSelectedToBuild = () => {
         const selectedMasteries = triageList.filter(m => m.isSelected);
-        // Use a Set to avoid duplicates when merging
         const currentMasteryIds = new Set(equippedMasteries.map(m => m.id));
         const newMasteries = selectedMasteries.filter(m => !currentMasteryIds.has(m.id));
 
@@ -132,7 +132,11 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
         } else {
             addLog({ type: 'info', message: 'No new masteries were selected to be added.'});
         }
-        setTriageList([]); // Clear triage after adding
+        setTriageList([]);
+        setOcrResult('');
+        setSelectedFile(null);
+        if(previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
     };
 
     return (
@@ -152,7 +156,6 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
                 {isScanning ? 'Scanning...' : isAnalyzing ? 'Analyzing...' : 'Scan & Analyze Masteries'}
             </button>
             
-            {/* --- NEW: Triage UI --- */}
             {triageList.length > 0 && (
                 <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
                     <h3 className="text-sm font-medium text-slate-400 mb-2">AI Analyst Results: Select equipped masteries</h3>
