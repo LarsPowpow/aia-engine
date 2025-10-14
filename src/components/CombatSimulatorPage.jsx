@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { calculateWeaponDamage } from '../simulation/formulas';
-import { runSimulationV2 } from '../simulation/engine_v2'; // <-- IMPORT THE NEW GLASS ENGINE
+import { runSimulationV2 } from '../simulation/engine_v2';
 import { midComboBlockChoreography } from '../simulation/choreography';
 import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
@@ -67,14 +67,14 @@ const CombatSimulatorPage = () => {
         }
     }, [weaponType, attributes]);
 
-    const handleRunSimulation = () => {
+    // --- UPDATED to be async and pass the db connection ---
+    const handleRunSimulation = async () => {
         const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks };
         const target = { id: 'Target Dummy', health: 50000 };
         
-        // --- Call the new Glass Engine ---
-        const { rawLog, analysisLog } = runSimulationV2(combatant, target, midComboBlockChoreography);
+        const { rawLog, analysisLog } = await runSimulationV2(combatant, target, midComboBlockChoreography, firestore);
         setRawEngineLog(rawLog);
-        setCombatLog(analysisLog); // This will be empty for now
+        setCombatLog(analysisLog);
     };
 
     const clearCombatLog = () => {
@@ -95,8 +95,6 @@ const CombatSimulatorPage = () => {
                     <ChoreographerPanel />
                     <div className="mt-auto pt-4"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={false} /></div>
                 </div>
-
-                {/* --- CORRECTED LAYOUT FOR ANALYSIS & LOG PANELS --- */}
                 <div className={`${isFocusMode ? 'col-span-1' : 'lg:col-span-2'} grid grid-rows-2 gap-6`}>
                     <div className="row-span-1"><CombatAnalysisPanel combatLog={combatLog} isFocusMode={isFocusMode} setIsFocusMode={setIsFocusMode} /></div>
                     <div className="row-span-1"><CombatLogPanel log={rawEngineLog} /></div>
