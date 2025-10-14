@@ -4,9 +4,10 @@ import { runSimulationV2 } from '../simulation/engine_v2';
 import { midComboBlockChoreography } from '../simulation/choreography';
 import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
+import MasteryLoadoutPanel from './MasteryLoadoutPanel'; // <-- Import the new panel
 import CommandBar from './CommandBar';
 import { db as firestore } from '../services/firebase';
-import InspectorPanel from './InspectorPanel.jsx';
+import InspectorPanel from './InspectorPanel';
 import CombatLogPanel from './CombatLogPanel'; 
 
 // --- Sub-Component: ControlPanel (No Changes) ---
@@ -32,26 +33,16 @@ const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, ca
     );
 };
 
-// --- Sub-Component: CombatAnalysisPanel ---
+// --- Sub-Component: CombatAnalysisPanel (No Changes) ---
 const CombatAnalysisPanel = ({ combatLog, isFocusMode, setIsFocusMode }) => {
     const [inspectedIndex, setInspectedIndex] = useState(null);
     const handleRowClick = (index) => setInspectedIndex(index);
     const handleCloseInspector = () => setInspectedIndex(null);
-
     return (
         <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700 flex flex-col h-full shadow-lg backdrop-blur-sm">
             <div className="flex justify-between items-center border-b border-slate-600 pb-2 mb-2"><h2 className="text-lg font-bold text-slate-100 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-violet-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a1 1 0 001 1h12a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1-1zm2 4a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 4a1 1 0 100 2h3a1 1 0 100-2H6z" clipRule="evenodd" /></svg>Combat Analysis</h2><div className="flex items-center space-x-2"><button onClick={() => setIsFocusMode(!isFocusMode)} className="p-2 rounded-md hover:bg-slate-700 text-slate-400 hover:text-white transition" title="Toggle Focus Mode"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg></button></div></div>
             <div className="flex-grow overflow-auto custom-scrollbar pr-1"><table className="min-w-full text-sm text-left"><thead className="bg-black/20 sticky top-0 backdrop-blur-sm z-10"><tr><th className="p-2 font-semibold text-slate-300">Time</th><th className="p-2 font-semibold text-slate-300">Source</th><th className="p-2 font-semibold text-slate-300">Action</th><th className="p-2 font-semibold text-slate-300">Target</th><th className="p-2 font-semibold text-slate-300 text-center">Crit?</th><th className="p-2 font-semibold text-slate-300 text-right">Damage</th></tr></thead><tbody className="divide-y divide-slate-700/50">{combatLog.length === 0 && ( <tr><td colSpan="6" className="text-center text-slate-500 py-16">Run a simulation to see the results.</td></tr>)}{combatLog.map((entry, index) => (<tr key={index} className="hover:bg-slate-700/50 cursor-pointer transition-colors duration-150 even:bg-slate-800/20" onClick={() => handleRowClick(index)}><td className="p-2 whitespace-nowrap text-slate-400 font-mono">{entry.timestamp.toFixed(1)}s</td><td className="p-2 whitespace-nowrap text-green-400 font-semibold">{entry.source}</td><td className="p-2 whitespace-nowrap">{entry.action}</td><td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td><td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td><td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td></tr>))}</tbody></table></div>
-            
-            {inspectedIndex !== null && combatLog[inspectedIndex] && (
-                <InspectorPanel
-                    logEntry={combatLog[inspectedIndex]}
-                    combatantState={combatLog[inspectedIndex].snapshot.combatant}
-                    targetState={combatLog[inspectedIndex].snapshot.target}
-                    formulaBreakdown={"Formula breakdown not yet implemented."}
-                    onClose={handleCloseInspector}
-                />
-            )}
+            {inspectedIndex !== null && combatLog[inspectedIndex] && (<InspectorPanel logEntry={combatLog[inspectedIndex]} combatantState={combatLog[inspectedIndex].snapshot.combatant} targetState={combatLog[inspectedIndex].snapshot.target} formulaBreakdown={"Formula breakdown not yet implemented."} onClose={handleCloseInspector} />)}
         </div>
     );
 };
@@ -65,6 +56,7 @@ const CombatSimulatorPage = ({ addLog }) => {
     const [rawEngineLog, setRawEngineLog] = useState([]);
     const [isFocusMode, setIsFocusMode] = useState(false);
     const [equippedPerks, setEquippedPerks] = useState([]);
+    const [equippedMasteries, setEquippedMasteries] = useState([]); // <-- State for Masteries
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
@@ -78,7 +70,13 @@ const CombatSimulatorPage = ({ addLog }) => {
 
     const handleRunSimulation = async () => {
         addLog('info', 'Simulation initiated...');
-        const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks };
+        const combatant = { 
+            id: 'Player', 
+            weaponType, 
+            attributes, 
+            perks: equippedPerks,
+            masteries: equippedMasteries // <-- Pass masteries to the engine
+        };
         const target = { id: 'Target Dummy', health: 50000 };
         
         try {
@@ -105,9 +103,15 @@ const CombatSimulatorPage = ({ addLog }) => {
             <div className="flex justify-between items-center flex-shrink-0"><h1 className="text-2xl font-bold text-amber-400 tracking-wider flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3m6-9h3m-18 0h3m15-3l-2 2m-10-2l2 2m-2 10l2-2m10 2l-2-2" /></svg>Combat Simulator</h1></div>
             <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
             <div className={`flex-grow grid gap-6 ${isFocusMode ? 'grid-cols-1' : 'lg:grid-cols-3'} overflow-hidden`}>
-                <div className={`${isFocusMode ? 'hidden' : 'lg:col-span-1'} flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1`}>
+                <div className={`${isFocusMode ? 'hidden' : 'lg-col-span-1'} flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1`}>
                     <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                     <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>
+                    {/* --- ADD THE NEW MASTERY PANEL --- */}
+                    <MasteryLoadoutPanel 
+                        equippedMasteries={equippedMasteries}
+                        setEquippedMasteries={setEquippedMasteries}
+                        firestore={firestore}
+                    />
                     <ChoreographerPanel />
                     <div className="mt-auto pt-4"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={false} /></div>
                 </div>
