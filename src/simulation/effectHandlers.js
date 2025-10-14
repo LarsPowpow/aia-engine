@@ -1,33 +1,51 @@
 /**
- * AIA-Engine: Effect Handler Library
- * This file contains the "Effect Handlers," a set of pure functions that form the core
- * logic of the Glass Engine. Each handler is responsible for processing a specific
- * effect category as defined in our Universal Knowledge Base schema.
+ * AIA-Engine: Effect Handler Library (v2)
+ * This version adds the `handleStatusEffect` function.
  */
 
 /**
- * Handles effects of the 'DAMAGE_MODIFIER' category.
- *
- * @param {object} effect - The Effect object from the UKB.
- * @param {number} currentDamage - The current damage value before this modifier is applied.
- * @param {object} combatant - The state of the character dealing the damage.
- * @param {object} target - The state of the character receiving the damage.
- * @returns {number} The new, modified damage value.
+ * Handles 'DAMAGE_MODIFIER' effects.
  */
 export const handleDamageModifier = (effect, currentDamage, combatant, target) => {
-  // For now, we assume valueFormula is a simple numeric value for the percentage.
-  // Example: 0.15 for a 15% damage increase.
   const modifierValue = parseFloat(effect.valueFormula);
-
   if (isNaN(modifierValue)) {
     console.error(`[Effect Handler] Invalid valueFormula in DAMAGE_MODIFIER effect: ${effect.id}`);
     return currentDamage;
   }
-
-  // The core logic: apply the multiplicative bonus.
-  const newDamage = currentDamage * (1 + modifierValue);
-
-  return newDamage;
+  return currentDamage * (1 + modifierValue);
 };
 
-// Future handlers for other categories (handleStatusEffect, handleProcDamage, etc.) will be added here.
+/**
+ * Handles effects of the 'STATUS_EFFECT' category.
+ * It applies a new status effect to a character's activeEffects array.
+ *
+ * @param {object} effect - The Effect object from the UKB.
+ * @param {object} character - The state object for the character receiving the effect.
+ * @returns {string} A log message describing the action taken.
+ */
+export const handleStatusEffect = (effect, character) => {
+  const duration = parseFloat(effect.duration);
+  if (isNaN(duration)) {
+    console.error(`[Effect Handler] Invalid duration in STATUS_EFFECT effect: ${effect.id}`);
+    return `ENGINE ERROR: Invalid duration for effect '${effect.name}'.`;
+  }
+
+  // Check for existing stacks of the same effect
+  const existingEffect = character.activeEffects.find(e => e.id === effect.id);
+
+  if (existingEffect) {
+    // For now, we only implement the "REFRESH_DURATION" rule.
+    existingEffect.duration = duration;
+    return `Refreshed '${effect.name}' on ${character.id} for ${duration}s.`;
+  } else {
+    // Add the new effect to the character's state
+    character.activeEffects.push({
+      id: effect.id,
+      name: effect.name,
+      category: effect.category,
+      duration: duration,
+      // We will add stacking and modification data here in the future
+    });
+    return `Applied '${effect.name}' to ${character.id} for ${duration}s.`;
+  }
+};

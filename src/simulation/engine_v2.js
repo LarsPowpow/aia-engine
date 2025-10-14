@@ -1,10 +1,10 @@
 /**
- * AIA-Engine: The "Glass Engine" (v2.5 - Ability Power Integrated)
- * This version integrates ability-specific damage multipliers by reading
- * the valueFormula from PROC_DAMAGE effects.
+ * AIA-Engine: The "Glass Engine" (v2.7 - Consequence-Aware)
+ * This version reads the active buffs/debuffs on both combatant and target
+ * to calculate a final damage multiplier.
  */
 import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
-import { handleDamageModifier } from './effectHandlers.js';
+import { handleDamageModifier, handleStatusEffect } from './effectHandlers.js';
 import { calculateWeaponDamage } from './formulas.js';
 
 // --- UKB DATA LOADER (No Changes) ---
@@ -56,15 +56,15 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
         }
     }
     const uniqueEffectIds = [...new Set(requiredEffectIds)];
-    log.push(`[0.0s] ENGINE: Identified ${uniqueEffectIds.length} linked effects. Querying UKB...`);
+    log.push(`[0.unkn] ENGINE: Identified ${uniqueEffectIds.length} linked effects. Querying UKB...`);
     
     const effectCache = await fetchUKBData(uniqueEffectIds, 'ukb_effects_v2', db);
     log.push(`[0.0s] ENGINE: Found ${Object.keys(effectCache).length} matching Effect documents.`);
     
     // === INITIAL STATE SETUP (No Changes) ===
     const simulationState = {
-        combatant: { ...combatant, activeEffects: [] },
-        target: { ...target, activeEffects: [] },
+        combatant: { ...combatant, activeEffects: [], passiveEffects: [] },
+        target: { ...target, activeEffects: [], passiveEffects: [] },
         log,
         sourceCache,
         effectCache,
@@ -89,9 +89,7 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
     // === CORE SIMULATION LOOP (No Changes) ===
     for (const event of choreography) {
         log.push(`[${event.timestamp.toFixed(2)}s] EVENT: ${event.action} - ${event.notes}`);
-        if (event.action === 'ABILITY' || event.action === 'LIGHT_ATTACK' || event.action === 'HEAVY_ATTACK') {
-            processDamageEvent(event, simulationState);
-        }
+        processEvent(event, simulationState);
     }
 
     const lastEventTime = choreography.length > 0 ? choreography[choreography.length - 1].timestamp : 0.0;
@@ -102,40 +100,87 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
 
 
 // --- EVENT PROCESSORS ---
-const processDamageEvent = (event, state) => {
-    let weaponDamage = calculateWeaponDamage(state.combatant.weaponType, state.combatant.attributes);
-    state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Calculated base weapon damage: ${weaponDamage}.`);
+const processEvent = (event, state) => {
+    // --- Step 1: Handle Damage Calculation ---
+    if (['ABILITY', 'LIGHT_ATTACK', 'HEAVY_ATTACK'].includes(event.action)) {
+        let weaponDamage = calculateWeaponDamage(state.combatant.weaponType, state.combatant.attributes);
+        state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Calculated base weapon damage: ${weaponDamage}.`);
+        
+        let abilityDamageMultiplier = 1.0; 
+        const source = state.sourceCache[event.abilityId];
+        if (source && source.triggerGroups) {
+            const procDamageEffectId = source.triggerGroups.flatMap(g => g.effects).find(effectId => {
+                const effect = state.effectCache[effectId];
+                return effect && effect.category === 'PROC_DAMAGE';
+            });
+            if (procDamageEffectId) {
+                const procEffect = state.effectCache[procDamageEffectId];
+                abilityDamageMultiplier = parseFloat(procEffect.valueFormula);
+                state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Applying Ability Power from '${procEffect.name}' (${abilityDamageMultiplier * 100}%).`);
+            }
+        }
+        
+        let damage = weaponDamage * abilityDamageMultiplier;
+        state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Damage after Ability Power: ${Math.round(damage)}.`);
 
-    // --- NEW: APPLY ABILITY POWER MULTIPLIER ---
-    let abilityDamageMultiplier = 1.0; // Default for basic attacks
-    const source = state.sourceCache[event.abilityId];
-
-    if (source && source.triggerGroups) {
-        // Find the first PROC_DAMAGE effect linked to this source
-        const procDamageEffectId = source.triggerGroups.flatMap(g => g.effects).find(effectId => {
-            const effect = state.effectCache[effectId];
-            return effect && effect.category === 'PROC_DAMAGE';
+        // --- NEW: Calculate multipliers from active buffs/debuffs ---
+        let outgoingModifier = 0;
+        state.combatant.activeEffects.forEach(effect => {
+            const effectData = state.effectCache[effect.id];
+            if (effectData.modifications) {
+                effectData.modifications.forEach(mod => {
+                    if (mod.statToModify === 'OUTGOING_DAMAGE_MODIFIER') {
+                        outgoingModifier += parseFloat(mod.valueFormula);
+                    }
+                });
+            }
         });
+        const cappedEmpower = Math.min(outgoingModifier, 0.5); // Cap empower at 50%
+        state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Combatant has ${Math.round(cappedEmpower * 100)}% Empower.`);
 
-        if (procDamageEffectId) {
-            const procEffect = state.effectCache[procDamageEffectId];
-            abilityDamageMultiplier = parseFloat(procEffect.valueFormula);
-            state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Applying Ability Power from '${procEffect.name}' (${abilityDamageMultiplier * 100}%).`);
+        let incomingModifier = 0;
+        state.target.activeEffects.forEach(effect => {
+            const effectData = state.effectCache[effect.id];
+             if (effectData.modifications) {
+                effectData.modifications.forEach(mod => {
+                    if (mod.statToModify === 'INCOMING_DAMAGE_MODIFIER') {
+                        incomingModifier += parseFloat(mod.valueFormula);
+                    }
+                });
+            }
+        });
+        state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Target has ${Math.round(incomingModifier * 100)}% Rend/Fortify.`);
+        
+        const originalDamageAfterAP = damage;
+        damage *= (1 + cappedEmpower + incomingModifier);
+        state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Applying Buffs/Debuffs. Damage: ${Math.round(originalDamageAfterAP)} -> ${Math.round(damage)}.`);
+
+        // Apply passive damage modifiers
+        for (const effect of state.combatant.passiveEffects) {
+            if (effect.category === 'DAMAGE_MODIFIER') {
+                const originalDamage = damage;
+                damage = handleDamageModifier(effect, originalDamage, state.combatant, state.target);
+                state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Applying '${effect.name}'. Damage: ${Math.round(originalDamage)} -> ${Math.round(damage)}.`);
+            }
+        }
+        state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Final damage for this event: ${Math.round(damage)}.`);
+    }
+
+    // --- Step 2: Handle Triggered Effects (No Changes) ---
+    const source = state.sourceCache[event.abilityId];
+    if (source && source.triggerGroups) {
+        const triggerGroup = source.triggerGroups[0]; 
+        if (triggerGroup && triggerGroup.effects) {
+            for (const effectId of triggerGroup.effects) {
+                const effect = state.effectCache[effectId];
+                if (!effect) continue;
+
+                if (effect.category === 'STATUS_EFFECT') {
+                    const targetCharacter = effect.target === 'SELF' ? state.combatant : state.target;
+                    const logMessage = handleStatusEffect(effect, targetCharacter);
+                    state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: ${logMessage}`);
+                }
+            }
         }
     }
-    
-    let damage = weaponDamage * abilityDamageMultiplier;
-    state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Damage after Ability Power: ${Math.round(damage)}.`);
-
-
-    // Apply passive damage modifiers
-    for (const effect of state.combatant.passiveEffects) {
-        if (effect.category === 'DAMAGE_MODIFIER') {
-            const originalDamage = damage;
-            damage = handleDamageModifier(effect, originalDamage, state.combatant, state.target);
-            state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Applying '${effect.name}'. Damage: ${Math.round(originalDamage)} -> ${Math.round(damage)}.`);
-        }
-    }
-
-    state.log.push(`[${event.timestamp.toFixed(2)}s] ENGINE: Final damage for this event: ${Math.round(damage)}.`);
 };
