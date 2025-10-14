@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; // <-- Import Firestore functions
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { calculateWeaponDamage } from '../simulation/formulas';
 import { runSimulationV2 } from '../simulation/engine_v2';
 import { midComboBlockChoreography } from '../simulation/choreography';
@@ -7,10 +7,11 @@ import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
 import MasteryLoadoutPanel from './MasteryLoadoutPanel';
 import BuildManagerPanel from './BuildManagerPanel';
+import OCRScannerPanel from './OCRScannerPanel';
 import CommandBar from './CommandBar';
 import { db as firestore } from '../services/firebase';
 import InspectorPanel from './InspectorPanel';
-import CombatLogPanel from './CombatLogPanel'; 
+import CombatLogPanel from './CombatLogPanel';
 
 // --- Sub-Component: ControlPanel (No Changes) ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
@@ -63,15 +64,15 @@ const CombatSimulatorPage = ({ addLog }) => {
     const [buildName, setBuildName] = useState('');
 
     const fetchBuilds = useCallback(async () => {
-        addLog('info', 'Fetching builds from Armory...');
+        addLog({ type: 'info', message: 'Fetching builds from Armory...' });
         try {
             const querySnapshot = await getDocs(collection(firestore, 'ukb_builds'));
             const builds = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             builds.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
             setSavedBuilds(builds);
-            addLog('success', `Found ${builds.length} builds in the Armory.`);
+            addLog({ type: 'success', message: `Found ${builds.length} builds in the Armory.` });
         } catch (error) {
-            addLog('error', `Failed to fetch builds: ${error.message}`);
+            addLog({ type: 'error', message: `Failed to fetch builds: ${error.message}` });
         }
     }, [addLog]);
 
@@ -81,10 +82,10 @@ const CombatSimulatorPage = ({ addLog }) => {
 
     const handleSaveBuild = async () => {
         if (!buildName.trim()) {
-            addLog('error', 'Please enter a name for the build.');
+            addLog({ type: 'error', message: 'Please enter a name for the build.' });
             return;
         }
-        addLog('info', `Saving current loadout as '${buildName}'...`);
+        addLog({ type: 'info', message: `Saving current loadout as '${buildName}'...` });
         try {
             const buildData = {
                 name: buildName,
@@ -94,11 +95,11 @@ const CombatSimulatorPage = ({ addLog }) => {
                 timestamp: serverTimestamp(),
             };
             await addDoc(collection(firestore, 'ukb_builds'), buildData);
-            addLog('success', `Build '${buildName}' saved to the Armory.`);
+            addLog({ type: 'success', message: `Build '${buildName}' saved to the Armory.` });
             setBuildName('');
-            await fetchBuilds(); // Refresh the list of builds
+            await fetchBuilds();
         } catch (error) {
-            addLog('error', `Failed to save build: ${error.message}`);
+            addLog({ type: 'error', message: `Failed to save build: ${error.message}` });
         }
     };
 
@@ -106,11 +107,11 @@ const CombatSimulatorPage = ({ addLog }) => {
         if (!buildId) return;
         const buildToLoad = savedBuilds.find(b => b.id === buildId);
         if (buildToLoad) {
-            addLog('info', `Loading build '${buildToLoad.name}'...`);
+            addLog({ type: 'info', message: `Loading build '${buildToLoad.name}'...` });
             setAttributes(buildToLoad.attributes || { STR: 300, DEX: 5, INT: 5, FOC: 5, CON: 200 });
             setEquippedPerks(buildToLoad.equippedPerks || []);
             setEquippedMasteries(buildToLoad.equippedMasteries || []);
-            addLog('success', `Build '${buildToLoad.name}' loaded.`);
+            addLog({ type: 'success', message: `Build '${buildToLoad.name}' loaded.` });
         }
     };
 
@@ -125,29 +126,29 @@ const CombatSimulatorPage = ({ addLog }) => {
     }, [weaponType, attributes]);
 
     const handleRunSimulation = async () => {
-        addLog('info', 'Simulation initiated...');
+        addLog({ type: 'info', message: 'Simulation initiated...' });
         const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks, masteries: equippedMasteries };
         const target = { id: 'Target Dummy', health: 50000 };
         try {
             const { rawLog, analysisLog } = await runSimulationV2(combatant, target, midComboBlockChoreography, firestore);
             setRawEngineLog(rawLog);
             setCombatLog(analysisLog);
-            addLog('success', 'Simulation complete.');
+            addLog({ type: 'success', message: 'Simulation complete.' });
         } catch (error) {
             console.error("Simulation failed:", error);
-            addLog('error', `Simulation failed: ${error.message}`);
+            addLog({ type: 'error', message: `Simulation failed: ${error.message}` });
         }
     };
 
     const clearCombatLog = () => {
         setCombatLog([]);
         setRawEngineLog([]);
-        addLog('info', 'Combat logs cleared.');
+        addLog({ type: 'info', message: 'Combat logs cleared.' });
     };
 
     return (
         <>
-        <style>{`.custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; } .tactical-grid { background-image: linear-gradient(rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.8)), radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0); background-size: 20px 20px; }`}</style>
+        <style>{`.custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; } .tactical-grid { background-image: linear-gradient(rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.8)), radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0); background-size: 20px 20px; }`}</style>
         <div className="h-screen flex flex-col p-4 sm:p-6 space-y-4 bg-gradient-to-br from-slate-900 to-slate-800 text-slate-300 font-sans tactical-grid">
             <div className="flex justify-between items-center flex-shrink-0"><h1 className="text-2xl font-bold text-amber-400 tracking-wider flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3m6-9h3m-18 0h3m15-3l-2 2m-10-2l2 2m-2 10l2-2m10 2l-2-2" /></svg>Combat Simulator</h1></div>
             <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
@@ -160,6 +161,7 @@ const CombatSimulatorPage = ({ addLog }) => {
                         onSaveBuild={handleSaveBuild}
                         onLoadBuild={handleLoadBuild}
                     />
+                    <OCRScannerPanel addLog={addLog} />
                     <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                     <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>
                     <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} firestore={firestore}/>
@@ -177,3 +179,4 @@ const CombatSimulatorPage = ({ addLog }) => {
 };
 
 export default CombatSimulatorPage;
+

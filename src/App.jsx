@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from './services/firebase';
+// --- CORRECTED FIREBASE IMPORTS ---
+import { collection, getDocs, addDoc, doc, deleteDoc } from 'firebase/firestore';
 
 // Component Imports
 import ViewerPage from './components/ViewerPage.jsx';
