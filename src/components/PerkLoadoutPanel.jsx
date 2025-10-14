@@ -1,10 +1,8 @@
 import React from 'react';
-// CHANGED: We now import the new, authoritative fetchSources function.
 import { fetchSources } from '../lib/firebase/firestore.js';
 
-// --- Custom Hook for Data Fetching (Refactored) ---
+// --- Custom Hook for Data Fetching (Hardened) ---
 const useSources = () => {
-  // CHANGED: Renamed state variables for clarity (perks -> sources).
   const [sources, setSources] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
@@ -16,11 +14,13 @@ const useSources = () => {
       try {
         setLoading(true);
         setError(null);
-        // CHANGED: Calling the new fetchSources function.
         const data = await fetchSources();
         if (!abortController.signal.aborted) {
-          // Sort sources alphabetically by name by default.
-          const sortedData = data.sort((a, b) => a.name.localeCompare(b.name));
+          // HARDENED SORT: Provide a fallback empty string for any source missing a name.
+          // This prevents the 'localeCompare' of undefined error and ensures UI stability.
+          const sortedData = data.sort((a, b) => 
+            (a.name || 'Unnamed Source').localeCompare(b.name || 'Unnamed Source')
+          );
           setSources(sortedData);
         }
       } catch (err) {
@@ -41,17 +41,14 @@ const useSources = () => {
     return () => {
       abortController.abort();
     };
-  }, []); // Removed firestore dependency as it's now handled in the service layer.
+  }, []);
 
-  // CHANGED: Returning 'sources' instead of 'perks'.
   return { sources, loading, error };
 };
 
 
-// --- Main Component (Refactored) ---
-// CHANGED: Removed firestore prop as it's no longer needed here.
+// --- Main Component (No other changes needed) ---
 const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
-  // CHANGED: Using the refactored hook and variable names.
   const { sources, loading, error } = useSources();
   const [nameFilter, setNameFilter] = React.useState('');
   const [bucketFilter, setBucketFilter] = React.useState('');
@@ -61,7 +58,6 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
     if (isEquipped) {
       setEquippedPerks(prev => prev.filter(p => p.id !== source.id));
     } else {
-      // We still call them "perks" in the equipped list for now.
       setEquippedPerks(prev => [...prev, source]);
     }
   };
@@ -74,7 +70,7 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
 
   const filteredSources = React.useMemo(() => {
     return sources.filter(source => {
-      const nameMatch = source.name.toLowerCase().includes(nameFilter.toLowerCase());
+      const nameMatch = (source.name || '').toLowerCase().includes(nameFilter.toLowerCase());
       
       const bucketValue = source.perk_bucket || 'None';
       const bucketMatch = bucketFilter === 'All Buckets' || bucketFilter === '' || bucketValue === bucketFilter;
@@ -131,7 +127,7 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
                   onChange={() => handleToggle(source)}
                 />
               </td>
-              <td className="p-2 whitespace-nowrap">{source.name}</td>
+              <td className="p-2 whitespace-nowrap">{source.name || <span className="text-red-400 italic">Missing Name</span>}</td>
               <td className="p-2 whitespace-nowrap text-slate-400">{source.perk_bucket || '-'}</td>
             </tr>
           ))}

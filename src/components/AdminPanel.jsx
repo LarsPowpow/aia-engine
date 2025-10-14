@@ -1,11 +1,13 @@
 import React from 'react';
-import { collection, getDocs } from 'firebase/firestore'; // Import Firestore functions
+import { collection, getDocs } from 'firebase/firestore';
 import PromptInjector from './PromptInjector.jsx';
 import SchemaGovernorPanel from './SchemaGovernorPanel.jsx';
 import DangerZone from './DangerZone.jsx';
 import ManualUpsertPanel from './ManualUpsertPanel.jsx';
 import DataDeconPanel from './DataDeconPanel.jsx';
 import PurgePanel from './PurgePanel.jsx';
+// IMPORT: We now import our new data hygiene tool.
+import DataHygienePanel from './DataHygienePanel.jsx';
 
 const AdminPanel = ({ 
     onClearUkb, 
@@ -102,6 +104,9 @@ const AdminPanel = ({
 
             {/* --- RIGHT COLUMN (1/3 width) --- */}
             <div className="flex flex-col space-y-8">
+                
+                {/* INTEGRATION: Our new tool is added to the top of the right column. */}
+                <DataHygienePanel db={db} addLog={addLog} />
                 
                 <PurgePanel db={db} addLog={addLog} />
 

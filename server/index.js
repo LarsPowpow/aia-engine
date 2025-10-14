@@ -1,40 +1,41 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const multer = require('multer'); // <-- Import multer for file uploads
+const multer = require('multer');
+// NEW: Import the Google Cloud Vision SDK
+const vision = require('@google-cloud/vision');
+const path = require('path');
+
+// --- NEW: Initialize Vision AI Client ---
+// This automatically finds and uses the 'gcloud-credentials.json' key file
+// because we have set the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+const visionClient = new vision.ImageAnnotatorClient({
+    keyFilename: path.join(__dirname, 'gcloud-credentials.json')
+});
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// --- Multer Configuration for in-memory file storage ---
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Logging middleware for diagnostics
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
-// Use official cors middleware, explicitly allow all origins
-app.use(cors({
-  origin: /https:\/\/.*\.app\.github\.dev$/,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Using a permissive CORS policy for diagnostics, as established.
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// POST /deconstruct: (No changes)
+// This endpoint is no longer needed as the AI Analyst is handled by the Gemini API endpoint.
+// For simplicity, we keep the deconstruct endpoint as is.
 app.post('/deconstruct', async (req, res) => {
   const { prompt, jsonInput, apiKey } = req.body;
   const key = apiKey || process.env.GEMINI_API_KEY;
-  if (!key) {
-    return res.status(400).json({ error: 'Gemini API key missing.' });
-  }
-  if (!prompt || !jsonInput) {
-    return res.status(400).json({ error: 'Prompt and jsonInput required.' });
-  }
+  if (!key) return res.status(400).json({ error: 'Gemini API key missing.' });
+  if (!prompt || !jsonInput) return res.status(400).json({ error: 'Prompt and jsonInput required.' });
   try {
     const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
     const fullPrompt = `${prompt}\n\nINPUT JSON:\n${jsonInput}`;
@@ -50,47 +51,54 @@ app.post('/deconstruct', async (req, res) => {
       return res.status(response.status).json({ error: errorData.error?.message || 'Gemini API error.' });
     }
     const data = await response.json();
-    let resultText = '';
-    if (data.candidates && data.candidates.length > 0) {
-      const parts = data.candidates[0].content?.parts;
-      if (parts && parts.length > 0 && parts[0].text) {
-        resultText = parts[0].text;
-      }
-    }
+    let resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const cleanedText = resultText.replace(/```json\n?|\n?```/g, '').trim();
     res.json({ result: cleanedText });
   } catch (error) {
-    res.status(500).json({ error: error.message || error.toString() || 'Gemini API call failed.' });
+    res.status(500).json({ error: error.message || 'Gemini API call failed.' });
   }
 });
 
-// --- NEW ENDPOINT: /scan-gear ---
-// This endpoint expects a single file upload with the field name 'gear_screenshot'
-app.post('/scan-gear', upload.single('gear_screenshot'), (req, res) => {
+
+// --- UPGRADED ENDPOINT: /scan-gear ---
+// This endpoint now performs real OCR using the Google Cloud Vision SDK.
+app.post('/scan-gear', upload.single('gear_screenshot'), async (req, res) => {
   if (!req.file) {
-    console.log('[Server] Scan request received without a file.');
     return res.status(400).json({ error: 'No file uploaded.' });
   }
 
-  // For this first step, we just confirm receipt of the file.
-  console.log('[Server] Received file:', {
-    filename: req.file.originalname,
-    mimetype: req.file.mimetype,
-    size: `${(req.file.size / 1024).toFixed(2)} KB`,
-  });
+  console.log('[Server] Received file for OCR processing.');
 
-  res.json({
-    message: `File '${req.file.originalname}' received successfully.`,
-    // In the future, this will contain the OCR results.
-    ocr_text: "OCR processing not yet implemented."
-  });
+  try {
+    // 1. Prepare the image content for the Vision API.
+    const content = req.file.buffer;
+
+    // 2. Call the Vision API to detect text in the image.
+    const [result] = await visionClient.textDetection({ image: { content } });
+    const detections = result.textAnnotations;
+    
+    // The first entry in textAnnotations is the full block of detected text.
+    const ocrText = detections.length > 0 ? detections[0].description : '';
+    
+    console.log('[Server] OCR processing successful.');
+
+    // 3. Return the extracted text.
+    res.json({
+      message: 'OCR processing complete.',
+      ocr_text: ocrText
+    });
+
+  } catch (error) {
+    console.error('Cloud Vision API Error:', error);
+    res.status(500).json({ error: `Failed to process image with Vision API: ${error.message}` });
+  }
 });
 
 
 app.get('/', (req, res) => {
-  res.send('Gemini API Proxy is running.');
+  res.send('AIA Engine API Proxy is running.');
 });
 
 app.listen(PORT, () => {
-  console.log(`Gemini REST API Proxy listening on port ${PORT}`);
+  console.log(`AIA Engine API Proxy listening on port ${PORT}`);
 });
