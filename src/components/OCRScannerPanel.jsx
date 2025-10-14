@@ -14,7 +14,6 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
 
     const pasteZoneRef = useRef(null);
 
-    // Fetch Manifest and Prompt on component load
     useEffect(() => {
         const fetchPrerequisites = async () => {
             try {
@@ -44,7 +43,7 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
     const processFile = (file) => {
         if (file && file.type.startsWith('image/')) {
             setSelectedFile(file);
-            if (previewUrl) URL.revokeObjectURL(previewUrl); // Clean up previous blob URL
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
             setPreviewUrl(URL.createObjectURL(file));
             setTriageList([]);
         } else {
@@ -101,7 +100,23 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
             
             addLog({ type: 'success', message: 'AI analysis complete. Found masteries are ready for triage.' });
             
-            const foundMasteries = JSON.parse(analysisResult.result);
+            // --- HARDENED DATA PROCESSING LOGIC ---
+            let foundMasteries = [];
+            if (analysisResult.result && typeof analysisResult.result === 'string') {
+                try {
+                    const parsed = JSON.parse(analysisResult.result);
+                    // Ensure the parsed result is an array before trying to map it.
+                    if (Array.isArray(parsed)) {
+                        foundMasteries = parsed;
+                    } else {
+                        throw new Error("AI result was not a JSON array.");
+                    }
+                } catch (e) {
+                    console.error("Failed to parse AI response:", e);
+                    addLog({ type: 'error', message: `AI returned malformed data: ${e.message}` });
+                }
+            }
+            // This ensures setTriageList always receives a valid array, preventing crashes.
             setTriageList(foundMasteries.map(m => ({ ...m, isSelected: false })));
 
         } catch (error) {

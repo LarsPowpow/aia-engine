@@ -158,11 +158,12 @@ const CombatSimulatorPage = ({ addLog }) => {
                     <OCRScannerPanel 
                         addLog={addLog}
                         setEquippedMasteries={setEquippedMasteries}
-                        equippedMasteries={equippedMasteries} // <-- Pass current state
+                        equippedMasteries={equippedMasteries}
                     />
                     <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
-                    <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>
-                    <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} firestore={firestore}/>
+                    {/* CORRECTED: Pass the required props to the child components */}
+                    <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} />
+                    <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} />
                     <ChoreographerPanel />
                     <div className="mt-auto pt-4"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={false} /></div>
                 </div>
@@ -177,4 +178,3 @@ const CombatSimulatorPage = ({ addLog }) => {
 };
 
 export default CombatSimulatorPage;
-

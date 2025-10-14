@@ -1,33 +1,34 @@
 import React from 'react';
-import { fetchSources } from '../lib/firebase/firestore.js';
+// CORRECTED: Import the new, dedicated fetchAllPerks function.
+import { fetchAllPerks } from '../lib/firebase/firestore.js';
 
-// --- Custom Hook for Data Fetching (Hardened) ---
-const useSources = () => {
-  const [sources, setSources] = React.useState([]);
+// --- Custom Hook for Data Fetching (Refactored for Perks) ---
+const usePerks = () => {
+  // CORRECTED: Renamed state variables for clarity (sources -> perks).
+  const [perks, setPerks] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
     const abortController = new AbortController();
 
-    async function loadSources() {
+    async function loadPerks() {
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchSources();
+        // CORRECTED: Calling the new, dedicated fetchAllPerks function.
+        const data = await fetchAllPerks();
         if (!abortController.signal.aborted) {
-          // HARDENED SORT: Provide a fallback empty string for any source missing a name.
-          // This prevents the 'localeCompare' of undefined error and ensures UI stability.
           const sortedData = data.sort((a, b) => 
-            (a.name || 'Unnamed Source').localeCompare(b.name || 'Unnamed Source')
+            (a.name || 'Unnamed Perk').localeCompare(b.name || 'Unnamed Perk')
           );
-          setSources(sortedData);
+          setPerks(sortedData);
         }
       } catch (err) {
         if (!abortController.signal.aborted) {
-          console.error("Failed to load sources:", err);
-          setError("Failed to load sources from UKB.");
-          setSources([]);
+          console.error("Failed to load perks:", err);
+          setError("Failed to load perks from UKB.");
+          setPerks([]);
         }
       } finally {
         if (!abortController.signal.aborted) {
@@ -36,58 +37,59 @@ const useSources = () => {
       }
     }
     
-    loadSources();
+    loadPerks();
 
     return () => {
       abortController.abort();
     };
   }, []);
 
-  return { sources, loading, error };
+  return { perks, loading, error };
 };
 
 
-// --- Main Component (No other changes needed) ---
+// --- Main Component ---
 const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
-  const { sources, loading, error } = useSources();
+  // CORRECTED: Using the refactored hook and variable names.
+  const { perks, loading, error } = usePerks();
   const [nameFilter, setNameFilter] = React.useState('');
   const [bucketFilter, setBucketFilter] = React.useState('');
 
-  const handleToggle = (source) => {
-    const isEquipped = equippedPerks.some(p => p.id === source.id);
+  const handleToggle = (perk) => {
+    const isEquipped = equippedPerks.some(p => p.id === perk.id);
     if (isEquipped) {
-      setEquippedPerks(prev => prev.filter(p => p.id !== source.id));
+      setEquippedPerks(prev => prev.filter(p => p.id !== perk.id));
     } else {
-      setEquippedPerks(prev => [...prev, source]);
+      setEquippedPerks(prev => [...prev, perk]);
     }
   };
 
   const uniqueBuckets = React.useMemo(() => {
-    if (sources.length === 0) return [];
-    const buckets = new Set(sources.map(p => p.perk_bucket || 'None').filter(Boolean));
+    if (perks.length === 0) return [];
+    const buckets = new Set(perks.map(p => p.perk_bucket || 'None').filter(Boolean));
     return ['All Buckets', ...Array.from(buckets).sort()];
-  }, [sources]);
+  }, [perks]);
 
-  const filteredSources = React.useMemo(() => {
-    return sources.filter(source => {
-      const nameMatch = (source.name || '').toLowerCase().includes(nameFilter.toLowerCase());
+  const filteredPerks = React.useMemo(() => {
+    return perks.filter(perk => {
+      const nameMatch = (perk.name || '').toLowerCase().includes(nameFilter.toLowerCase());
       
-      const bucketValue = source.perk_bucket || 'None';
+      const bucketValue = perk.perk_bucket || 'None';
       const bucketMatch = bucketFilter === 'All Buckets' || bucketFilter === '' || bucketValue === bucketFilter;
 
       return nameMatch && bucketMatch;
     });
-  }, [sources, nameFilter, bucketFilter]);
+  }, [perks, nameFilter, bucketFilter]);
 
   const renderContent = () => {
     if (loading) {
-      return <div className="text-center text-slate-400 py-8">Loading sources from UKB...</div>;
+      return <div className="text-center text-slate-400 py-8">Loading perks from UKB...</div>;
     }
     if (error) {
       return <div className="text-center text-red-400 py-8">{error}</div>;
     }
-    if (sources.length === 0) {
-        return <div className="text-center text-slate-500 py-8">No sources found in UKB.</div>;
+    if (perks.length === 0) {
+        return <div className="text-center text-slate-500 py-8">No perks found in UKB.</div>;
     }
     return (
       <table className="min-w-full text-sm text-left">
@@ -117,18 +119,18 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-700/50">
-          {filteredSources.map(source => (
-            <tr key={source.id} className="hover:bg-slate-700/50 transition-colors duration-150">
+          {filteredPerks.map(perk => (
+            <tr key={perk.id} className="hover:bg-slate-700/50 transition-colors duration-150">
               <td className="p-2 text-center">
                 <input
                   type="checkbox"
                   className="form-checkbox h-4 w-4 bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
-                  checked={equippedPerks.some(p => p.id === source.id)}
-                  onChange={() => handleToggle(source)}
+                  checked={equippedPerks.some(p => p.id === perk.id)}
+                  onChange={() => handleToggle(perk)}
                 />
               </td>
-              <td className="p-2 whitespace-nowrap">{source.name || <span className="text-red-400 italic">Missing Name</span>}</td>
-              <td className="p-2 whitespace-nowrap text-slate-400">{source.perk_bucket || '-'}</td>
+              <td className="p-2 whitespace-nowrap">{perk.name || <span className="text-red-400 italic">Missing Name</span>}</td>
+              <td className="p-2 whitespace-nowrap text-slate-400">{perk.perk_bucket || '-'}</td>
             </tr>
           ))}
         </tbody>
