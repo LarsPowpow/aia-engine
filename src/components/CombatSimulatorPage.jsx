@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; // <-- Import Firestore functions
 import { calculateWeaponDamage } from '../simulation/formulas';
 import { runSimulationV2 } from '../simulation/engine_v2';
 import { midComboBlockChoreography } from '../simulation/choreography';
 import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
 import MasteryLoadoutPanel from './MasteryLoadoutPanel';
-import BuildManagerPanel from './BuildManagerPanel'; // <-- Import the new panel
+import BuildManagerPanel from './BuildManagerPanel';
 import CommandBar from './CommandBar';
 import { db as firestore } from '../services/firebase';
 import InspectorPanel from './InspectorPanel';
@@ -58,10 +59,60 @@ const CombatSimulatorPage = ({ addLog }) => {
     const [isFocusMode, setIsFocusMode] = useState(false);
     const [equippedPerks, setEquippedPerks] = useState([]);
     const [equippedMasteries, setEquippedMasteries] = useState([]);
-    
-    // --- State for Build Manager ---
     const [savedBuilds, setSavedBuilds] = useState([]);
     const [buildName, setBuildName] = useState('');
+
+    const fetchBuilds = useCallback(async () => {
+        addLog('info', 'Fetching builds from Armory...');
+        try {
+            const querySnapshot = await getDocs(collection(firestore, 'ukb_builds'));
+            const builds = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            builds.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            setSavedBuilds(builds);
+            addLog('success', `Found ${builds.length} builds in the Armory.`);
+        } catch (error) {
+            addLog('error', `Failed to fetch builds: ${error.message}`);
+        }
+    }, [addLog]);
+
+    useEffect(() => {
+        fetchBuilds();
+    }, [fetchBuilds]);
+
+    const handleSaveBuild = async () => {
+        if (!buildName.trim()) {
+            addLog('error', 'Please enter a name for the build.');
+            return;
+        }
+        addLog('info', `Saving current loadout as '${buildName}'...`);
+        try {
+            const buildData = {
+                name: buildName,
+                attributes,
+                equippedPerks,
+                equippedMasteries,
+                timestamp: serverTimestamp(),
+            };
+            await addDoc(collection(firestore, 'ukb_builds'), buildData);
+            addLog('success', `Build '${buildName}' saved to the Armory.`);
+            setBuildName('');
+            await fetchBuilds(); // Refresh the list of builds
+        } catch (error) {
+            addLog('error', `Failed to save build: ${error.message}`);
+        }
+    };
+
+    const handleLoadBuild = (buildId) => {
+        if (!buildId) return;
+        const buildToLoad = savedBuilds.find(b => b.id === buildId);
+        if (buildToLoad) {
+            addLog('info', `Loading build '${buildToLoad.name}'...`);
+            setAttributes(buildToLoad.attributes || { STR: 300, DEX: 5, INT: 5, FOC: 5, CON: 200 });
+            setEquippedPerks(buildToLoad.equippedPerks || []);
+            setEquippedMasteries(buildToLoad.equippedMasteries || []);
+            addLog('success', `Build '${buildToLoad.name}' loaded.`);
+        }
+    };
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
@@ -75,15 +126,8 @@ const CombatSimulatorPage = ({ addLog }) => {
 
     const handleRunSimulation = async () => {
         addLog('info', 'Simulation initiated...');
-        const combatant = { 
-            id: 'Player', 
-            weaponType, 
-            attributes, 
-            perks: equippedPerks,
-            masteries: equippedMasteries
-        };
+        const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks, masteries: equippedMasteries };
         const target = { id: 'Target Dummy', health: 50000 };
-        
         try {
             const { rawLog, analysisLog } = await runSimulationV2(combatant, target, midComboBlockChoreography, firestore);
             setRawEngineLog(rawLog);
@@ -109,11 +153,12 @@ const CombatSimulatorPage = ({ addLog }) => {
             <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
             <div className={`flex-grow grid gap-6 ${isFocusMode ? 'grid-cols-1' : 'lg:grid-cols-3'} overflow-hidden`}>
                 <div className={`${isFocusMode ? 'hidden' : 'lg:col-span-1'} flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1`}>
-                    {/* --- ADD THE NEW BUILD MANAGER PANEL --- */}
                     <BuildManagerPanel 
                         savedBuilds={savedBuilds}
                         buildName={buildName}
                         setBuildName={setBuildName}
+                        onSaveBuild={handleSaveBuild}
+                        onLoadBuild={handleLoadBuild}
                     />
                     <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                     <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>
