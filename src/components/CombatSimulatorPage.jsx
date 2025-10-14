@@ -90,8 +90,8 @@ const CombatSimulatorPage = ({ addLog }) => {
             const buildData = {
                 name: buildName,
                 attributes,
-                equippedPerks,
-                equippedMasteries,
+                equippedPerks, // Storing full objects now for simplicity
+                equippedMasteries, // Storing full objects
                 timestamp: serverTimestamp(),
             };
             await addDoc(collection(firestore, 'ukb_builds'), buildData);
@@ -148,20 +148,17 @@ const CombatSimulatorPage = ({ addLog }) => {
 
     return (
         <>
-        <style>{`.custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; } .tactical-grid { background-image: linear-gradient(rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.8)), radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0); background-size: 20px 20px; }`}</style>
+        <style>{`.custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; } .tactical-grid { background-image: linear-gradient(rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.8)), radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0); background-size: 20px 20px; }`}</style>
         <div className="h-screen flex flex-col p-4 sm:p-6 space-y-4 bg-gradient-to-br from-slate-900 to-slate-800 text-slate-300 font-sans tactical-grid">
             <div className="flex justify-between items-center flex-shrink-0"><h1 className="text-2xl font-bold text-amber-400 tracking-wider flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3m6-9h3m-18 0h3m15-3l-2 2m-10-2l2 2m-2 10l2-2m10 2l-2-2" /></svg>Combat Simulator</h1></div>
             <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
             <div className={`flex-grow grid gap-6 ${isFocusMode ? 'grid-cols-1' : 'lg:grid-cols-3'} overflow-hidden`}>
                 <div className={`${isFocusMode ? 'hidden' : 'lg:col-span-1'} flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1`}>
-                    <BuildManagerPanel 
-                        savedBuilds={savedBuilds}
-                        buildName={buildName}
-                        setBuildName={setBuildName}
-                        onSaveBuild={handleSaveBuild}
-                        onLoadBuild={handleLoadBuild}
+                    <BuildManagerPanel savedBuilds={savedBuilds} buildName={buildName} setBuildName={setBuildName} onSaveBuild={handleSaveBuild} onLoadBuild={handleLoadBuild} />
+                    <OCRScannerPanel 
+                        addLog={addLog}
+                        setEquippedMasteries={setEquippedMasteries}
                     />
-                    <OCRScannerPanel addLog={addLog} />
                     <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                     <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>
                     <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} firestore={firestore}/>

@@ -1,179 +1,182 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'; // <-- Import Firestore functions
-import { calculateWeaponDamage } from '../simulation/formulas';
-import { runSimulationV2 } from '../simulation/engine_v2';
-import { midComboBlockChoreography } from '../simulation/choreography';
-import ChoreographerPanel from './ChoreographerPanel';
-import PerkLoadoutPanel from './PerkLoadoutPanel';
-import MasteryLoadoutPanel from './MasteryLoadoutPanel';
-import BuildManagerPanel from './BuildManagerPanel';
-import CommandBar from './CommandBar';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db as firestore } from '../services/firebase';
-import InspectorPanel from './InspectorPanel';
-import CombatLogPanel from './CombatLogPanel';
 
-// --- Sub-Component: ControlPanel (No Changes) ---
-const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
-    const handleAttributeChange = (attr, value) => {
-        const numValue = value === '' ? '' : parseInt(value, 10);
-        if (isNaN(numValue) && value !== '') return;
-        setAttributes(prev => ({ ...prev, [attr]: numValue }));
+const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) => {
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [ocrResult, setOcrResult] = useState('');
+    const [isScanning, setIsScanning] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    
+    const [masteryManifest, setMasteryManifest] = useState([]);
+    const [parserPrompt, setParserPrompt] = useState('');
+    const [triageList, setTriageList] = useState([]);
+
+    const pasteZoneRef = useRef(null);
+
+    // Fetch Manifest and Prompt on component load
+    useEffect(() => {
+        const fetchPrerequisites = async () => {
+            try {
+                const q = query(collection(firestore, 'ukb_sources_v2'), where("type", "==", "WEAPON_MASTERY"));
+                const snapshot = await getDocs(q);
+                const manifest = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setMasteryManifest(manifest);
+            } catch (error) {
+                addLog({ type: 'error', message: `Failed to fetch Mastery Manifest: ${error.message}`});
+            }
+            try {
+                const q = query(collection(firestore, 'prompts'), where("name", "==", "OCR Mastery Parser"));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                    setParserPrompt(snapshot.docs[0].data().content);
+                } else {
+                     addLog({ type: 'error', message: "Critical: 'OCR Mastery Parser' prompt not found."});
+                }
+            } catch (error) {
+                addLog({ type: 'error', message: `Failed to fetch OCR prompt: ${error.message}`});
+            }
+        };
+        fetchPrerequisites();
+    }, [addLog]);
+
+
+    const processFile = (file) => {
+        if (file && file.type.startsWith('image/')) {
+            setSelectedFile(file);
+            setPreviewUrl(URL.createObjectURL(file));
+            setOcrResult('');
+            setTriageList([]);
+        } else {
+            addLog({ type: 'warning', message: 'Pasted item was not a valid image file.' });
+        }
     };
-    return (
-        <div className="bg-slate-800/40 rounded-xl p-4 flex flex-col space-y-4 border border-slate-700 shadow-lg backdrop-blur-sm">
-            <h2 className="text-lg font-bold text-slate-100 border-b border-slate-600 pb-2 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" /></svg>Control Console</h2>
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700"><label className="text-sm font-medium text-slate-400 mb-2 block">Weapon</label><select value={weaponType} onChange={(e) => setWeaponType(e.target.value)} className="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"><option value="Sword">Sword</option><option value="Flail">Flail</option></select></div>
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
-                <h3 className="text-sm font-medium text-slate-400 mb-2">Attributes</h3>
-                <div className="grid grid-cols-2 gap-3">{Object.keys(attributes).map(attr => (<div key={attr} className={attr === 'CON' ? 'col-span-2' : ''}><label className="text-xs font-semibold text-slate-400 uppercase">{attr}</label><input type="number" value={attributes[attr]} onChange={(e) => handleAttributeChange(attr, e.target.value)} className="w-full bg-slate-700/80 border border-slate-600 rounded-md p-2 mt-1 focus:bg-slate-600 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"/></div>))}</div>
-            </div>
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-amber-500/30 text-center shadow-inner">
-                 <h3 className="font-bold text-amber-400 mb-1 text-sm uppercase tracking-wider">Pre-Flight Analysis</h3>
-                 <div className="flex justify-center items-center"><span className="text-4xl font-mono font-bold text-white bg-slate-800/50 px-4 py-1 rounded-md shadow-[0_0_8px_rgba(251,191,36,0.2)]">{calculatedDamage}</span></div>
-            </div>
-        </div>
-    );
-};
 
-// --- Sub-Component: CombatAnalysisPanel (No Changes) ---
-const CombatAnalysisPanel = ({ combatLog, isFocusMode, setIsFocusMode }) => {
-    const [inspectedIndex, setInspectedIndex] = useState(null);
-    const handleRowClick = (index) => setInspectedIndex(index);
-    const handleCloseInspector = () => setInspectedIndex(null);
-    return (
-        <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700 flex flex-col h-full shadow-lg backdrop-blur-sm">
-            <div className="flex justify-between items-center border-b border-slate-600 pb-2 mb-2"><h2 className="text-lg font-bold text-slate-100 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-violet-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a1 1 0 001 1h12a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1-1zm2 4a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 4a1 1 0 100 2h3a1 1 0 100-2H6z" clipRule="evenodd" /></svg>Combat Analysis</h2><div className="flex items-center space-x-2"><button onClick={() => setIsFocusMode(!isFocusMode)} className="p-2 rounded-md hover:bg-slate-700 text-slate-400 hover:text-white transition" title="Toggle Focus Mode"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg></button></div></div>
-            <div className="flex-grow overflow-auto custom-scrollbar pr-1"><table className="min-w-full text-sm text-left"><thead className="bg-black/20 sticky top-0 backdrop-blur-sm z-10"><tr><th className="p-2 font-semibold text-slate-300">Time</th><th className="p-2 font-semibold text-slate-300">Source</th><th className="p-2 font-semibold text-slate-300">Action</th><th className="p-2 font-semibold text-slate-300">Target</th><th className="p-2 font-semibold text-slate-300 text-center">Crit?</th><th className="p-2 font-semibold text-slate-300 text-right">Damage</th></tr></thead><tbody className="divide-y divide-slate-700/50">{combatLog.length === 0 && ( <tr><td colSpan="6" className="text-center text-slate-500 py-16">Run a simulation to see the results.</td></tr>)}{combatLog.map((entry, index) => (<tr key={index} className="hover:bg-slate-700/50 cursor-pointer transition-colors duration-150 even:bg-slate-800/20" onClick={() => handleRowClick(index)}><td className="p-2 whitespace-nowrap text-slate-400 font-mono">{entry.timestamp.toFixed(1)}s</td><td className="p-2 whitespace-nowrap text-green-400 font-semibold">{entry.source}</td><td className="p-2 whitespace-nowrap">{entry.action}</td><td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td><td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td><td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td></tr>))}</tbody></table></div>
-            {inspectedIndex !== null && combatLog[inspectedIndex] && (<InspectorPanel logEntry={combatLog[inspectedIndex]} combatantState={combatLog[inspectedIndex].snapshot.combatant} targetState={combatLog[inspectedIndex].snapshot.target} formulaBreakdown={"Formula breakdown not yet implemented."} onClose={handleCloseInspector} />)}
-        </div>
-    );
-};
+    const handleFileChange = (event) => processFile(event.target.files[0]);
 
-// --- Main Page Component ---
-const CombatSimulatorPage = ({ addLog }) => {
-    const [weaponType, setWeaponType] = useState('Sword');
-    const [attributes, setAttributes] = useState({ STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105 });
-    const [calculatedDamage, setCalculatedDamage] = useState(0);
-    const [combatLog, setCombatLog] = useState([]);
-    const [rawEngineLog, setRawEngineLog] = useState([]);
-    const [isFocusMode, setIsFocusMode] = useState(false);
-    const [equippedPerks, setEquippedPerks] = useState([]);
-    const [equippedMasteries, setEquippedMasteries] = useState([]);
-    const [savedBuilds, setSavedBuilds] = useState([]);
-    const [buildName, setBuildName] = useState('');
-
-    const fetchBuilds = useCallback(async () => {
-        addLog({ type: 'info', message: 'Fetching builds from Armory...' });
-        try {
-            const querySnapshot = await getDocs(collection(firestore, 'ukb_builds'));
-            const builds = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            builds.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-            setSavedBuilds(builds);
-            addLog({ type: 'success', message: `Found ${builds.length} builds in the Armory.` });
-        } catch (error) {
-            addLog({ type: 'error', message: `Failed to fetch builds: ${error.message}` });
+    const handlePaste = useCallback((event) => {
+        event.preventDefault();
+        const items = event.clipboardData.items;
+        for (const item of items) {
+            if (item.type.indexOf('image') !== -1) {
+                const blob = item.getAsFile();
+                processFile(blob);
+                addLog({ type: 'info', message: 'Image pasted from clipboard.' });
+                return;
+            }
         }
     }, [addLog]);
 
     useEffect(() => {
-        fetchBuilds();
-    }, [fetchBuilds]);
+        const pasteZone = pasteZoneRef.current;
+        if (pasteZone) pasteZone.addEventListener('paste', handlePaste);
+        return () => { if (pasteZone) pasteZone.removeEventListener('paste', handlePaste); };
+    }, [handlePaste]);
 
-    const handleSaveBuild = async () => {
-        if (!buildName.trim()) {
-            addLog({ type: 'error', message: 'Please enter a name for the build.' });
-            return;
-        }
-        addLog({ type: 'info', message: `Saving current loadout as '${buildName}'...` });
+    const handleScanAndAnalyze = async () => {
+        if (!selectedFile) return addLog({ type: 'error', message: 'No file selected for scanning.' });
+        // ... (rest of the function is the same, but sets triageList on success)
+        setIsScanning(true);
+        setOcrResult('');
+        setTriageList([]);
+        addLog({ type: 'info', message: `Uploading '${selectedFile.name || 'pasted_image.png'}' for OCR analysis...` });
+        const formData = new FormData();
+        formData.append('gear_screenshot', selectedFile, selectedFile.name || 'pasted_image.png');
         try {
-            const buildData = {
-                name: buildName,
-                attributes,
-                equippedPerks,
-                equippedMasteries,
-                timestamp: serverTimestamp(),
+            const scanResponse = await fetch('https://zany-barnacle-wrq99qjjvr4xcgg5v-3001.app.github.dev/scan-gear', { method: 'POST', body: formData });
+            const scanResult = await scanResponse.json();
+            if (!scanResponse.ok) throw new Error(scanResult.error || 'Failed to scan image.');
+            addLog({ type: 'success', message: 'OCR Scan successful. Sending to AI Analyst...' });
+            
+            setIsScanning(false);
+            setIsAnalyzing(true);
+            const analysisPayload = {
+                prompt: parserPrompt,
+                jsonInput: JSON.stringify({ RAW_OCR_TEXT: scanResult.ocr_text, MASTERY_MANIFEST: masteryManifest }, null, 2)
             };
-            await addDoc(collection(firestore, 'ukb_builds'), buildData);
-            addLog({ type: 'success', message: `Build '${buildName}' saved to the Armory.` });
-            setBuildName('');
-            await fetchBuilds();
+            const analysisResponse = await fetch('https://zany-barnacle-wrq99qjjvr4xcgg5v-3001.app.github.dev/deconstruct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(analysisPayload) });
+            const analysisResult = await analysisResponse.json();
+            if (!analysisResponse.ok) throw new Error(analysisResult.error || 'AI analysis failed.');
+            
+            addLog({ type: 'success', message: 'AI analysis complete. Found masteries are ready for triage.' });
+            setOcrResult(analysisResult.result); // Keep raw text for debugging
+            
+            // --- NEW: Parse result and set up for triage ---
+            const foundMasteries = JSON.parse(analysisResult.result);
+            setTriageList(foundMasteries.map(m => ({ ...m, isSelected: false })));
+
         } catch (error) {
-            addLog({ type: 'error', message: `Failed to save build: ${error.message}` });
+            console.error('Scan/Analysis failed:', error);
+            addLog({ type: 'error', message: `Operation Failed: ${error.message}` });
+            setOcrResult(`Error: ${error.message}`);
+        } finally {
+            setIsScanning(false);
+            setIsAnalyzing(false);
         }
     };
 
-    const handleLoadBuild = (buildId) => {
-        if (!buildId) return;
-        const buildToLoad = savedBuilds.find(b => b.id === buildId);
-        if (buildToLoad) {
-            addLog({ type: 'info', message: `Loading build '${buildToLoad.name}'...` });
-            setAttributes(buildToLoad.attributes || { STR: 300, DEX: 5, INT: 5, FOC: 5, CON: 200 });
-            setEquippedPerks(buildToLoad.equippedPerks || []);
-            setEquippedMasteries(buildToLoad.equippedMasteries || []);
-            addLog({ type: 'success', message: `Build '${buildToLoad.name}' loaded.` });
-        }
+    const handleTriageToggle = (masteryId) => {
+        setTriageList(prev => prev.map(m => m.id === masteryId ? { ...m, isSelected: !m.isSelected } : m));
     };
 
-    useEffect(() => {
-        const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
-        if (weaponType && allAttributesValid) {
-            const damage = calculateWeaponDamage(weaponType, attributes);
-            setCalculatedDamage(damage);
+    const handleAddSelectedToBuild = () => {
+        const selectedMasteries = triageList.filter(m => m.isSelected);
+        // Use a Set to avoid duplicates when merging
+        const currentMasteryIds = new Set(equippedMasteries.map(m => m.id));
+        const newMasteries = selectedMasteries.filter(m => !currentMasteryIds.has(m.id));
+
+        if (newMasteries.length > 0) {
+            setEquippedMasteries(prev => [...prev, ...newMasteries]);
+            addLog({ type: 'success', message: `Added ${newMasteries.length} masteries to the build.`});
         } else {
-            setCalculatedDamage(0);
+            addLog({ type: 'info', message: 'No new masteries were selected to be added.'});
         }
-    }, [weaponType, attributes]);
-
-    const handleRunSimulation = async () => {
-        addLog({ type: 'info', message: 'Simulation initiated...' });
-        const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks, masteries: equippedMasteries };
-        const target = { id: 'Target Dummy', health: 50000 };
-        try {
-            const { rawLog, analysisLog } = await runSimulationV2(combatant, target, midComboBlockChoreography, firestore);
-            setRawEngineLog(rawLog);
-            setCombatLog(analysisLog);
-            addLog({ type: 'success', message: 'Simulation complete.' });
-        } catch (error) {
-            console.error("Simulation failed:", error);
-            addLog({ type: 'error', message: `Simulation failed: ${error.message}` });
-        }
-    };
-
-    const clearCombatLog = () => {
-        setCombatLog([]);
-        setRawEngineLog([]);
-        addLog({ type: 'info', message: 'Combat logs cleared.' });
+        setTriageList([]); // Clear triage after adding
     };
 
     return (
-        <>
-        <style>{`.custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; } .tactical-grid { background-image: linear-gradient(rgba(30, 41, 59, 0.8), rgba(30, 41, 59, 0.8)), radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0); background-size: 20px 20px; }`}</style>
-        <div className="h-screen flex flex-col p-4 sm:p-6 space-y-4 bg-gradient-to-br from-slate-900 to-slate-800 text-slate-300 font-sans tactical-grid">
-            <div className="flex justify-between items-center flex-shrink-0"><h1 className="text-2xl font-bold text-amber-400 tracking-wider flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3m6-9h3m-18 0h3m15-3l-2 2m-10-2l2 2m-2 10l2-2m10 2l-2-2" /></svg>Combat Simulator</h1></div>
-            <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
-            <div className={`flex-grow grid gap-6 ${isFocusMode ? 'grid-cols-1' : 'lg:grid-cols-3'} overflow-hidden`}>
-                <div className={`${isFocusMode ? 'hidden' : 'lg:col-span-1'} flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1`}>
-                    <BuildManagerPanel 
-                        savedBuilds={savedBuilds}
-                        buildName={buildName}
-                        setBuildName={setBuildName}
-                        onSaveBuild={handleSaveBuild}
-                        onLoadBuild={handleLoadBuild}
-                    />
-                    <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
-                    <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>
-                    <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} firestore={firestore}/>
-                    <ChoreographerPanel />
-                    <div className="mt-auto pt-4"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={false} /></div>
+        <div className="bg-slate-800/40 rounded-xl p-4 flex flex-col space-y-4 border border-slate-700 shadow-lg backdrop-blur-sm">
+            <h2 className="text-lg font-bold text-orange-400 border-b border-slate-600 pb-2 flex items-center gap-2">OCR Scanner</h2>
+            <div ref={pasteZoneRef} className="grid grid-cols-2 gap-4 items-center bg-slate-900/30 p-4 rounded-lg border-2 border-dashed border-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" tabIndex="0">
+                <div className="flex flex-col space-y-2">
+                    <p className="text-center text-slate-400 text-sm font-semibold">Click here and paste image</p>
+                    <p className="text-center text-slate-500 text-xs">or</p>
+                     <input type="file" accept="image/png, image/jpeg" onChange={handleFileChange} className="text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-slate-300 hover:file:bg-slate-600 cursor-pointer" />
                 </div>
-                <div className={`${isFocusMode ? 'col-span-1' : 'lg:col-span-2'} grid grid-rows-2 gap-6`}>
-                    <div className="row-span-1"><CombatAnalysisPanel combatLog={combatLog} isFocusMode={isFocusMode} setIsFocusMode={setIsFocusMode} /></div>
-                    <div className="row-span-1"><CombatLogPanel log={rawEngineLog} /></div>
+                <div className="w-full h-24 bg-black/20 rounded border border-slate-700 flex items-center justify-center">
+                    {previewUrl ? (<img src={previewUrl} alt="Preview" className="max-h-full max-w-full object-contain" />) : (<p className="text-slate-500 text-xs">Image Preview</p>)}
                 </div>
             </div>
+             <button onClick={handleScanAndAnalyze} disabled={!selectedFile || isScanning || isAnalyzing} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed">
+                {isScanning ? 'Scanning...' : isAnalyzing ? 'Analyzing...' : 'Scan & Analyze Masteries'}
+            </button>
+            
+            {/* --- NEW: Triage UI --- */}
+            {triageList.length > 0 && (
+                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                    <h3 className="text-sm font-medium text-slate-400 mb-2">AI Analyst Results: Select equipped masteries</h3>
+                    <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                        {triageList.map(mastery => (
+                            <label key={mastery.id} className="flex items-center space-x-3 p-2 bg-slate-800/50 rounded-md hover:bg-slate-700/50 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={mastery.isSelected}
+                                    onChange={() => handleTriageToggle(mastery.id)}
+                                    className="form-checkbox h-4 w-4 bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-500"
+                                />
+                                <span className="text-slate-300 text-sm">{mastery.name}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <button onClick={handleAddSelectedToBuild} className="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200">
+                        Add Selected to Build
+                    </button>
+                </div>
+            )}
         </div>
-        </>
     );
 };
 
-export default CombatSimulatorPage;
+export default OCRScannerPanel;
+
