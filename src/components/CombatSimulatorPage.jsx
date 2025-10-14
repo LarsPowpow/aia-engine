@@ -4,7 +4,8 @@ import { runSimulationV2 } from '../simulation/engine_v2';
 import { midComboBlockChoreography } from '../simulation/choreography';
 import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
-import MasteryLoadoutPanel from './MasteryLoadoutPanel'; // <-- Import the new panel
+import MasteryLoadoutPanel from './MasteryLoadoutPanel';
+import BuildManagerPanel from './BuildManagerPanel'; // <-- Import the new panel
 import CommandBar from './CommandBar';
 import { db as firestore } from '../services/firebase';
 import InspectorPanel from './InspectorPanel';
@@ -56,7 +57,11 @@ const CombatSimulatorPage = ({ addLog }) => {
     const [rawEngineLog, setRawEngineLog] = useState([]);
     const [isFocusMode, setIsFocusMode] = useState(false);
     const [equippedPerks, setEquippedPerks] = useState([]);
-    const [equippedMasteries, setEquippedMasteries] = useState([]); // <-- State for Masteries
+    const [equippedMasteries, setEquippedMasteries] = useState([]);
+    
+    // --- State for Build Manager ---
+    const [savedBuilds, setSavedBuilds] = useState([]);
+    const [buildName, setBuildName] = useState('');
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
@@ -75,7 +80,7 @@ const CombatSimulatorPage = ({ addLog }) => {
             weaponType, 
             attributes, 
             perks: equippedPerks,
-            masteries: equippedMasteries // <-- Pass masteries to the engine
+            masteries: equippedMasteries
         };
         const target = { id: 'Target Dummy', health: 50000 };
         
@@ -103,15 +108,16 @@ const CombatSimulatorPage = ({ addLog }) => {
             <div className="flex justify-between items-center flex-shrink-0"><h1 className="text-2xl font-bold text-amber-400 tracking-wider flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3m6-9h3m-18 0h3m15-3l-2 2m-10-2l2 2m-2 10l2-2m10 2l-2-2" /></svg>Combat Simulator</h1></div>
             <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
             <div className={`flex-grow grid gap-6 ${isFocusMode ? 'grid-cols-1' : 'lg:grid-cols-3'} overflow-hidden`}>
-                <div className={`${isFocusMode ? 'hidden' : 'lg-col-span-1'} flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1`}>
+                <div className={`${isFocusMode ? 'hidden' : 'lg:col-span-1'} flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1`}>
+                    {/* --- ADD THE NEW BUILD MANAGER PANEL --- */}
+                    <BuildManagerPanel 
+                        savedBuilds={savedBuilds}
+                        buildName={buildName}
+                        setBuildName={setBuildName}
+                    />
                     <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                     <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} firestore={firestore}/>
-                    {/* --- ADD THE NEW MASTERY PANEL --- */}
-                    <MasteryLoadoutPanel 
-                        equippedMasteries={equippedMasteries}
-                        setEquippedMasteries={setEquippedMasteries}
-                        firestore={firestore}
-                    />
+                    <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} firestore={firestore}/>
                     <ChoreographerPanel />
                     <div className="mt-auto pt-4"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={false} /></div>
                 </div>
