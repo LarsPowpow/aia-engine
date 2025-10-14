@@ -5,7 +5,6 @@ import { db as firestore } from '../services/firebase';
 const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
-    const [ocrResult, setOcrResult] = useState('');
     const [isScanning, setIsScanning] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     
@@ -47,7 +46,6 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
             setSelectedFile(file);
             if (previewUrl) URL.revokeObjectURL(previewUrl); // Clean up previous blob URL
             setPreviewUrl(URL.createObjectURL(file));
-            setOcrResult('');
             setTriageList([]);
         } else {
             addLog({ type: 'warning', message: 'Pasted item was not a valid image file.' });
@@ -81,7 +79,6 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
         if (masteryManifest.length === 0) return addLog({ type: 'error', message: 'Mastery Manifest not loaded. Cannot analyze.' });
 
         setIsScanning(true);
-        setOcrResult('');
         setTriageList([]);
         addLog({ type: 'info', message: `Uploading '${selectedFile.name || 'pasted_image.png'}' for OCR analysis...` });
         const formData = new FormData();
@@ -110,7 +107,6 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
         } catch (error) {
             console.error('Scan/Analysis failed:', error);
             addLog({ type: 'error', message: `Operation Failed: ${error.message}` });
-            setOcrResult(`Error: ${error.message}`);
         } finally {
             setIsScanning(false);
             setIsAnalyzing(false);
@@ -133,7 +129,6 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
             addLog({ type: 'info', message: 'No new masteries were selected to be added.'});
         }
         setTriageList([]);
-        setOcrResult('');
         setSelectedFile(null);
         if(previewUrl) URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
@@ -182,4 +177,3 @@ const OCRScannerPanel = ({ addLog, setEquippedMasteries, equippedMasteries }) =>
 };
 
 export default OCRScannerPanel;
-
