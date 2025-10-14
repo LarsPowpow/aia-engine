@@ -1,7 +1,7 @@
 /**
- * AIA-Engine: The "Glass Engine" (v2.10 - State Snapshot)
- * This version captures a complete "state snapshot" with each damage event,
- * packaging all active effects into the analysisLog for the Inspector Modal.
+ * AIA-Engine: The "Glass Engine" (v2.12 - Build-Aware)
+ * This version integrates equipped Masteries into the pre-flight data harvest,
+ * allowing for full build simulations.
  */
 import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { handleDamageModifier, handleStatusEffect } from './effectHandlers.js';
@@ -37,11 +37,18 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
     const analysisLog = [];
     rawLog.push(`[0.0s] SIMULATION START: ${combatant.id} vs. ${target.id}`);
     
-    // === PRE-FLIGHT DATA HARVEST (No Changes) ===
+    // === UPDATED: PRE-FLIGHT DATA HARVEST ===
     const requiredAbilityIds = [...new Set(choreography.filter(e => e.abilityId).map(e => e.abilityId))];
     const equippedPerkIds = combatant.perks.map(p => p.id);
-    const requiredSourceIds = [...new Set([...requiredAbilityIds, ...equippedPerkIds])];
+    const equippedMasteryIds = combatant.masteries.map(m => m.id); // <-- Get Mastery IDs
+    
+    // Combine all sources into one list for a single fetch operation
+    const requiredSourceIds = [...new Set([...requiredAbilityIds, ...equippedPerkIds, ...equippedMasteryIds])];
+    
+    rawLog.push(`[0.0s] ENGINE: Identified ${requiredSourceIds.length} unique sources (abilities, perks, masteries). Querying UKB...`);
     const sourceCache = await fetchUKBData(requiredSourceIds, 'ukb_sources_v2', db);
+    rawLog.push(`[0.0s] ENGINE: Found ${Object.keys(sourceCache).length} matching Source documents.`);
+
     let requiredEffectIds = [];
     for (const sourceId in sourceCache) {
         const source = sourceCache[sourceId];
@@ -52,9 +59,13 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
             }
         }
     }
-    const effectCache = await fetchUKBData([...new Set(requiredEffectIds)], 'ukb_effects_v2', db);
+    const uniqueEffectIds = [...new Set(requiredEffectIds)];
+    rawLog.push(`[0.0s] ENGINE: Identified ${uniqueEffectIds.length} linked effects. Querying UKB...`);
     
-    // === INITIAL STATE SETUP (No Changes) ===
+    const effectCache = await fetchUKBData(uniqueEffectIds, 'ukb_effects_v2', db);
+    rawLog.push(`[0.0s] ENGINE: Found ${Object.keys(effectCache).length} matching Effect documents.`);
+    
+    // === INITIAL STATE SETUP ===
     const simulationState = {
         combatant: { ...combatant, activeEffects: [], passiveEffects: [] },
         target: { ...target, activeEffects: [], passiveEffects: [] },
@@ -64,17 +75,22 @@ export const runSimulationV2 = async (combatant, target, choreography, db) => {
         effectCache,
     };
     const passiveEffects = [];
-    for (const perkId of equippedPerkIds) {
-        const source = sourceCache[perkId];
+    // Process both perks and masteries for passive effects
+    const allEquippedIds = [...equippedPerkIds, ...equippedMasteryIds];
+    for (const sourceId of allEquippedIds) {
+        const source = sourceCache[sourceId];
         if (source && source.effects) {
             for (const effectId of source.effects) {
                 const effect = effectCache[effectId];
-                if (effect && effect.trigger === 'ON_EQUIP') passiveEffects.push(effect);
+                if (effect && effect.trigger === 'ON_EQUIP') {
+                    passiveEffects.push(effect);
+                    rawLog.push(`[0.0s] STATE: Added passive effect '${effect.name}' from source '${source.name}'.`);
+                }
             }
         }
     }
     simulationState.combatant.passiveEffects = passiveEffects;
-    rawLog.push(`[0.0s] ENGINE: Pre-flight complete. Starting simulation loop.`);
+    rawLog.push(`[0.0s] ENGINE: Pre-flight and state setup complete. Starting simulation loop.`);
 
     // === TIME-BASED SIMULATION LOOP (No Changes) ===
     let currentTick = 0.0;
@@ -111,11 +127,11 @@ const resolveActiveEffects = (character, tickRate, currentTick, log) => {
     });
 };
 
-// --- EVENT PROCESSORS ---
+// --- EVENT PROCESSORS (No Changes) ---
 const processEvent = (event, state, currentTick) => {
-    // Step 1: Handle Damage Calculation
     if (['ABILITY', 'LIGHT_ATTACK', 'HEAVY_ATTACK'].includes(event.action)) {
         let weaponDamage = calculateWeaponDamage(state.combatant.weaponType, state.combatant.attributes);
+        state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Base Weapon Damage: ${weaponDamage}.`);
         
         let abilityDamageMultiplier = 1.0;
         let actionName = event.action;
@@ -123,60 +139,69 @@ const processEvent = (event, state, currentTick) => {
         if (source) {
             actionName = source.name;
             if (source.triggerGroups) {
-                 const procDamageEffectId = source.triggerGroups.flatMap(g => g.effects).find(id => state.effectCache[id]?.category === 'PROC_DAMAGE');
+                const procDamageEffectId = source.triggerGroups.flatMap(g => g.effects).find(id => state.effectCache[id]?.category === 'PROC_DAMAGE');
                 if (procDamageEffectId) {
                     const procEffect = state.effectCache[procDamageEffectId];
                     abilityDamageMultiplier = parseFloat(procEffect.valueFormula);
+                    state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Applying Ability Power from '${procEffect.name}' (${abilityDamageMultiplier * 100}%).`);
                 }
             }
         }
         let damage = weaponDamage * abilityDamageMultiplier;
         
-        let outgoingModifier = 0;
+        let empowerTotal = 0;
+        let weakenTotal = 0;
         state.combatant.activeEffects.forEach(effect => {
             const effectData = state.effectCache[effect.id];
             effectData?.modifications?.forEach(mod => {
-                if (mod.statToModify === 'OUTGOING_DAMAGE_MODIFIER') outgoingModifier += parseFloat(mod.valueFormula);
+                if (mod.statToModify === 'OUTGOING_DAMAGE_MODIFIER') {
+                    const value = parseFloat(mod.valueFormula);
+                    if (value > 0) empowerTotal += value;
+                    else weakenTotal += value;
+                }
             });
         });
-        const cappedEmpower = Math.min(outgoingModifier, 0.5);
-        
-        let incomingModifier = 0;
+        const cappedEmpower = Math.min(empowerTotal, 0.50);
+        const cappedWeaken = Math.max(weakenTotal, -0.50);
+        const attackerMultiplier = 1 + cappedEmpower + cappedWeaken;
+        state.rawLog.push(`[${currentTick.toFixed(2)}s] STATE: Combatant has ${Math.round(cappedEmpower*100)}% Empower, ${Math.round(Math.abs(cappedWeaken)*100)}% Weaken.`);
+
+        let rendTotal = 0;
+        let fortifyTotal = 0;
         state.target.activeEffects.forEach(effect => {
             const effectData = state.effectCache[effect.id];
             effectData?.modifications?.forEach(mod => {
-                if (mod.statToModify === 'INCOMING_DAMAGE_MODIFIER') incomingModifier += parseFloat(mod.valueFormula);
+                if (mod.statToModify === 'INCOMING_DAMAGE_MODIFIER') {
+                    const value = parseFloat(mod.valueFormula);
+                    if (value > 0) rendTotal += value;
+                    else fortifyTotal += value;
+                }
             });
         });
-        
-        damage *= (1 + cappedEmpower + incomingModifier);
+        const cappedRend = Math.min(rendTotal, 0.70);
+        const cappedFortify = Math.max(fortifyTotal, -0.50);
+        const defenderMultiplier = 1 + cappedRend + cappedFortify;
+        state.rawLog.push(`[${currentTick.toFixed(2)}s] STATE: Target has ${Math.round(cappedRend*100)}% Rend, ${Math.round(Math.abs(cappedFortify)*100)}% Fortify.`);
+
+        damage *= attackerMultiplier * defenderMultiplier;
+        state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Damage after buffs/debuffs: ${Math.round(damage)}.`);
         
         for (const effect of state.combatant.passiveEffects) {
             if (effect.category === 'DAMAGE_MODIFIER') {
-                damage = handleDamageModifier(effect, damage, state.combatant, state.target);
+                const originalDamage = damage;
+                damage = handleDamageModifier(effect, originalDamage, state.combatant, state.target);
+                state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Applying passive '${effect.name}'. Damage: ${Math.round(originalDamage)} -> ${Math.round(damage)}.`);
             }
         }
         
         const finalDamage = Math.round(damage);
+        state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: Final damage for this event: ${finalDamage}.`);
 
-        // --- NEW: CAPTURE STATE SNAPSHOT ---
         const stateSnapshot = {
-            combatant: {
-                // Create a deep copy of active effects with their full data for inspection
-                activeEffects: state.combatant.activeEffects.map(activeEffect => ({
-                    ...state.effectCache[activeEffect.id],
-                    duration: activeEffect.duration // ensure the current duration is accurate
-                }))
-            },
-            target: {
-                activeEffects: state.target.activeEffects.map(activeEffect => ({
-                    ...state.effectCache[activeEffect.id],
-                    duration: activeEffect.duration
-                }))
-            },
+            combatant: { activeEffects: state.combatant.activeEffects.map(ae => ({ ...state.effectCache[ae.id], duration: ae.duration })) },
+            target: { activeEffects: state.target.activeEffects.map(ae => ({ ...state.effectCache[ae.id], duration: ae.duration })) },
         };
 
-        // Populate the Analysis Log with the snapshot
         state.analysisLog.push({
             timestamp: currentTick,
             source: state.combatant.id,
@@ -184,11 +209,10 @@ const processEvent = (event, state, currentTick) => {
             target: state.target.id,
             isCrit: false,
             damage: finalDamage,
-            snapshot: stateSnapshot // <-- Attach the snapshot here
+            snapshot: stateSnapshot
         });
     }
 
-    // Step 2: Handle Triggered Effects (No Changes)
     const source = state.sourceCache[event.abilityId];
     if (source?.triggerGroups) {
         const triggerGroup = source.triggerGroups[0];
@@ -198,7 +222,8 @@ const processEvent = (event, state, currentTick) => {
                 if (!effect) continue;
                 if (effect.category === 'STATUS_EFFECT') {
                     const targetCharacter = effect.target === 'SELF' ? state.combatant : state.target;
-                    handleStatusEffect(effect, targetCharacter);
+                    const logMessage = handleStatusEffect(effect, targetCharacter);
+                    state.rawLog.push(`[${currentTick.toFixed(2)}s] ENGINE: ${logMessage}`);
                 }
             }
         }

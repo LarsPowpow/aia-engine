@@ -26,27 +26,31 @@ const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cy
 export default function InspectorPanel({ logEntry, combatantState, targetState, onClose }) {
     if (!logEntry) return null;
 
-    const { action, timestamp } = logEntry;
+    const { action, timestamp, damage } = logEntry;
 
-    // Filter effects from the state snapshots for display
+    // --- FINAL, CORRECTED Effect Filtering ---
+
+    // Player's (Combatant) State: Self-applied buffs
     const empowerEffects = combatantState.activeEffects.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
     );
-    const weakenEffects = combatantState.activeEffects.flatMap(e => 
-        e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
+    const fortifyEffects = combatantState.activeEffects.flatMap(e => 
+        e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
     );
+    // NEW: Filter for uncapped damage modifiers
+    const uncappedDamageEffects = combatantState.activeEffects.filter(e => e.category === 'DAMAGE_MODIFIER');
     
+    // Enemy's (Target) State: Debuffs applied to them
     const rendEffects = targetState.activeEffects.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
     );
-    const fortifyEffects = targetState.activeEffects.flatMap(e => 
-        e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
+    const weakenEffects = targetState.activeEffects.flatMap(e => 
+        e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
     );
-    
     const dotEffects = targetState.activeEffects.filter(e => e.category === 'PROC_DAMAGE' && e.duration > 0);
 
     return (
@@ -64,29 +68,38 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
                 </div>
 
                 <div className="p-6 overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Combatant State */}
                     <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700 space-y-4">
-                        <h3 className="text-xl font-semibold text-green-400">Combatant State</h3>
+                        <h3 className="text-xl font-semibold text-green-400 mb-4 border-b border-slate-600 pb-2">Combatant State</h3>
+                        <div className="mb-4">
+                            <h4 className="font-semibold text-slate-300 mb-1">Healing Done</h4>
+                            <p className="text-3xl font-bold text-green-400 font-mono">0</p>
+                        </div>
                         <EffectList title="Empower" effects={empowerEffects} valueKey="value" textColor="text-green-400" />
-                        <EffectList title="Weaken" effects={weakenEffects} valueKey="value" textColor="text-orange-400" />
+                        <EffectList title="Fortify" effects={fortifyEffects} valueKey="value" textColor="text-blue-400" />
+                        {/* --- NEW: UN CAPPED DAMAGE SECTION --- */}
+                        <EffectList title="Uncapped Damage %" effects={uncappedDamageEffects} valueKey="valueFormula" textColor="text-yellow-400" />
                     </div>
 
+                    {/* Target State */}
                     <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700 space-y-4">
-                        <h3 className="text-xl font-semibold text-red-400">Target State</h3>
+                        <h3 className="text-xl font-semibold text-red-400 mb-4 border-b border-slate-600 pb-2">Target State</h3>
+                        <div className="mb-4">
+                            <h4 className="font-semibold text-slate-300 mb-1">Damage Dealt</h4>
+                            <p className="text-3xl font-bold text-red-400 font-mono">{damage !== undefined ? damage : 'N/A'}</p>
+                        </div>
                         <EffectList title="Rend" effects={rendEffects} valueKey="value" textColor="text-red-400" />
-                        <EffectList title="Fortify" effects={fortifyEffects} valueKey="value" textColor="text-blue-400" />
+                        <EffectList title="Weaken" effects={weakenEffects} valueKey="value" textColor="text-orange-400" />
                         <EffectList title="Damage over Time (DoTs)" effects={dotEffects} valueKey="valueFormula" unit="% WPN DMG" textColor="text-purple-400" />
                     </div>
                 </div>
 
                 <div className="p-4 border-t border-slate-700 flex-shrink-0 text-right">
-                    <button 
-                        onClick={onClose}
-                        className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-lg transition"
-                    >
+                    <button onClick={onClose} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-lg transition">
                         Close
                     </button>
                 </div>
             </div>
         </div>
     );
-};
+}
