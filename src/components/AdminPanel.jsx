@@ -1,9 +1,11 @@
-// FILE: src/components/AdminPanel.jsx
 import React from 'react';
+import { collection, getDocs } from 'firebase/firestore'; // Import Firestore functions
 import PromptInjector from './PromptInjector.jsx';
 import SchemaGovernorPanel from './SchemaGovernorPanel.jsx';
 import DangerZone from './DangerZone.jsx';
 import ManualUpsertPanel from './ManualUpsertPanel.jsx';
+import DataDeconPanel from './DataDeconPanel.jsx';
+import PurgePanel from './PurgePanel.jsx';
 
 const AdminPanel = ({ 
     onClearUkb, 
@@ -27,11 +29,50 @@ const AdminPanel = ({
     promptName,
     onPromptNameChange,
 }) => {
+
+    const handleBackupUkb = async () => {
+        addLog({ message: 'UKB backup procedure initiated...', type: 'info', timestamp: new Date() });
+        try {
+            const sourcesRef = collection(db, 'ukb_sources_v2');
+            const effectsRef = collection(db, 'ukb_effects_v2');
+
+            const sourcesSnapshot = await getDocs(sourcesRef);
+            const effectsSnapshot = await getDocs(effectsRef);
+
+            const sourcesData = sourcesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const effectsData = effectsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            const backupData = {
+                sources: sourcesData,
+                effects: effectsData,
+            };
+
+            const jsonString = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            const timestamp = new Date().toISOString().replace(/:/g, '-');
+            a.download = `UKB_BACKUP_${timestamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            addLog({ message: `UKB backup successful. ${sourcesData.length} sources and ${effectsData.length} effects exported.`, type: 'success', timestamp: new Date() });
+
+        } catch (error) {
+            console.error("UKB Backup failed:", error);
+            addLog({ message: `UKB Backup failed: ${error.message}`, type: 'error', timestamp: new Date() });
+        }
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* --- LEFT COLUMN (2/3 width) --- */}
             <div className="lg:col-span-2 flex flex-col space-y-8">
-
+                <DataDeconPanel db={db} addLog={addLog} />
                 <SchemaGovernorPanel
                     db={db}
                     addLog={addLog}
@@ -61,12 +102,22 @@ const AdminPanel = ({
 
             {/* --- RIGHT COLUMN (1/3 width) --- */}
             <div className="flex flex-col space-y-8">
+                
+                <PurgePanel db={db} addLog={addLog} />
+
                 {/* System Administration Card */}
                 <div className="bg-gray-800 p-6 rounded-lg shadow-inner border border-gray-700">
                     <h3 className="text-2xl font-semibold text-gray-300 mb-4">System Commands</h3>
                     <p className="text-sm text-gray-400 mb-6">Execute high-level system commands. Use with extreme caution.</p>
 
                     <div className="flex flex-col space-y-4">
+                        {/* --- NEW BACKUP BUTTON --- */}
+                        <button
+                            onClick={handleBackupUkb}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-lg"
+                        >
+                            Backup UKB
+                        </button>
                         <button
                             onClick={onBootstrapData}
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded transition-colors duration-200 shadow-md hover:shadow-lg text-lg"

@@ -4,8 +4,7 @@ import InspectorModal from './InspectorModal';
 
 // --- MASTER CONFIG & SCHEMAS ---
 const COLLECTIONS = [
-  'perks', 'weapon_mastery', 'game_constants', 'status_effects',
-  'attribute_bonuses', 'builds', 'effects', 'abilities', 'raw_data_archive', 'runeglass'
+  'ukb_effects_v2', 'ukb_sources_v2'
 ];
 const UKB_SCHEMAS = {
   perks: {

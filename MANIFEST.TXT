@@ -10,11 +10,14 @@
 | | |____PromptInjector.jsx
 | | |____ScribePanel.jsx
 | | |____DangerZone.jsx
+| | |____InspectorPanel.jsx
+| | |____ResultsSummaryPanel.jsx
 | | |____CombatLogPanel.jsx
 | | |____Scribe.jsx
 | | |____AdminPanel.jsx
 | | |____InspectorModal.jsx
 | | |____TabNavigation.jsx
+| | |____CommandBar.jsx
 | | |____SchemaGovernorPanel.jsx
 | | |____SystemLog.jsx
 | | |____JSONCleaner.jsx
@@ -56,12 +59,16 @@
 | |____contexts
 | | |____OverridesContext.jsx
 | | |____SchemaContext.jsx
+|____~~SOLVED - DATA - POST-PATCH CON ATTRIBUTE AND HP.txt
 |____.gitignore
 |____aia-sot-manifest.txt
 |____postcss.config.cjs.DEACTIVATED
 |____package-lock.json
+|____~~PROMPT - POST PATCH for Gemini to learn the CON ATTRIBUTES formula.txt
+|____~~PROMPT - POST PATCH for Gemini to learn the combat formula.txt
 |____package.json
 |____project_manifest.txt
+|____10.12.2025 - THE BOOK OF LAW - COMBAT FORMULAS.txt
 |____public
 | |____vite.svg
 |____.env
@@ -75,4 +82,5 @@
 | |____index.js
 | |____.env
 |____vite.config.js
+|____~~SOLVED - DATA - POST-PATCH SWORD AND FLAIL INTERPOLATIONS.txt
 |____tailwind.config.cjs.DEACTIVATED

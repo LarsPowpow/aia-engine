@@ -1,5 +1,5 @@
 import React from 'react';
-import { combatChoreography } from '../simulation/choreography.js';
+import { midComboBlockChoreography } from '../simulation/choreography.js';
 
 export default function ChoreographerPanel() {
   return (
@@ -20,11 +20,11 @@ export default function ChoreographerPanel() {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
-                    {combatChoreography.map((step, idx) => (
+                    {midComboBlockChoreography.map((step, idx) => (
                         <tr key={idx} className="hover:bg-slate-700/50 transition-colors duration-150">
-                            <td className="p-2 whitespace-nowrap text-slate-400 font-mono">{step.time.toFixed(1)}s</td>
+                            <td className="p-2 whitespace-nowrap text-slate-400 font-mono">{(step.timestamp ?? 0).toFixed(1)}s</td>
                             <td className="p-2 whitespace-nowrap">{step.action}</td>
-                            <td className="p-2 whitespace-nowrap text-slate-400">{step.weapon}</td>
+                            <td className="p-2 whitespace-nowrap text-slate-400">{step.weapon ?? ''}</td>
                         </tr>
                     ))}
                 </tbody>

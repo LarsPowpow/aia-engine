@@ -1,30 +1,36 @@
-// FILE: src/simulation/choreography.js
-/**
- * AIA-Engine: Combat Choreography Source of Truth
- * This file contains the definitive sequence of events for combat simulations.
- * It is a direct translation of the "Mid-Combo Block" PvP Combat Choreography v3.0.
- */
+// This file contains the definitive combat choreography for simulations.
+// Based on: The "Mid-Combo Block" PvP Combat Choreography (v3.0) 
 
-export const combatChoreography = [
-  // Flail Sequence
-  { time: 1.5,  action: 'trip',           weapon: 'Flail' },
-  { time: 2.8,  action: 'light_attack',   weapon: 'Flail' },
-  { time: 4.25, action: 'arcane_eruption',weapon: 'Flail' },
-  { time: 4.5,  action: 'arcane_vortex',  weapon: 'Flail' }, // Vortex Hit 1
-  { time: 5.0,  action: 'arcane_vortex',  weapon: 'Flail' }, // Vortex Hit 2
-  { time: 5.5,  action: 'arcane_vortex',  weapon: 'Flail' }, // Vortex Hit 3
-  
-  // Weapon Swap & Sword Sequence
-  { time: 6.25, action: 'weapon_swap',    weapon: 'System' },
-  { time: 6.30, action: 'leaping_strike', weapon: 'Sword' },
-  { time: 7.0,  action: 'shield_rush',    weapon: 'Sword' },
-  { time: 7.8,  action: 'heavy_attack',   weapon: 'Sword' },
-  { time: 8.9,  action: 'whirling_blade', weapon: 'Sword' },
-  { time: 9.8,  action: 'light_attack',   weapon: 'Sword' }, // Light Attack Chain 1
-  { time: 10.4, action: 'light_attack',   weapon: 'Sword' }, // Light Attack Chain 2
-  { time: 11.0, action: 'light_attack',   weapon: 'Sword' }, // Light Attack Chain 3
+export const midComboBlockChoreography = [
+  { timestamp: 0.0, action: 'CONSUMABLE', itemId: 'potion_infused_health', notes: 'Drink Potion' },
+  { timestamp: 0.0, action: 'BLOCK_START', weapon: 'Flail', notes: 'Block (Start)' },
+  { timestamp: 0.5, action: 'BLOCK_HIT', weapon: 'Flail', notes: 'Block Hit 1' },
+  { timestamp: 1.0, action: 'BLOCK_HIT', weapon: 'Flail', notes: 'Block Hit 2' },
+  { timestamp: 1.5, action: 'BLOCK_HIT', weapon: 'Flail', notes: 'Block Hit 3' },
+  { timestamp: 1.5, action: 'BLOCK_END', weapon: 'Flail', notes: 'Block (End)' },
+  { timestamp: 1.5, action: 'ABILITY', abilityId: 'ability_flail_trip', weapon: 'Flail', notes: 'Trip' },
+  { timestamp: 2.8, action: 'LIGHT_ATTACK', weapon: 'Flail', notes: 'Light Attack' },
+  { timestamp: 4.25, action: 'ABILITY', abilityId: 'ability_flail_burst', weapon: 'Flail', notes: 'Arcane Eruption' },
+  { timestamp: 4.25, action: 'BLOCK_START', weapon: 'Flail', notes: 'Block (Start)' },
+  { timestamp: 4.92, action: 'ABILITY_HIT', abilityId: 'ability_flail_blast', weapon: 'Flail', hitCount: 1, notes: 'Arcane Vortex Hit 1' },
+  { timestamp: 5.58, action: 'ABILITY_HIT', abilityId: 'ability_flail_blast', weapon: 'Flail', hitCount: 2, notes: 'Arcane Vortex Hit 2' },
+  { timestamp: 6.25, action: 'ABILITY_HIT', abilityId: 'ability_flail_blast', weapon: 'Flail', hitCount: 3, notes: 'Arcane Vortex Hit 3' },
+  { timestamp: 6.25, action: 'BLOCK_END', weapon: 'Flail', notes: 'Block (End)' },
+  { timestamp: 6.25, action: 'WEAPON_SWAP', notes: 'Weapon Swap to Sword' },
+  { timestamp: 6.35, action: 'ABILITY', abilityId: 'ability_sword_leapingstrike', weapon: 'Sword', conditions: ['ATTACK_IS_BACKSTAB'], notes: 'Leaping Strike (Backstab)' },
+  { timestamp: 7.25, action: 'ABILITY', abilityId: 'ability_sword_rush', weapon: 'Sword', notes: 'Shield Rush' },
+  { timestamp: 8.4, action: 'HEAVY_ATTACK', weapon: 'Sword', notes: 'Heavy Attack' },
+  { timestamp: 9.55, action: 'ABILITY', abilityId: 'ability_sword_whirlingblade', weapon: 'Sword', notes: 'Whirling Blade' },
+  { timestamp: 10.5, action: 'LIGHT_ATTACK', weapon: 'Sword', chainCount: 1, notes: 'Light Attack 1' },
+  { timestamp: 11.45, action: 'LIGHT_ATTACK', weapon: 'Sword', chainCount: 2, notes: 'Light Attack 2' },
+  { timestamp: 12.4, action: 'LIGHT_ATTACK', weapon: 'Sword', chainCount: 3, notes: 'Light Attack 3 (Final)' },
 ];
 
-// Note: 'Block' and 'Drink Potion' are currently not implemented as engine actions.
-// They are noted in the SoT but will be integrated in a future engine upgrade.
-// Ability IDs (e.g., 'trip', 'leaping_strike') must match the 'id' field in your Firestore 'abilities' collection.
+export const simulationParameters = {
+  target: {
+    baseDamageReduction: 0.5, // Target has 50% base Damage Reduction [cite: 63]
+  },
+  doctrines: {
+    fullCredit: true, // Simulation uses the "Full Credit" Doctrine [cite: 63]
+  }
+};

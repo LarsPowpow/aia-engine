@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { calculateWeaponDamage } from '../simulation/formulas';
 import { runSimulation } from '../simulation/engine';
-import { combatChoreography } from '../simulation/choreography';
+import { midComboBlockChoreography } from '../simulation/choreography';
 import ChoreographerPanel from './ChoreographerPanel';
 import PerkLoadoutPanel from './PerkLoadoutPanel';
 import CommandBar from './CommandBar';
 import { db as firestore } from '../services/firebase';
 import InspectorPanel from './InspectorModal';
+import CombatLogPanel from './CombatLogPanel'; // Import The Microscope
 
 // --- Sub-Component: ControlPanel ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
@@ -60,7 +61,7 @@ const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, ca
 };
 
 // --- Sub-Component: CombatAnalysisPanel ---
-const CombatAnalysisPanel = ({ combatLog, clearCombatLog, isFocusMode, setIsFocusMode }) => {
+const CombatAnalysisPanel = ({ combatLog, isFocusMode, setIsFocusMode }) => {
     const [inspectedIndex, setInspectedIndex] = React.useState(null);
     const handleRowClick = (index) => setInspectedIndex(index);
     const handleCloseInspector = () => setInspectedIndex(null);
@@ -132,13 +133,15 @@ const CombatSimulatorPage = () => {
     const [attributes, setAttributes] = useState({ STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105 });
     const [calculatedDamage, setCalculatedDamage] = useState(0);
     const [combatLog, setCombatLog] = useState([]);
+    const [rawEngineLog, setRawEngineLog] = useState([]); // State for The Microscope
     const [isFocusMode, setIsFocusMode] = useState(false);
     const [equippedPerks, setEquippedPerks] = useState([]);
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
         if (weaponType && allAttributesValid) {
-            const damage = calculateWeaponDamage(weaponType, attributes);
+            // NOTE: Using placeholder for weaponBaseDamage
+            const damage = calculateWeaponDamage(500, attributes);
             setCalculatedDamage(damage);
         } else {
             setCalculatedDamage(0);
@@ -146,6 +149,18 @@ const CombatSimulatorPage = () => {
     }, [weaponType, attributes]);
 
     const handleRunSimulation = async () => {
+        // --- Placeholder for engine integration ---
+        const placeholderLog = [
+            `[0.0s] SIMULATION START: Player vs. Target Dummy`,
+            `[0.0s] Player attacks Target Dummy with Trip.`,
+            `[0.0s] ENGINE: Checking for ON_ABILITY_HIT triggers for 'ability_flail_trip'.`,
+            `[0.0s] ENGINE: Applying effect 'effect_trip_damage'.`,
+            `[0.0s] ENGINE: Applying effect 'effect_trip_knockdown' for 2.5s.`,
+            `[1.3s] Player attacks Target Dummy with Light Attack.`,
+            `[1.3s] SIMULATION END. Target Defeated.`,
+        ];
+        setRawEngineLog(placeholderLog);
+        
         const combatant = { 
             id: 'Player',
             weaponType, 
@@ -154,12 +169,13 @@ const CombatSimulatorPage = () => {
         };
         
         const target = { id: 'Target Dummy', health: 50000 };
-        const log = await runSimulation(combatant, target, combatChoreography, firestore);
+        const log = await runSimulation(combatant, target, midComboBlockChoreography, firestore);
         setCombatLog(log);
     };
 
     const clearCombatLog = () => {
         setCombatLog([]);
+        setRawEngineLog([]); // Clear the microscope log as well
     };
 
     return (
@@ -210,13 +226,18 @@ const CombatSimulatorPage = () => {
                     </div>
                 </div>
 
-                <div className={`${isFocusMode ? 'col-span-1' : 'lg:col-span-2'} flex flex-col`}>
-                    <CombatAnalysisPanel 
-                        combatLog={combatLog}
-                        clearCombatLog={clearCombatLog}
-                        isFocusMode={isFocusMode}
-                        setIsFocusMode={setIsFocusMode}
-                    />
+                <div className={`${isFocusMode ? 'col-span-1' : 'lg:col-span-2'} flex flex-col gap-6`}>
+                    <div className="flex-1 min-h-0">
+                        <CombatAnalysisPanel 
+                            combatLog={combatLog}
+                            isFocusMode={isFocusMode}
+                            setIsFocusMode={setIsFocusMode}
+                        />
+                    </div>
+                    <div className="flex-1 min-h-0">
+                        {/* --- THE MICROSCOPE --- */}
+                        <CombatLogPanel log={rawEngineLog} />
+                    </div>
                 </div>
             </div>
         </div>
@@ -225,4 +246,3 @@ const CombatSimulatorPage = () => {
 };
 
 export default CombatSimulatorPage;
-
