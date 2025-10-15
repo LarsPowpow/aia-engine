@@ -7,14 +7,20 @@ const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cy
             <h4 className="font-semibold text-slate-300 border-b border-slate-600 mb-2 pb-1">{title}</h4>
             {effects && effects.length > 0 ? (
                 <ul className="space-y-1 text-sm">
-                    {effects.map((effect, index) => (
-                        <li key={effect.id || index} className="flex justify-between items-center bg-slate-800/50 p-1 rounded">
-                            <span className="text-slate-400">{effect.name}</span>
-                            <span className={`font-mono font-bold ${textColor}`}>
-                                {`${(Math.abs(parseFloat(effect[valueKey] || 0)) * (unit === '%' ? 100 : 1)).toFixed(0)}${unit}`}
-                            </span>
-                        </li>
-                    ))}
+                    {effects.map((effect, index) => {
+                        // --- SURGICAL FIX ---
+                        // The value from the engine is the correct percentage.
+                        // We do NOT multiply by 100.
+                        const displayValue = (Math.abs(parseFloat(effect[valueKey] || 0))).toFixed(0);
+                        return (
+                            <li key={effect.id || index} className="flex justify-between items-center bg-slate-800/50 p-1 rounded">
+                                <span className="text-slate-400">{effect.name}</span>
+                                <span className={`font-mono font-bold ${textColor}`}>
+                                    {`${displayValue}${unit}`}
+                                </span>
+                            </li>
+                        );
+                    })}
                 </ul>
             ) : (
                 <p className="text-sm text-slate-500 italic">None</p>
@@ -28,14 +34,11 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
 
     const { action, timestamp, damage } = logEntry;
     
-    // --- UPGRADED EFFECT FILTERING LOGIC ---
-    const modificationEmpower = combatantState.activeEffects?.flatMap(e => 
+    // --- REVERTED TO LAST KNOWN-GOOD EFFECT FILTERING LOGIC ---
+    const empowerEffects = combatantState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
         .map(m => ({ ...e, value: m.valueFormula })) || []
     ) || [];
-    const statModifierEmpower = combatantState.activeEffects?.filter(e => e.category === 'STAT_MODIFIER' && e.statusId === 'EMPOWER')
-        .map(e => ({ ...e, value: (parseFloat(e.valueFormula) / 100).toString() })) || [];
-    const empowerEffects = [...modificationEmpower, ...statModifierEmpower];
 
     const fortifyEffects = combatantState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
@@ -77,7 +80,6 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
                     {/* Combatant State */}
                     <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700 space-y-4">
                         <h3 className="text-xl font-semibold text-green-400 mb-4 border-b border-slate-600 pb-2">Combatant State</h3>
-                        {/* THE FIX: Add the Healing Done display */}
                         <div className="mb-4">
                             <h4 className="font-semibold text-slate-300 mb-1">Healing Done</h4>
                             <p className="text-3xl font-bold text-green-400 font-mono">
@@ -111,3 +113,4 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
         </div>
     );
 }
+

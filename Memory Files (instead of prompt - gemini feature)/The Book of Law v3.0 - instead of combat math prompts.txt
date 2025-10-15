@@ -1,0 +1,63 @@
+The Book of Law (Version 3.0)
+1.0 Core Principles
+Dynamic Calculation Model: The engine does not use snapshotting. All damage calculations must be re-evaluated in real-time based on the combatant's current state at the moment of impact or tick.
+
+Source of Truth: This document contains the unbreakable "Laws of Physics" for the combat simulator. All previous models are considered deprecated and void.
+
+2.0 The Grand Damage Formula
+The final damage for any single event is calculated using the following multi-stage, multiplicative formula. The terms must be calculated and applied in this exact order.
+
+Final Damage = (Base Damage) * (1 + Empower % - Rend %) * (1 + Base Crit Dmg %) * (1 + Positional Dmg %) * (1 + Misc Dmg %)
+
+3.0 Grand Damage Formula: Term-by-Term Breakdown
+3.1 (Base Damage): This is a two-stage calculation that must be performed first.
+
+Stage 1: "Weapon Damage" Calculation: This value is the output of the calculateWeaponDamage function, which uses a piecewise linear interpolation model based on weapon type and attributes.
+
+Stage 2: "Ability's Base Damage" Calculation: The value from Stage 1 is then multiplied by the specific ability's damage modifier (e.g., base_damage_percent). The result is the final value used for (Base Damage) in the grand formula.
+
+3.2 (1 + Empower % - Rend %): This term handles all primary damage buffs and debuffs.
+
+Empower sources are additive with a total cap of +50%.
+
+Rend sources are additive with a total cap of +70%.
+
+(Related) Fortify sources are additive with a total cap of +50%.
+
+3.3 (1 + Base Crit Dmg %): This term handles the bonus damage from critical hits.
+
+The base critical damage modifier is weapon-specific (e.g., Sword: 1.30x, Flail: 1.20x). This base value is modified by perks and other bonuses.
+
+3.4 (1 + Positional Dmg %): This term handles backstabs and headshots.
+
+A backstab or a valid headshot is a guaranteed critical hit, which automatically activates the (1 + Base Crit Dmg %) term.
+
+The base value for Positional Dmg % starts at zero. This term is only activated if the combatant has a specific perk that grants a positional damage bonus (e.g., Rogue).
+
+3.5 (1 + Misc Dmg %): This is a future-proof "catch-all" bucket.
+
+As of the current analysis, no core game mechanics exist in this bucket.
+
+For all current calculations, this term resolves to a multiplier of 1.
+
+4.0 Perk Power & Scaling Formulas
+This section codifies the "True Formula" for calculating the final power of any scaling perk.
+
+The First Law of Scaling (perkMultiplier Calculation): This law defines how to calculate the perkMultiplier variable.
+
+Input: A scalingPerGearScore string (e.g., "0,725:0.00365") and the item's Gear Score.
+
+Logic: perkMultiplier = (GearScore - Breakpoint) * Factor. This only applies if the Gear Score is higher than the Breakpoint defined in the string; otherwise, the scaling contribution is 0.
+
+The Second Law of Scaling (The "True Formula"): This law defines how to use the perkMultiplier to get the perk's final power.
+
+Input: A valueFormula string (e.g., "4.3 * perkMultiplier") and the calculated perkMultiplier.
+
+Logic: The "True Formula" is Final Power = Base + (Base * perkMultiplier). The Base is the numeric constant extracted from the valueFormula string.
+
+5.0 Health & Constitution Formula
+A player's total Health Points (HP) are not based on a single continuous formula but are calculated using linear interpolation between known data points.
+
+Source of Truth: The calculation must use the official CON_HP_TABLE as its source of anchor points.
+
+Methodology: A calculator function must find the two closest anchor points that bracket the player's constitution value and use a linear interpolation function to determine the final HP.
