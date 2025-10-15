@@ -54,7 +54,7 @@ function App() {
     const [effectsManifest, setEffectsManifest] = useState([]);
     const [isLogExpanded, setIsLogExpanded] = useState(false);
     const [apiKey, setApiKey] = useState('');
-    const [activeTab, setActiveTab] = useState('admin');
+    const [activeTab, setActiveTab] = useState('combat_simulator');
     const [logs, setLogs] = useState([]);
     const [overrideRules, setOverrideRules] = useState({});
     const [schemaExtensions, setSchemaExtensions] = useState({});

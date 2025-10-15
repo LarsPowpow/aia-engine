@@ -9,7 +9,8 @@ export const midComboBlockChoreography = [
   { timestamp: 1.5, action: 'BLOCK_HIT', weapon: 'Flail', notes: 'Block Hit 3' },
   { timestamp: 1.5, action: 'BLOCK_END', weapon: 'Flail', notes: 'Block (End)' },
   { timestamp: 1.5, action: 'ABILITY', abilityId: 'ability_flail_trip', weapon: 'Flail', notes: 'Trip' },
-  { timestamp: 2.8, action: 'LIGHT_ATTACK', weapon: 'Flail', notes: 'Light Attack' },
+  // THE UPGRADE: The first attack is now a guaranteed critical hit.
+  { timestamp: 2.8, action: 'LIGHT_ATTACK', weapon: 'Flail', notes: 'Light Attack', forceCrit: true },
   { timestamp: 4.25, action: 'ABILITY', abilityId: 'ability_flail_burst', weapon: 'Flail', notes: 'Arcane Eruption' },
   { timestamp: 4.25, action: 'BLOCK_START', weapon: 'Flail', notes: 'Block (Start)' },
   { timestamp: 4.92, action: 'ABILITY_HIT', abilityId: 'ability_flail_blast', weapon: 'Flail', hitCount: 1, notes: 'Arcane Vortex Hit 1' },
@@ -28,9 +29,9 @@ export const midComboBlockChoreography = [
 
 export const simulationParameters = {
   target: {
-    baseDamageReduction: 0.5, // Target has 50% base Damage Reduction [cite: 63]
+    baseDamageReduction: 0.5, 
   },
   doctrines: {
-    fullCredit: true, // Simulation uses the "Full Credit" Doctrine [cite: 63]
+    fullCredit: true, 
   }
 };

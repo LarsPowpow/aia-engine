@@ -1,9 +1,7 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 
 // --- UTILITY FUNCTIONS ---
-const log = (message, data = null) => {
-  console.log(message, data);
-};
+const log = (message, data = null) => { console.log(message, data); };
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
 // --- CORE DATA FETCHING ---
@@ -31,39 +29,62 @@ const initializeCombatant = (baseCombatant, allEffects) => {
         mana: 100,
         cooldowns: {},
     };
-    combatant.stats = {
-        empower: 0,
-        fortify: 0,
-        rend: 0,
-        weaken: 0,
-        healingDone: 0, 
-    };
     
-    const applyPassiveEffects = (sourceArray, sourceType) => {
-        if (!sourceArray || sourceArray.length === 0) return;
-        log(`[ENGINE] Applying ON_EQUIP effects from ${sourceType} for ${combatant.id}`);
-        for (const source of sourceArray) {
-            if (source.effects && source.effects.length > 0) {
-                for (const effectId of source.effects) {
-                    const effect = allEffects.find(e => e.id === effectId);
-                    if (effect && effect.trigger === 'ON_EQUIP') {
-                        log(`[ENGINE] Found passive effect: ${effect.name} from source: ${source.name}`);
-                        combatant.activeEffects.push(effect);
-                        if (effect.statusId === 'EMPOWER' && effect.category === 'STAT_MODIFIER') {
-                            const value = parseInt(effect.valueFormula, 10);
-                            if (!isNaN(value)) {
-                                combatant.stats.empower += value;
-                                log(`[ENGINE] ${combatant.id} empowered by ${value}%. New total: ${combatant.stats.empower}%`);
-                            }
-                        }
-                    }
+    const recalculateStats = () => {
+        combatant.stats = {
+            empower: 0,
+            fortify: 0,
+            rend: 0,
+            weaken: 0,
+            healingDone: combatant.stats?.healingDone || 0,
+            critChance: 0,
+            critDamageModifier: 1.0,
+        };
+
+        switch (combatant.weaponType) {
+            case 'Sword':
+                combatant.stats.critChance = 0.07;
+                combatant.stats.critDamageModifier = 1.3;
+                break;
+            case 'Flail':
+                combatant.stats.critChance = 0.06;
+                combatant.stats.critDamageModifier = 1.2;
+                break;
+            default:
+                combatant.stats.critChance = 0.05;
+                combatant.stats.critDamageModifier = 1.2;
+                break;
+        }
+
+        for (const effect of combatant.activeEffects) {
+             if (effect.category === 'STATUS_EFFECT' && effect.statusId === 'EMPOWER') {
+                const value = parseFloat(effect.modifications[0].valueFormula.replace('perkMultiplier', '1'));
+                if (!isNaN(value)) {
+                    combatant.stats.empower += value;
                 }
             }
         }
+         log(`[STATS] Recalculated stats for ${combatant.id}`, combatant.stats);
     };
+
+    combatant.recalculateStats = recalculateStats;
+    combatant.recalculateStats();
+
+    const allSources = [...(baseCombatant.perks || []), ...(baseCombatant.masteries || [])];
+    for (const source of allSources) {
+        if (source.effects && source.effects.length > 0) {
+            for (const effectId of source.effects) {
+                const effect = allEffects.find(e => e.id === effectId);
+                if (effect && effect.trigger === 'ON_EQUIP') {
+                    log(`[ENGINE] Applying passive effect: ${effect.name} from source: ${source.name}`);
+                    combatant.activeEffects.push(effect);
+                }
+            }
+        }
+    }
     
-    applyPassiveEffects(combatant.perks, 'perks');
-    applyPassiveEffects(combatant.masteries, 'masteries');
+    combatant.recalculateStats();
+
     log(`[ENGINE] Combatant ${combatant.id} initialized.`, combatant);
     return combatant;
 };
@@ -72,75 +93,100 @@ const initializeCombatant = (baseCombatant, allEffects) => {
 export const runSimulationV2 = async (playerConfig, targetConfig, choreography, firestore) => {
     const rawLog = [];
     const analysisLog = [];
-    let timeline = 0;
+    let timeline = 0.0;
 
-    const logAndCapture = (message, data = {}) => {
-        const timestamp = parseFloat(timeline.toFixed(2));
-        rawLog.push({ timestamp, message, data });
-        console.log(`[${timestamp}s] ${message}`, data);
+    const logAndCapture = (timestamp, message, data = {}) => {
+        const time = parseFloat(timestamp.toFixed(2));
+        rawLog.push({ timestamp: time, message, data });
+        console.log(`[${time}s] ${message}`, data);
     };
-    
+
     try {
-        logAndCapture("--- Simulation Start ---");
+        logAndCapture(0, "--- Simulation Start ---");
         const allEffects = await fetchAllEffects(firestore);
         let player = initializeCombatant(playerConfig, allEffects);
         let target = initializeCombatant(targetConfig, allEffects);
 
-        logAndCapture("Starting choreography execution...");
+        logAndCapture(0, "Starting choreography execution...");
         for (const event of choreography) {
-            timeline += event.delay;
-            logAndCapture(`Executing event: ${event.action}`, { event });
+            const eventTimestamp = event.timestamp;
+            
+            while (timeline < eventTimestamp) {
+                timeline = parseFloat((timeline + 0.1).toFixed(2));
+                
+                const expiredEffects = player.activeEffects.filter(e => e.expiresAt && timeline >= e.expiresAt);
+                if (expiredEffects.length > 0) {
+                    logAndCapture(timeline, `[EXPIRE] Effects expired for ${player.id}`, expiredEffects.map(e => e.name));
+                    player.activeEffects = player.activeEffects.filter(e => !e.expiresAt || timeline < e.expiresAt);
+                    player.recalculateStats();
+                }
+            }
+            timeline = eventTimestamp;
+
+            logAndCapture(eventTimestamp, `Executing event: ${event.action}`, { event });
 
             let damage = 0;
             let isCrit = false;
-            
+
             if (event.action.includes('ATTACK')) {
-                damage = 895; // Base damage
+                damage = 895;
+                
+                // THE UPGRADE: Check for the forceCrit flag first.
+                if (event.forceCrit) {
+                    isCrit = true;
+                    logAndCapture(eventTimestamp, `[FORCED CRITICAL HIT!]`);
+                } else {
+                    const critRoll = Math.random();
+                    if (critRoll <= player.stats.critChance) {
+                        isCrit = true;
+                        logAndCapture(eventTimestamp, `[CRITICAL HIT!] Rolled ${critRoll.toFixed(2)} vs. chance ${player.stats.critChance}.`);
+                    }
+                }
+
+                if(isCrit) {
+                    damage *= player.stats.critDamageModifier;
+                }
+
                 const empowerMultiplier = 1 + (player.stats.empower / 100);
                 damage *= empowerMultiplier;
                 damage = Math.round(damage);
 
                 const allPlayerSources = [...(player.perks || []), ...(player.masteries || [])];
-                for (const source of allPlayerSources) {
-                    const triggerGroups = source.triggerGroups?.filter(tg => tg.trigger === 'ON_DEALDAMAGE') || [];
-                    for (const group of triggerGroups) {
-                        for (const effectId of group.effects) {
-                            const effect = allEffects.find(e => e.id === effectId);
-                            if (effect?.category === 'HEAL' && effect.unit === 'PERCENT_OF_DAMAGE') {
-                                const healPercent = parseFloat(effect.valueFormula.replace('perkMultiplier', '1'));
-                                const healAmount = Math.round(damage * (healPercent / 100));
-                                
-                                // THE FIX: Update the healingDone stat *before* the snapshot.
-                                player.stats.healingDone += healAmount;
-                                logAndCapture(`[HEAL] ${source.name} triggered, healing ${player.id} for ${healAmount} (${healPercent}% of ${damage} damage).`);
+                
+                if (isCrit) {
+                    for (const source of allPlayerSources) {
+                        const triggerGroups = source.triggerGroups?.filter(tg => tg.trigger === 'ON_CRITICAL_HIT') || [];
+                        for (const group of triggerGroups) {
+                            if (!player.state.cooldowns[source.id] || timeline >= player.state.cooldowns[source.id]) {
+                                logAndCapture(eventTimestamp, `[TRIGGER] ${source.name} activated by ON_CRITICAL_HIT.`);
+                                player.state.cooldowns[source.id] = timeline + group.cooldown;
+                                for (const effectId of group.effects) {
+                                    const effect = allEffects.find(e => e.id === effectId);
+                                    if(effect) {
+                                        const newEffectInstance = deepCopy(effect);
+                                        newEffectInstance.expiresAt = timeline + newEffectInstance.duration;
+                                        player.activeEffects.push(newEffectInstance);
+                                        logAndCapture(eventTimestamp, `[EFFECT] Applied ${effect.name} to ${player.id}. Expires at ${newEffectInstance.expiresAt.toFixed(2)}s.`);
+                                    }
+                                }
+                                player.recalculateStats();
+                            } else {
+                                logAndCapture(eventTimestamp, `[COOLDOWN] ${source.name} is on cooldown. Available at ${player.state.cooldowns[source.id].toFixed(2)}s.`);
                             }
                         }
                     }
                 }
             }
 
-            // THE FIX: The snapshot is now taken *after* all effects for the event are calculated.
-            const snapshot = {
-                combatant: deepCopy(player),
-                target: deepCopy(target)
-            };
-            
-            analysisLog.push({
-                timestamp: timeline, // Use the more precise timeline for analysis
-                source: 'Player',
-                action: event.action,
-                target: 'Target Dummy',
-                isCrit: isCrit,
-                damage: damage,
-                snapshot: snapshot,
-            });
+            const snapshot = { combatant: deepCopy(player), target: deepCopy(target) };
+            analysisLog.push({ timestamp: eventTimestamp, source: 'Player', action: event.action, target: 'Target Dummy', isCrit, damage, snapshot });
         }
 
-        logAndCapture("--- Simulation End ---");
+        logAndCapture(choreography[choreography.length - 1].timestamp, "--- Simulation End ---");
         return { rawLog, analysisLog };
     } catch (error) {
         console.error("[ENGINE] Simulation failed catastrophically:", error);
-        logAndCapture("FATAL ERROR", { error: error.message });
+        logAndCapture(0, "FATAL ERROR", { error: error.message });
         return { rawLog, analysisLog };
     }
 };
