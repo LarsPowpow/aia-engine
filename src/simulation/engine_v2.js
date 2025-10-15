@@ -62,7 +62,7 @@ const applyHeal = (effect, context, combatant, logAndCapture) => {
     }
 };
 
-// --- COMBATANT INITIALIZATION & STATS ---
+// --- COMBATANT INITIALIZATION & STATS (REFACTORED) ---
 const initializeCombatant = (baseCombatant, allEffects) => {
     const combatant = deepCopy(baseCombatant);
     combatant.baseSources = [...(baseCombatant.perks || []), ...(baseCombatant.masteries || [])];
@@ -71,6 +71,22 @@ const initializeCombatant = (baseCombatant, allEffects) => {
         health: combatant.health || 10000,
         stamina: 100, mana: 100, cooldowns: {},
     };
+
+    // --- REFACTOR START: One-time application of ON_EQUIP effects ---
+    for (const source of combatant.baseSources) {
+        if (source.effects) {
+            for (const effectId of source.effects) {
+                const effect = allEffects.find(e => e.id === effectId);
+                if (effect && effect.trigger === 'ON_EQUIP') {
+                    const effectInstance = deepCopy(effect);
+                    // Passive effects from equipment do not expire.
+                    effectInstance.duration = Infinity; 
+                    combatant.activeEffects.push(effectInstance);
+                }
+            }
+        }
+    }
+    // --- REFACTOR END ---
 
     const recalculateStats = () => {
         const newStats = {
@@ -104,33 +120,17 @@ const initializeCombatant = (baseCombatant, allEffects) => {
             }
         }
         
-        const allCurrentEffects = [...combatant.activeEffects];
-        for (const source of combatant.baseSources) {
-            if (source.effects) {
-                for (const effectId of source.effects) {
-                    const effect = allEffects.find(e => e.id === effectId);
-                    if (effect && effect.trigger === 'ON_EQUIP') {
-                        if (!allCurrentEffects.some(e => e.id === effect.id)) {
-                           allCurrentEffects.push(effect);
-                        }
-                    }
-                }
-            }
-        }
-        
-        for (const effect of allCurrentEffects) {
+        // --- REFACTOR: This loop is now simplified. It no longer needs to search for ON_EQUIP effects. ---
+        for (const effect of combatant.activeEffects) {
             if (effect.modifications) {
                 for (const mod of effect.modifications) {
                     const perkMultiplier = calculatePerkMultiplier(effect.scalingPerGearScore);
                     const value = evaluateFormula(mod.valueFormula, { perkMultiplier });
 
-                    // --- CODE HARDENING STARTS HERE ---
                     let bucket = effect.damageBucket;
-                    // Fallback for older data: If damageBucket is missing, infer it from statusId.
                     if (!bucket && mod.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && effect.statusId === 'EMPOWER') {
                         bucket = 'Empower';
                     }
-                    // --- CODE HARDENING ENDS HERE ---
 
                     switch (bucket) {
                         case 'Empower':
@@ -158,7 +158,7 @@ const initializeCombatant = (baseCombatant, allEffects) => {
         combatant.stats = newStats;
     };
     combatant.recalculateStats = recalculateStats;
-    combatant.recalculateStats();
+    combatant.recalculateStats(); // Initial calculation after ON_EQUIP effects are applied
     return combatant;
 };
 

@@ -1,0 +1,456 @@
+DOCUMENT ID: AIA-SOT-SCHEMA-V5.0
+SUBJECT: The Rosetta Stone: Universal Data Schemas & Doctrines
+VERSION: 5.0 (Post-Foundry)
+STATUS: ACTIVE SOURCE OF TRUTH
+
+1.0 CORE DOCTRINE: THE SEPARATION OF SOURCE & EFFECT
+All game mechanics (perks, masteries, attribute bonuses, etc.) are deconstructed into two fundamental and distinct object types: Sources and Effects.
+
+The Source Object: This object represents the perk or ability itself (e.g., "Keenly Empowered II"). Its primary role is to act as a container and define how and when its associated effects are triggered. It holds the trigger, cooldown, and stacking rules that govern its effects.
+
+The Effect Object: This object represents the actual change in game state (e.g., "Apply a 10% Empower buff"). It defines what happens when a Source is triggered. It contains the specific details of the mechanic, such as the category, valueFormula, and duration.
+
+This separation is the Prime Doctrine of our architecture. It ensures the system is modular, scalable, and easy to debug.
+
+2.0 THE SOURCE SCHEMA (ukb_sources_v2)
+A Source document's primary role is to define the conditions under which one or more Effect documents are activated.
+
+Property
+
+Type
+
+Description
+
+Example
+
+id
+
+String
+
+The unique identifier for the Source (e.g., the perkid).
+
+"perkid_slottable_common_dmgcrit"
+
+name
+
+String
+
+The human-readable name of the perk/ability.
+
+"Vicious II"
+
+effects
+
+Array
+
+A list of Effect IDs that are passive (ON_EQUIP).
+
+["effect_vicious_ii_crit_damage"]
+
+triggerGroups
+
+Array
+
+(Optional) Used for complex sources that have triggered effects, especially with shared cooldowns.
+
+See Section 2.1
+
+stacking
+
+Object
+
+(Optional) Defines how the source stacks if equipped on multiple gear pieces.
+
+See Section 2.2
+
+2.1 triggerGroups Object
+Used for any non-passive effect. A Source can have multiple triggerGroups.
+
+Property
+
+Type
+
+Description
+
+Example
+
+trigger
+
+String
+
+The event that activates the effects in this group.
+
+"ON_KILL"
+
+cooldown
+
+Number
+
+The shared cooldown in seconds for this group.
+
+2
+
+effects
+
+Array
+
+A list of Effect IDs that are activated by this trigger.
+
+["effect_heal", "effect_stamina"]
+
+2.2 stacking Object (Source Level)
+Defines how a Source behaves when present on multiple pieces of gear.
+
+Property
+
+Type
+
+Description
+
+Example
+
+method
+
+String
+
+The method for counting stacks.
+
+"PER_PIECE"
+
+scope
+
+String
+
+Where to look for stacks.
+
+"ARMOR"
+
+3.0 THE EFFECT SCHEMA (ukb_effects_v2)
+An Effect document is a self-contained unit of game logic that describes a single, specific change in state.
+
+Property
+
+Type
+
+Description
+
+Example
+
+id
+
+String
+
+The unique identifier for the Effect.
+
+"effect_vicious_ii_crit_damage"
+
+name
+
+String
+
+The human-readable name of the effect.
+
+"Vicious II - Critical Damage"
+
+category
+
+String
+
+(CRITICAL) The primary type of the effect. See Appendix A.
+
+"STAT_MODIFIER"
+
+trigger
+
+String
+
+The event that activates this effect. See Appendix B.
+
+"ON_EQUIP"
+
+cooldown
+
+Number
+
+(Optional) An internal cooldown for this specific effect.
+
+0.5
+
+conditions
+
+Array
+
+A list of conditions that must be met for the effect to apply. See Appendix C.
+
+["ATTACK_IS_HEAVY"]
+
+target
+
+String
+
+Who the effect is applied to.
+
+"SELF"
+
+duration
+
+Number
+
+The duration of the effect in seconds. 0 for instant.
+
+5
+
+statusId
+
+String
+
+The specific status effect ID (e.g., EMPOWER, REND).
+
+"CRITICAL_DAMAGE"
+
+modifications
+
+Array
+
+For STATUS_EFFECT types, a list of stat changes.
+
+See Section 3.1
+
+valueFormula
+
+String
+
+The base formula for the effect's power.
+
+"2.35 * perkMultiplier"
+
+unit
+
+String
+
+The unit of the valueFormula. See Appendix D.
+
+"PERCENT"
+
+scalingPerGearScore
+
+String
+
+The raw recipe string for calculating perkMultiplier.
+
+"0,725:0.00365"
+
+stacking
+
+Object
+
+(Optional) Defines how this effect stacks with itself.
+
+See Section 3.2
+
+dispelTargetCategories
+
+Array
+
+For DISPEL types, the categories of effects to remove.
+
+["DEBUFF", "DOT"]
+
+damageType
+
+String
+
+For PROC_DAMAGE types, the type of damage dealt.
+
+"ARCANE"
+
+3.1 modifications Object
+Used within an Effect of category: "STATUS_EFFECT" to define one or more stat changes.
+
+Property
+
+Type
+
+Description
+
+Example
+
+statToModify
+
+String
+
+The specific stat to change.
+
+"INCOMING_HEALING_MODIFIER"
+
+valueFormula
+
+String
+
+The formula for the modification.
+
+"19.6 * perkMultiplier"
+
+3.2 stacking Object (Effect Level)
+Defines how an applied instance of an Effect interacts with other instances of the same Effect on a target.
+
+Property
+
+Type
+
+Description
+
+Example
+
+rule
+
+String
+
+The stacking rule (REFRESH_DURATION, INDEPENDENT).
+
+"INDEPENDENT"
+
+maxStacks
+
+Number
+
+The maximum number of stacks allowed.
+
+5
+
+4.0 KEY DOCTRINES & HARVESTING RULES
+These are the unbreakable laws governing the refinery process.
+
+The Recency Doctrine: When a conflict exists between an entry in the calculatorPerks array and the perkBuckets array within a source JSON file, the entry from perkBuckets is considered the definitive Source of Truth, as it contains the post-patch data.
+
+The Scaling Doctrine: If a perk's raw data contains a valid ScalingPerGearScore string, always assume it scales. The valueFormula must be constructed to include the * perkMultiplier variable, even if the description text shows a flat number.
+
+The First Law of Combat (No Snapshotting): All damage and effect calculations must be performed by the engine in real-time, at the moment of impact or "tick." Our schemas must store the rules and formulas, not pre-calculated values. Aura-like effects (Distained Infliction) must be modeled as passive ON_EQUIP effects that the engine checks dynamically.
+
+The PvP Doctrine: For the purposes of our PvP-focused simulator:
+
+Any part of a description marked "PvE Only" will be ignored.
+
+Any perk marked "PvP Only" will be treated as always active, and the condition will not be included in our translation.
+
+APPENDIX A: EFFECT CATEGORIES
+DAMAGE_MODIFIER
+
+STAT_MODIFIER
+
+STATUS_EFFECT
+
+HEAL
+
+PROC_DAMAGE
+
+DURATION_MODIFIER
+
+POTENCY_MODIFIER
+
+DISPEL
+
+DEBUFF_TRANSFER
+
+DYNAMIC_ABILITY_MODIFIER
+
+ARMOR_PENETRATION
+
+DISPLACEMENT_REDUCTION
+
+STAMINA_DAMAGE_REDUCTION
+
+COOLDOWN_MODIFIER
+
+APPENDIX B: TRIGGERS
+ON_EQUIP
+
+ON_HIT
+
+ON_DEALDAMAGE
+
+ON_TAKEDAMAGE
+
+ON_CRITICAL_HIT
+
+ON_ABILITY_HIT
+
+ON_CONSUMABLE_USE
+
+ON_SUCCESSFUL_DODGE
+
+ON_KILL
+
+ON_BLOCK_HIT
+
+ON_APPLY_EFFECT
+
+APPENDIX C: CONDITIONS
+ABILITY_IS_<ABILITY_NAME>
+
+ATTACK_IS_BACKSTAB
+
+ATTACK_IS_HEADSHOT
+
+ATTACK_IS_HEAVY
+
+ATTACK_IS_LIGHT
+
+ATTACK_IS_MELEE
+
+ATTACK_IS_RANGED
+
+ATTACK_IS_FINAL_IN_LIGHT_CHAIN
+
+CONSUMABLE_IS_SURVIVAL_POTION
+
+DAMAGE_IS_FROM_ABILITY
+
+DAMAGE_IS_NOT_PERSISTENT
+
+DAMAGE_IS_NOT_DOT
+
+DAMAGE_TYPE_IS_<TYPE>
+
+EFFECT_IS_DOT
+
+HEALING_IS_LIFESTEAL
+
+HEALING_IS_FROM_POTION
+
+INCOMING_ATTACK_IS_ELEMENTAL
+
+INCOMING_ATTACK_IS_PHYSICAL
+
+INCOMING_ATTACK_IS_RANGED
+
+INCOMING_EFFECT_IS_<STATUS_ID>
+
+SELF_HAS_STATUS_GRIT
+
+SELF_HAS_STATUS_DOT
+
+SELF_IS_BLOCKING
+
+SELF_IS_EXHAUSTED
+
+TARGET_HAS_STATUS_GRIT
+
+TARGET_HAS_MY_DOT
+
+TARGET_IS_SLOWED_BY_COWARDLY_PUNISHMENT
+
+APPENDIX D: UNITS
+PERCENT
+
+PERCENT_BASE_STAT
+
+PERCENT_WEAPON_DAMAGE
+
+PERCENT_BASE_DAMAGE
+
+PERCENT_OF_DAMAGE
+
+PERCENT_MAX_HEALTH
+
+FLAT
