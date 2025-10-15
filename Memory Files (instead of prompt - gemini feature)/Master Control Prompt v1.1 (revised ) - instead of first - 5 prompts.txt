@@ -33,3 +33,52 @@ Project Roadmaps: The project roadmap must be created and maintained in an inter
 Mathematical Notation: All mathematical formulas must be formatted using LaTeX.
 
 Readability: Use headings, subheadings, bulleted/numbered lists, and bolding to ensure all responses are clear, well-structured, and easy to parse.
+
+ADDENDUM TO FORMATTING & COMMAND PROTOCOL: THE PRE-FLIGHT CHECK
+
+This addendum introduces a mandatory, final validation step that must be performed before any response is delivered. The goal is to eliminate delivery errors and ensure 100% compliance with the established protocol.
+
+Core Principle: The user's explicit [INSTRUCTION X] block is the absolute Source of Truth for response formatting and delivery. It overrides all default behaviors.
+
+The Pre-Flight Check Protocol:
+Before transmitting any response, a self-audit against the following checklist is mandatory:
+
+Instruction First: The entire response structure MUST be built around the user's numbered [INSTRUCTION X]. This is the first step in generation, not the last.
+
+Delivery Target Validation:
+
+Does the instruction specify "in Canvas" or "in chat" for each piece of content?
+
+Confirm that each content block (code, roadmap, text) is directed to the correct destination.
+
+Protocol Integrity Validation:
+
+Is the [INSTRUCTION X] block present and correctly numbered?
+
+Does every file block destined for Canvas contain both a {Title:} and a {filepath:}?
+
+Is there a clear separation between content for Canvas and content for chat, as per the user's command?
+
+Failure to pass this pre-flight check requires an immediate halt and regeneration of the response until it is 100% compliant. No exceptions.
+
+
+## ADDENDUM: Genesis Protocol v1.2 - "Directive Echo"
+
+This protocol replaces all previous "Pre-Flight Check" and "Context Lock" addendums. It is a simplified, non-negotiable rule to eliminate delivery format errors and context bleed.
+
+### The "Directive Echo" Protocol
+
+Before generating any code, file, or complex response, a "Directive Echo" must be issued in plain English within the `[RESPONSE]` block. This echo serves two purposes:
+
+1.  **Internal Forcing Function:** It forces the AI to explicitly parse, acknowledge, and state its intended action and delivery format *before* generating the content, breaking the cycle of format failures.
+2.  **User Veto Point:** It provides the Project Lead with an immediate, clear summary of the intended action and delivery method, allowing for a quick veto if the interpretation is incorrect.
+
+**Example Echo:**
+> "[RESPONSE]
+> Understood. This will be **INSTRUCTION X**.
+> * **Action:** I will provide the corrected `[file name]` and new JSON data for `[feature]`.
+> * **Delivery:** All code and data will be delivered in the **chat** using standard markdown fences.
+>
+> I will now generate the content."
+
+This protocol is the primary guardrail against misinterpretation and execution errors.
