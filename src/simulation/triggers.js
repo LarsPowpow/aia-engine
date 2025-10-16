@@ -14,14 +14,14 @@ const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
  * @param {number} timeline - The current timestamp in the simulation.
  * @param {Array<object>} allEffects - A complete list of all effects in the game.
  * @param {function} logAndCapture - The simulation's logging function.
- * @returns {boolean} - True if any effect was applied that could change the combatant's stats.
+ * @returns {object} - An object containing { statsChanged: boolean, healingDone: number }
  */
 const processTriggers = (triggerEvent, combatant, timeline, allEffects, logAndCapture) => {
     const { type, isCrit, damageDealt } = triggerEvent;
     let statsChanged = false;
     const triggersToProcess = [];
     
-    console.log(`[DIAGNOSTIC] processTriggers called with event type: "${type}"`);
+    let totalHealingThisEvent = 0;
 
     // Map high-level events to specific trigger strings from The Rosetta Stone
     if (type === 'LIGHT_ATTACK' || type === 'HEAVY_ATTACK') triggersToProcess.push('ON_HIT');
@@ -29,34 +29,24 @@ const processTriggers = (triggerEvent, combatant, timeline, allEffects, logAndCa
     if (damageDealt > 0) triggersToProcess.push('ON_DEALDAMAGE');
     if (type === 'BLOCK_HIT') triggersToProcess.push('ON_BLOCK_HIT');
 
-    console.log('[DIAGNOSTIC] Triggers to process for this event:', triggersToProcess);
-    if (triggersToProcess.length === 0) return false;
+    if (triggersToProcess.length === 0) {
+        return { statsChanged: false, healingDone: 0 };
+    }
 
-    // Iterate through all of the combatant's perks and masteries
     for (const source of combatant.baseSources) {
         for (const trigger of triggersToProcess) {
-            console.log(`[DIAGNOSTIC] Checking source "${source.name}" for trigger "${trigger}"`);
             const triggerGroups = source.triggerGroups?.filter(tg => tg.trigger === trigger) || [];
 
-            if (triggerGroups.length > 0) {
-                console.log(`[DIAGNOSTIC] Found ${triggerGroups.length} matching trigger group(s) in "${source.name}"`);
-            }
-
             for (const group of triggerGroups) {
-                // Check if the source is on cooldown
                 if (!combatant.state.cooldowns[source.id] || timeline >= combatant.state.cooldowns[source.id]) {
                     
                     if (group.cooldown) {
                        combatant.state.cooldowns[source.id] = timeline + group.cooldown;
-                       console.log(`[DIAGNOSTIC] Cooldown for "${source.name}" set until timeline ${timeline + group.cooldown}`);
                     }
 
                     for (const effectId of group.effects) {
-                        console.log(`[DIAGNOSTIC] Attempting to find and dispatch effect with ID: "${effectId}"`);
                         const effect = allEffects.find(e => e.id === effectId);
                         if(effect) {
-                            console.log(`[DIAGNOSTIC] Found effect "${effect.name}". Dispatching to category: "${effect.category}"`);
-                            // --- MECHANIC DISPATCHER (PHASE 3) ---
                             switch (effect.category) {
                                 case 'STATUS_EFFECT': {
                                     statsChanged = true;
@@ -75,23 +65,27 @@ const processTriggers = (triggerEvent, combatant, timeline, allEffects, logAndCa
                                     break;
                                 }
                                 case 'HEAL': {
-                                    applyHeal(effect, { damageDealt, timeline }, combatant, logAndCapture);
+                                    const healAmount = applyHeal(effect, { damageDealt, timeline }, combatant, logAndCapture);
+                                    // --- DIAGNOSTIC START ---
+                                    console.log(`[DIAGNOSTIC | triggers.js] Received healAmount: ${healAmount} from applyHeal.`);
+                                    // --- DIAGNOSTIC END ---
+                                    totalHealingThisEvent += healAmount;
                                     break;
                                 }
                                 default:
-                                    console.warn(`[DIAGNOSTIC] Unhandled effect category: "${effect.category}"`);
+                                    break;
                             }
-                        } else {
-                            console.error(`[DIAGNOSTIC] CRITICAL FAILURE: Could not find effect with ID "${effectId}" in allEffects list.`);
                         }
                     }
-                } else {
-                    console.log(`[DIAGNOSTIC] Source "${source.name}" is on cooldown. Skipping.`);
                 }
             }
         }
     }
-    return statsChanged; 
+    
+    // --- DIAGNOSTIC START ---
+    console.log(`[DIAGNOSTIC | triggers.js] Returning totalHealingThisEvent: ${totalHealingThisEvent}`);
+    // --- DIAGNOSTIC END ---
+    return { statsChanged, healingDone: totalHealingThisEvent }; 
 };
 
 export { processTriggers };

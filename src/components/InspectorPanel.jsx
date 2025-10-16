@@ -20,10 +20,7 @@ const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cy
             {effects && effects.length > 0 ? (
                 <ul className="space-y-1 text-sm">
                     {effects.map((effect, index) => {
-                        // --- FIX START ---
-                        // The value to display is now consistently passed in the 'displayValue' property.
                         const displayValue = (Math.abs(parseFloat(effect.displayValue || 0))).toFixed(0);
-                        // --- FIX END ---
                         return (
                             <li key={effect.id || index} className="flex justify-between items-center bg-slate-800/50 p-1 rounded">
                                 <span className="text-slate-400">{effect.name}</span>
@@ -45,23 +42,22 @@ const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cy
 export default function InspectorPanel({ logEntry, combatantState, targetState, onClose }) {
     if (!logEntry) return null;
 
-    const { action, timestamp, damage } = logEntry;
+    // --- ARCHITECTURAL UPGRADE ---
+    // The Inspector now correctly reads the transactional 'damage' and 'healingDone'
+    // values directly from the top-level logEntry object.
+    const { action, timestamp, damage, healingDone } = logEntry;
+    // --- END UPGRADE ---
     
-    // --- FIX START ---
-    // This logic is now robust. It correctly identifies and processes BOTH complex effects
-    // with a nested `modifications` array AND simple `STAT_MODIFIER` effects.
     const empowerEffects = combatantState.activeEffects?.flatMap(effect => {
-        // Case 1: Complex effects (e.g., from a STATUS_EFFECT)
         if (effect.modifications) {
             return effect.modifications
                 .filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
                 .map(m => ({
-                    id: `${effect.id}-${m.statToModify}`, // Create a more unique key for React
+                    id: `${effect.id}-${m.statToModify}`,
                     name: effect.name,
                     displayValue: m.valueFormula
                 }));
         }
-        // Case 2: Simple passive effects (e.g., Canary's Blessing)
         if (effect.category === 'STAT_MODIFIER' && effect.statusId === 'EMPOWER') {
             return [{
                 id: effect.id,
@@ -69,11 +65,9 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
                 displayValue: effect.valueFormula
             }];
         }
-        return []; // Return an empty array for effects that don't match
+        return [];
     }) || [];
-    // --- FIX END ---
 
-    // Note: The filtering logic for other effects remains unchanged for now, but will need a similar upgrade in the future.
     const fortifyEffects = combatantState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
         .map(m => ({ ...e, displayValue: m.valueFormula })) || []
@@ -115,9 +109,12 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
                         <h3 className="text-xl font-semibold text-green-400 mb-4 border-b border-slate-600 pb-2">Combatant State</h3>
                         <div className="mb-4">
                             <h4 className="font-semibold text-slate-300 mb-1">Healing Done</h4>
+                            {/* --- FINAL FIX --- */}
+                            {/* This now correctly displays the transactional healing for this event. */}
                             <p className="text-3xl font-bold text-green-400 font-mono">
-                                {combatantState.stats?.healingDone || 0}
+                                {healingDone || 0}
                             </p>
+                            {/* --- END FIX --- */}
                         </div>
                         <EffectList title="Empower" effects={empowerEffects} textColor="text-green-400" totalValue={combatantState.stats.empower || 0} />
                         <EffectList title="Fortify" effects={fortifyEffects} textColor="text-blue-400" totalValue={combatantState.stats.fortify || 0} />
@@ -146,3 +143,4 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
         </div>
     );
 }
+

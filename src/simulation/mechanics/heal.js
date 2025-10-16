@@ -28,11 +28,12 @@ const calculatePerkMultiplier = (scalingPerGearScore, gearScore) => {
 
 
 /**
- * Applies a heal effect to a combatant.
+ * Applies a heal effect to a combatant and returns the amount healed.
  * @param {object} effect - The effect document from the UKB.
  * @param {object} context - The context of the event (e.g., { damageDealt }).
  * @param {object} combatant - The combatant to be healed.
  * @param {function} logAndCapture - The simulation's logging function.
+ * @returns {number} The amount of health restored in this transaction.
  */
 const applyHeal = (effect, context, combatant, logAndCapture) => {
     const { damageDealt, timeline } = context;
@@ -51,19 +52,19 @@ const applyHeal = (effect, context, combatant, logAndCapture) => {
         healAmount = Math.round(damageDealt * (percentage / 100));
     } else if (effect.unit === 'PERCENT_BASE_HEALTH') {
         const percentage = finalPower;
-        // --- FIX START ---
-        // The calculation now correctly uses the new, reliable `maxHealth` property
-        // instead of the undefined `health` property. This resolves the NaN bug.
         healAmount = Math.round(combatant.maxHealth * (percentage / 100));
-        // --- FIX END ---
     }
     
     if (healAmount > 0) {
         // Ensure current health does not exceed maxHealth.
         combatant.state.health = Math.min(combatant.maxHealth, combatant.state.health + healAmount);
-        combatant.stats.healingDone = (combatant.stats.healingDone || 0) + healAmount;
         logAndCapture(timeline, `[HEAL] ${combatant.id} healed for ${healAmount}.`, { newHealth: combatant.state.health });
     }
+
+    // --- ARCHITECTURAL UPGRADE ---
+    // The function no longer modifies a cumulative stat. Instead, it returns the
+    // transactional value to be handled by the trigger processor.
+    return healAmount > 0 ? healAmount : 0;
 };
 
 export { applyHeal };

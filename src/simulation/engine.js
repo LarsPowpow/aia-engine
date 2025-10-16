@@ -18,7 +18,6 @@ const log = (message, data = null) => { console.log(message, data); };
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
 // --- CORE DATA FETCHING ---
-// Fetches the complete set of effect definitions from the Universal Knowledge Base (UKB).
 const fetchAllEffects = async (firestore) => {
     try {
         const effectsCol = collection(firestore, 'ukb_effects_v2');
@@ -50,39 +49,34 @@ export const runSimulation = async (playerConfig, targetConfig, choreography, fi
     };
 
     try {
-        // 1. Fetch all game rule definitions
         const allEffects = await fetchAllEffects(firestore);
-        
-        // 2. Initialize combatants using the dedicated module
         let player = initializeCombatant(playerConfig, allEffects);
         let target = initializeCombatant(targetConfig, allEffects);
 
-        // 3. Process the choreography timeline
         for (const event of choreography) {
             timeline = event.timestamp;
             let damage = 0;
             let isCrit = false;
+            let healingThisEvent = 0;
 
-            // --- UNIVERSAL PRE-ACTION PHASE ---
-            // Remove expired effects before any action
             player.activeEffects = player.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
             target.activeEffects = target.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
             
-            // Recalculate stats based on current active effects
             player.recalculateStats();
             target.recalculateStats();
 
-            // --- ACTION-SPECIFIC LOGIC ---
             if (event.action.includes('ATTACK')) {
                 isCrit = event.forceCrit || Math.random() <= player.stats.critChance;
 
-                // Process pre-damage triggers that might change stats for THIS hit
-                const preDamageStatsChanged = processTriggers({ type: event.action, isCrit, damageDealt: 0 }, player, timeline, allEffects, logAndCapture);
-                if (preDamageStatsChanged) {
+                const preDamageResult = processTriggers({ type: event.action, isCrit, damageDealt: 0 }, player, timeline, allEffects, logAndCapture);
+                // --- DIAGNOSTIC START ---
+                console.log(`[DIAGNOSTIC | engine.js] Received pre-damage healing: ${preDamageResult.healingDone}`);
+                // --- DIAGNOSTIC END ---
+                healingThisEvent += preDamageResult.healingDone;
+                if (preDamageResult.statsChanged) {
                     player.recalculateStats();
                 }
                 
-                // --- DAMAGE CALCULATION PHASE (The Grand Damage Formula) ---
                 const weaponDamage = calculateWeaponDamage(player.weaponType, player.attributes);
                 let abilityModifier = 1.0;
                 if (event.action === 'LIGHT_ATTACK' || event.action === 'HEAVY_ATTACK') {
@@ -102,18 +96,33 @@ export const runSimulation = async (playerConfig, targetConfig, choreography, fi
 
                 damage = Math.round(finalDamage);
 
-                // --- POST-DAMAGE PHASE ---
-                // Process post-damage triggers (like healing) using the trigger module
-                processTriggers({ type: event.action, isCrit, damageDealt: damage }, player, timeline, allEffects, logAndCapture);
+                const postDamageResult = processTriggers({ type: event.action, isCrit, damageDealt: damage }, player, timeline, allEffects, logAndCapture);
+                // --- DIAGNOSTIC START ---
+                console.log(`[DIAGNOSTIC | engine.js] Received post-damage healing: ${postDamageResult.healingDone}`);
+                // --- DIAGNOSTIC END ---
+                healingThisEvent += postDamageResult.healingDone;
             
             } else if (event.action === 'BLOCK_HIT') {
-                // --- FIX START ---
-                // This new block ensures that defensive events are also processed by the trigger system.
-                processTriggers({ type: event.action, isCrit: false, damageDealt: 0 }, player, timeline, allEffects, logAndCapture);
-                // --- FIX END ---
+                const blockResult = processTriggers({ type: event.action, isCrit: false, damageDealt: 0 }, player, timeline, allEffects, logAndCapture);
+                // --- DIAGNOSTIC START ---
+                console.log(`[DIAGNOSTIC | engine.js] Received block healing: ${blockResult.healingDone}`);
+                // --- DIAGNOSTIC END ---
+                healingThisEvent += blockResult.healingDone;
             }
 
-            analysisLog.push({ timestamp: event.timestamp, source: 'Player', action: event.action, target: 'Target Dummy', isCrit, damage, snapshot: { combatant: deepCopy(player), target: deepCopy(target) } });
+            // --- DIAGNOSTIC START ---
+            console.log(`[DIAGNOSTIC | engine.js] Final healingThisEvent before snapshot: ${healingThisEvent}`);
+            // --- DIAGNOSTIC END ---
+            analysisLog.push({ 
+                timestamp: event.timestamp, 
+                source: 'Player', 
+                action: event.action, 
+                target: 'Target Dummy', 
+                isCrit, 
+                damage, 
+                healingDone: healingThisEvent,
+                snapshot: { combatant: deepCopy(player), target: deepCopy(target) } 
+            });
         }
         return { rawLog, analysisLog };
     } catch (error) {
