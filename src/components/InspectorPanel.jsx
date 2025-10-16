@@ -1,146 +1,91 @@
-// Filepath: src/components/InspectorPanel.jsx
 import React from 'react';
 
-// Helper component for rendering the total stat value.
-const TotalStat = ({ label, value, unit = '%' }) => (
-    <div className="mt-2 pt-2 border-t border-slate-600">
-        <div className="flex justify-between items-baseline">
-            <span className="font-bold text-slate-300">{label}</span>
-            <span className="font-mono text-xl font-bold text-yellow-300">{value.toFixed(0)}{unit}</span>
+const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
+    if (!logEntry) return null;
+
+    // A reusable component meticulously styled to match your exact design.
+    const StatBlock = ({ label, stat, colorClass }) => (
+        <div className="py-2">
+            <p className="text-slate-300 font-semibold">{label}</p>
+            <hr className="border-slate-700 my-1" />
+            <div className="min-h-[20px] text-sm text-slate-400 pl-2">
+                {stat.sources && stat.sources.length > 0 ? (
+                    stat.sources.map((source, index) => (
+                        <div key={index} className="flex justify-between items-center">
+                            <span>{source.name}</span>
+                            <span className="font-mono font-bold text-white">{Math.round(source.value)}%</span>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-slate-500">None</p>
+                )}
+            </div>
+            <div className="flex justify-between items-baseline mt-1">
+                <p className="text-slate-300 font-semibold">Total {label}</p>
+                <p className={`font-mono text-lg font-bold text-amber-400`}>{Math.round(stat.total)}%</p>
+            </div>
         </div>
-    </div>
-);
+    );
+    
+    // A component for stats that do not have a source breakdown.
+    const SimpleStat = ({ label, value }) => (
+         <div className="py-2">
+            <p className="text-slate-300 font-semibold">{label}</p>
+             <hr className="border-slate-700 my-1" />
+            <div className="min-h-[20px]"></div>
+             <div className="flex justify-between items-baseline mt-1">
+                <p className="text-slate-300 font-semibold">Total {label}</p>
+                <p className="font-mono text-lg font-bold text-amber-400">{value}%</p>
+            </div>
+        </div>
+    );
 
-
-// Helper component for rendering a list of effects with consistent styling.
-const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cyan-400', totalValue }) => {
     return (
-        <div>
-            <h4 className="font-semibold text-slate-300 border-b border-slate-600 mb-2 pb-1">{title}</h4>
-            {effects && effects.length > 0 ? (
-                <ul className="space-y-1 text-sm">
-                    {effects.map((effect, index) => {
-                        const displayValue = (Math.abs(parseFloat(effect.displayValue || 0))).toFixed(0);
-                        return (
-                            <li key={effect.id || index} className="flex justify-between items-center bg-slate-800/50 p-1 rounded">
-                                <span className="text-slate-400">{effect.name}</span>
-                                <span className={`font-mono font-bold ${textColor}`}>
-                                    {`${displayValue}${unit}`}
-                                </span>
-                            </li>
-                        );
-                    })}
-                </ul>
-            ) : (
-                <p className="text-sm text-slate-500 italic">None</p>
-            )}
-            <TotalStat label={`Total ${title}`} value={totalValue} />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-slate-900 border-2 border-cyan-500/50 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                
+                <div className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
+                    <div>
+                        <h2 className="text-xl font-bold text-cyan-400">Inspector: <span className="text-white">{logEntry.action}</span></h2>
+                        <p className="text-sm text-slate-400 font-mono">@{logEntry.timestamp.toFixed(2)}s</p>
+                    </div>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white text-3xl font-light leading-none">&times;</button>
+                </div>
+
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar">
+                    {/* Combatant State */}
+                    <div className="flex flex-col space-y-2 p-4 bg-slate-800/60 rounded-lg border border-slate-700">
+                        <h3 className="text-lg font-bold text-green-400 border-b border-slate-600 pb-2 mb-2">Combatant State</h3>
+                        <div>
+                            <p className="text-slate-300 font-semibold">Healing Done</p>
+                            <p className="font-mono text-3xl font-bold text-green-400">{combatantState.stats.healingDone}</p>
+                        </div>
+                        <StatBlock label="Empower" stat={combatantState.stats.empower} />
+                        <StatBlock label="Fortify" stat={combatantState.stats.fortify} />
+                        <SimpleStat label="Uncapped Damage %" value={0} />
+                    </div>
+
+                    {/* Target State */}
+                    <div className="flex flex-col space-y-2 p-4 bg-slate-800/60 rounded-lg border border-slate-700">
+                        <h3 className="text-lg font-bold text-red-400 border-b border-slate-600 pb-2 mb-2">Target State</h3>
+                        <div>
+                            <p className="text-slate-300 font-semibold">Damage Dealt</p>
+                            <p className="font-mono text-3xl font-bold text-red-400">{logEntry.damage}</p>
+                        </div>
+                        <StatBlock label="Rend" stat={targetState.stats.rend} />
+                        <StatBlock label="Weaken" stat={targetState.stats.weaken} />
+                        <SimpleStat label="Damage over Time (DoTs)" value={0} />
+                    </div>
+                </div>
+                
+                <div className="p-3 bg-slate-900/50 border-t border-slate-700 flex-shrink-0 text-right">
+                     <button onClick={onClose} className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-md transition-colors text-sm">Close</button>
+                </div>
+
+            </div>
         </div>
     );
 };
 
-export default function InspectorPanel({ logEntry, combatantState, targetState, onClose }) {
-    if (!logEntry) return null;
-
-    // --- ARCHITECTURAL UPGRADE ---
-    // The Inspector now correctly reads the transactional 'damage' and 'healingDone'
-    // values directly from the top-level logEntry object.
-    const { action, timestamp, damage, healingDone } = logEntry;
-    // --- END UPGRADE ---
-    
-    const empowerEffects = combatantState.activeEffects?.flatMap(effect => {
-        if (effect.modifications) {
-            return effect.modifications
-                .filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
-                .map(m => ({
-                    id: `${effect.id}-${m.statToModify}`,
-                    name: effect.name,
-                    displayValue: m.valueFormula
-                }));
-        }
-        if (effect.category === 'STAT_MODIFIER' && effect.statusId === 'EMPOWER') {
-            return [{
-                id: effect.id,
-                name: effect.name,
-                displayValue: effect.valueFormula
-            }];
-        }
-        return [];
-    }) || [];
-
-    const fortifyEffects = combatantState.activeEffects?.flatMap(e => 
-        e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
-        .map(m => ({ ...e, displayValue: m.valueFormula })) || []
-    ) || [];
-    
-    const uncappedDamageEffects = combatantState.activeEffects?.filter(e => e.category === 'DAMAGE_MODIFIER').map(e => ({...e, displayValue: e.valueFormula})) || [];
-    
-    const rendEffects = targetState.activeEffects?.flatMap(e => 
-        e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
-        .map(m => ({ ...e, displayValue: m.valueFormula })) || []
-    ) || [];
-
-    const weakenEffects = targetState.activeEffects?.flatMap(e => 
-        e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
-        .map(m => ({ ...e, displayValue: m.valueFormula })) || []
-    ) || [];
-        
-    const dotEffects = targetState.activeEffects?.filter(e => e.category === 'PROC_DAMAGE' && e.duration > 0).map(e => ({...e, displayValue: e.valueFormula})) || [];
-
-    return (
-        <div 
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center"
-            onClick={onClose}
-        >
-            <div 
-                className="bg-slate-900 border border-cyan-500/30 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="flex justify-between items-center p-4 border-b border-slate-700 flex-shrink-0">
-                    <h2 className="text-2xl font-bold text-cyan-400">Inspector: <span className="text-white">{action}</span></h2>
-                    <div className="font-mono text-slate-400 bg-slate-800 px-3 py-1 rounded-md text-lg">
-                        @{typeof timestamp === 'number' ? timestamp.toFixed(2) : '0.00'}s
-                    </div>
-                </div>
-
-                <div className="p-6 overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Combatant State */}
-                    <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700 space-y-4">
-                        <h3 className="text-xl font-semibold text-green-400 mb-4 border-b border-slate-600 pb-2">Combatant State</h3>
-                        <div className="mb-4">
-                            <h4 className="font-semibold text-slate-300 mb-1">Healing Done</h4>
-                            {/* --- FINAL FIX --- */}
-                            {/* This now correctly displays the transactional healing for this event. */}
-                            <p className="text-3xl font-bold text-green-400 font-mono">
-                                {healingDone || 0}
-                            </p>
-                            {/* --- END FIX --- */}
-                        </div>
-                        <EffectList title="Empower" effects={empowerEffects} textColor="text-green-400" totalValue={combatantState.stats.empower || 0} />
-                        <EffectList title="Fortify" effects={fortifyEffects} textColor="text-blue-400" totalValue={combatantState.stats.fortify || 0} />
-                        <EffectList title="Uncapped Damage %" effects={uncappedDamageEffects} textColor="text-yellow-400" totalValue={combatantState.stats.miscDmg || 0} />
-                    </div>
-
-                    {/* Target State */}
-                    <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700 space-y-4">
-                        <h3 className="text-xl font-semibold text-red-400 mb-4 border-b border-slate-600 pb-2">Target State</h3>
-                        <div className="mb-4">
-                            <h4 className="font-semibold text-slate-300 mb-1">Damage Dealt</h4>
-                            <p className="text-3xl font-bold text-red-400 font-mono">{damage !== undefined ? damage : 'N/A'}</p>
-                        </div>
-                        <EffectList title="Rend" effects={rendEffects} textColor="text-red-400" totalValue={targetState.stats.rend || 0} />
-                        <EffectList title="Weaken" effects={weakenEffects} textColor="text-orange-400" totalValue={targetState.stats.weaken || 0} />
-                        <EffectList title="Damage over Time (DoTs)" effects={dotEffects} unit="% WPN DMG" textColor="text-purple-400" totalValue={0} />
-                    </div>
-                </div>
-
-                <div className="p-4 border-t border-slate-700 flex-shrink-0 text-right">
-                    <button onClick={onClose} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded-lg transition">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
+export default InspectorPanel;
 

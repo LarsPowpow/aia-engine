@@ -1,45 +1,42 @@
 /**
  * @file engine.js
  * @description The primary simulation engine. This file orchestrates the various single-responsibility
- * modules (combatant, triggers, mechanics) to run a full combat simulation.
- * This is the definitive, non-versioned engine.
+ * modules to run a full combat simulation. This is the definitive, decoupled engine.
  */
-
-// --- EXTERNAL DEPENDENCIES ---
-import { collection, getDocs } from 'firebase/firestore';
 
 // --- INTERNAL MODULES ---
 import { calculateWeaponDamage, BASE_ABILITY_MODIFIERS } from './formulas.js';
 import { initializeCombatant } from './combatant.js';
 import { processTriggers } from './triggers.js';
+import { assembleContext } from './contextAssembler.js';
+
+// --- DATABASE COLLECTIONS (Firestore) ---
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '/src/services/firebase'; 
 
 // --- UTILITY FUNCTIONS ---
-const log = (message, data = null) => { console.log(message, data); };
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
 // --- CORE DATA FETCHING ---
-const fetchAllEffects = async (firestore) => {
+const fetchAllFromUKB = async (collectionName) => {
     try {
-        const effectsCol = collection(firestore, 'ukb_effects_v2');
-        const effectSnapshot = await getDocs(effectsCol);
-        const effectList = effectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        return effectList;
+        const colRef = collection(db, collectionName);
+        const snapshot = await getDocs(colRef);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-        console.error("[ENGINE] Error fetching effects from UKB:", error);
-        throw new Error("Failed to fetch Effect data.");
+        console.error(`[ENGINE] Error fetching from ${collectionName}:`, error);
+        throw new Error(`Failed to fetch data from ${collectionName}.`);
     }
 };
-
 
 /**
  * The main simulation runner. It processes a choreography of events and calculates the outcome.
  * @param {object} playerConfig - The player's character definition.
  * @param {object} targetConfig - The target's character definition.
  * @param {Array<object>} choreography - A timeline of actions to be simulated.
- * @param {object} firestore - The Firestore database instance.
  * @returns {object} An object containing the raw simulation log and an analysis log.
  */
-export const runSimulation = async (playerConfig, targetConfig, choreography, firestore) => {
+export const runSimulation = async (playerConfig, targetConfig, choreography) => {
     const rawLog = [];
     const analysisLog = [];
     let timeline = 0.0;
@@ -49,78 +46,68 @@ export const runSimulation = async (playerConfig, targetConfig, choreography, fi
     };
 
     try {
-        const allEffects = await fetchAllEffects(firestore);
-        let player = initializeCombatant(playerConfig, allEffects);
-        let target = initializeCombatant(targetConfig, allEffects);
+        const allEffects = await fetchAllFromUKB('ukb_effects_v2');
+        const allSources = await fetchAllFromUKB('ukb_sources_v2');
+
+        let player = initializeCombatant(playerConfig, allSources, allEffects);
+        let target = initializeCombatant(targetConfig, allSources, allEffects);
 
         for (const event of choreography) {
             timeline = event.timestamp;
-            let damage = 0;
-            let isCrit = false;
-            let healingThisEvent = 0;
 
             player.activeEffects = player.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
             target.activeEffects = target.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
             
             player.recalculateStats();
             target.recalculateStats();
+            
+            const context = assembleContext(event, player, target);
+            
+            let damage = 0;
+            
+            if (context.eventType.includes('ATTACK')) {
+                // --- FIX: Re-implementing the critical hit calculation ---
+                const isCrit = event.forceCrit || (Math.random() <= player.stats.critChance);
 
-            if (event.action.includes('ATTACK')) {
-                isCrit = event.forceCrit || Math.random() <= player.stats.critChance;
-
-                const preDamageResult = processTriggers({ type: event.action, isCrit, damageDealt: 0 }, player, timeline, allEffects, logAndCapture);
-                // --- DIAGNOSTIC START ---
-                console.log(`[DIAGNOSTIC | engine.js] Received pre-damage healing: ${preDamageResult.healingDone}`);
-                // --- DIAGNOSTIC END ---
-                healingThisEvent += preDamageResult.healingDone;
-                if (preDamageResult.statsChanged) {
-                    player.recalculateStats();
-                }
-                
                 const weaponDamage = calculateWeaponDamage(player.weaponType, player.attributes);
                 let abilityModifier = 1.0;
-                if (event.action === 'LIGHT_ATTACK' || event.action === 'HEAVY_ATTACK') {
-                    abilityModifier = BASE_ABILITY_MODIFIERS[player.weaponType]?.[event.action] || 1.0;
+                if (context.eventType === 'LIGHT_ATTACK' || context.eventType === 'HEAVY_ATTACK') {
+                    abilityModifier = BASE_ABILITY_MODIFIERS[player.weaponType]?.[context.eventType] || 1.0;
                 } 
                 const baseDamage = Math.round(weaponDamage * abilityModifier);
+                damage = baseDamage;
                 
+                if (!context.damage) {
+                    context.damage = {};
+                }
+                context.damage.baseAmount = damage;
+                context.damage.isCrit = isCrit; // Stamping the result onto the context
+
                 let finalDamage = baseDamage;
                 
-                const empowerRendMultiplier = 1 + (player.stats.empower / 100) - (target.stats.rend / 100);
-                const miscDmgMultiplier = 1 + (player.stats.miscDmg / 100);
-                const critMultiplier = isCrit ? (1 + player.stats.critDamage / 100) : 1;
+                const empowerRendMultiplier = 1 + (player.stats.empower.total / 100) + (target.stats.rend.total / 100);
+                const critMultiplier = context.damage.isCrit ? (1 + player.stats.critDamage / 100) : 1;
 
                 finalDamage *= empowerRendMultiplier;
-                finalDamage *= miscDmgMultiplier;
                 finalDamage *= critMultiplier;
 
                 damage = Math.round(finalDamage);
-
-                const postDamageResult = processTriggers({ type: event.action, isCrit, damageDealt: damage }, player, timeline, allEffects, logAndCapture);
-                // --- DIAGNOSTIC START ---
-                console.log(`[DIAGNOSTIC | engine.js] Received post-damage healing: ${postDamageResult.healingDone}`);
-                // --- DIAGNOSTIC END ---
-                healingThisEvent += postDamageResult.healingDone;
+            }
             
-            } else if (event.action === 'BLOCK_HIT') {
-                const blockResult = processTriggers({ type: event.action, isCrit: false, damageDealt: 0 }, player, timeline, allEffects, logAndCapture);
-                // --- DIAGNOSTIC START ---
-                console.log(`[DIAGNOSTIC | engine.js] Received block healing: ${blockResult.healingDone}`);
-                // --- DIAGNOSTIC END ---
-                healingThisEvent += blockResult.healingDone;
+            const triggerResult = processTriggers(context, player, target, allEffects, logAndCapture);
+            if (triggerResult.statsChanged) {
+                player.recalculateStats();
+                target.recalculateStats();
             }
 
-            // --- DIAGNOSTIC START ---
-            console.log(`[DIAGNOSTIC | engine.js] Final healingThisEvent before snapshot: ${healingThisEvent}`);
-            // --- DIAGNOSTIC END ---
             analysisLog.push({ 
                 timestamp: event.timestamp, 
                 source: 'Player', 
                 action: event.action, 
                 target: 'Target Dummy', 
-                isCrit, 
+                isCrit: context.damage?.isCrit || false, 
                 damage, 
-                healingDone: healingThisEvent,
+                healingDone: triggerResult.healingDone,
                 snapshot: { combatant: deepCopy(player), target: deepCopy(target) } 
             });
         }

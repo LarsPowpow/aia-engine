@@ -2,32 +2,35 @@
  * @file combatant.js
  * @description Manages the creation and state calculation of combatants.
  */
+import { calculateEffectValue } from './scaling.js';
 
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
 /**
  * Initializes a combatant object from a character definition.
  * @param {object} baseCombatant - The base character definition.
+ * @param {Array<object>} allSources - A complete list of all sources in the game.
  * @param {Array<object>} allEffects - A complete list of all effects in the game.
  * @returns {object} The fully initialized combatant object.
  */
-const initializeCombatant = (baseCombatant, allEffects) => {
+const initializeCombatant = (baseCombatant, allSources, allEffects) => {
     const combatant = deepCopy(baseCombatant);
     
-    // --- FIX START ---
-    // We are now explicitly defining maxHealth. The state.health represents the current, fluctuating health.
-    // This makes our data model more robust and prevents NaN errors in calculations.
     const maxHealth = baseCombatant.health || 10000;
     combatant.maxHealth = maxHealth;
     combatant.state = {
         health: maxHealth,
         stamina: 100, mana: 100, cooldowns: {},
     };
-    // --- FIX END ---
 
-    combatant.baseSources = [...(baseCombatant.perks || []), ...(baseCombatant.masteries || [])];
+    const perkIds = (baseCombatant.perks || []).map(p => p.id);
+    combatant.baseSources = allSources.filter(s => perkIds.includes(s.id));
+    
     combatant.activeEffects = [];
     
+    // --- SIMPLIFIED INITIALIZATION ---
+    // We no longer pre-calculate anything. We just load the raw ON_EQUIP effects.
+    // The recalculateStats function is now the single source of truth for all calculations.
     for (const source of combatant.baseSources) {
         if (source.effects) {
             for (const effectId of source.effects) {
@@ -35,6 +38,7 @@ const initializeCombatant = (baseCombatant, allEffects) => {
                 if (effect && effect.trigger === 'ON_EQUIP') {
                     const effectInstance = deepCopy(effect);
                     effectInstance.duration = Infinity;
+                    effectInstance.sourceName = source.name; // Carry the source name for the UI
                     combatant.activeEffects.push(effectInstance);
                 }
             }
@@ -43,65 +47,85 @@ const initializeCombatant = (baseCombatant, allEffects) => {
 
     const recalculateStats = () => {
         const newStats = {
-            empower: 0, fortify: 0, rend: 0, weaken: 0, miscDmg: 0,
-            healingDone: combatant.stats?.healingDone || 0,
-            critChance: 0, critDamage: 0,
+            empower: { total: 0, sources: [] },
+            fortify: { total: 0, sources: [] },
+            rend: { total: 0, sources: [] },
+            weaken: { total: 0, sources: [] },
+            critChance: 0,
+            critDamage: 0,
         };
-        
-        const statBuckets = { 
-            EMPOWER: { sum: 0, cap: 50 }, 
-            FORTIFY: { sum: 0, cap: 50 },
-            REND: { sum: 0, cap: 70 },
-            MISC_DMG: { sum: 0 },
-            CRIT_DMG: { sum: 0 }
-        };
+
+        const critChanceBuckets = { BASE: 0, PERKS: 0 };
+        const critDamageBuckets = { BASE: 0, PERKS: 0 };
 
         if (combatant.weaponType) {
             switch (combatant.weaponType) {
                 case 'Sword': 
-                    newStats.critChance = 0.07; 
-                    statBuckets.CRIT_DMG.sum += 30;
+                    critChanceBuckets.BASE = 0.07; 
+                    critDamageBuckets.BASE = 30;
                     break;
                 case 'Flail': 
-                    newStats.critChance = 0.06; 
-                    statBuckets.CRIT_DMG.sum += 20;
+                    critChanceBuckets.BASE = 0.06; 
+                    critDamageBuckets.BASE = 20;
                     break;
                 default: 
-                    newStats.critChance = 0.05; 
-                    statBuckets.CRIT_DMG.sum += 20;
+                    critChanceBuckets.BASE = 0.05; 
+                    critDamageBuckets.BASE = 20;
                     break;
             }
         }
         
         for (const effect of combatant.activeEffects) {
+            const sourceName = effect.sourceName || effect.name;
+
+            const processValue = (value, statusId) => {
+                switch (statusId) {
+                    case 'EMPOWER':
+                        newStats.empower.total += value;
+                        newStats.empower.sources.push({ name: sourceName, value });
+                        break;
+                    case 'FORTIFY':
+                        newStats.fortify.total += value;
+                        newStats.fortify.sources.push({ name: sourceName, value });
+                        break;
+                    case 'REND':
+                        newStats.rend.total += value;
+                        newStats.rend.sources.push({ name: sourceName, value });
+                        break;
+                    case 'WEAKEN':
+                        newStats.weaken.total += value;
+                        newStats.weaken.sources.push({ name: sourceName, value });
+                        break;
+                    case 'CRITICAL_CHANCE':
+                        critChanceBuckets.PERKS += (value / 100);
+                        break;
+                    default:
+                        break;
+                }
+            };
+
+            // --- "JUST-IN-TIME" CALCULATION ---
+            // This is now the single source of truth for ALL effect calculations.
             if (effect.modifications) {
                 for (const mod of effect.modifications) {
-                    const perkMultiplier = 1;
-                    const value = parseFloat(mod.valueFormula) || 0;
-
-                    let bucket = effect.damageBucket;
-                    if (!bucket && mod.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && effect.statusId === 'EMPOWER') {
-                        bucket = 'Empower';
-                    }
-
-                    switch (bucket) {
-                        case 'Empower': statBuckets.EMPOWER.sum += value; break;
-                        case 'Rend': statBuckets.REND.sum += value; break;
-                        case 'MiscDmg': statBuckets.MISC_DMG.sum += value; break;
-                        case 'CritDamage': statBuckets.CRIT_DMG.sum += value; break;
-                        default: break;
-                    }
+                    const value = calculateEffectValue(mod.valueFormula, effect.scalingPerGearScore, combatant.gearScore);
+                    const statusId = mod.statusId || effect.statusId;
+                    processValue(value, statusId);
                 }
-            } else if (effect.category === 'STAT_MODIFIER' && effect.statusId === 'EMPOWER') {
-                const value = parseFloat(effect.valueFormula) || 0;
-                statBuckets.EMPOWER.sum += value;
+            } else {
+                const value = calculateEffectValue(effect.valueFormula, effect.scalingPerGearScore, combatant.gearScore);
+                processValue(value, effect.statusId);
             }
         }
         
-        newStats.empower = Math.min(statBuckets.EMPOWER.sum, statBuckets.EMPOWER.cap);
-        newStats.rend = Math.min(statBuckets.REND.sum, statBuckets.REND.cap);
-        newStats.miscDmg = statBuckets.MISC_DMG.sum;
-        newStats.critDamage = statBuckets.CRIT_DMG.sum;
+        // Apply caps
+        newStats.empower.total = Math.min(newStats.empower.total, 50);
+        newStats.fortify.total = Math.min(newStats.fortify.total, 50);
+        newStats.rend.total = Math.min(newStats.rend.total, 70);
+
+        newStats.critChance = critChanceBuckets.BASE + critChanceBuckets.PERKS;
+        newStats.critDamage = critDamageBuckets.BASE + critDamageBuckets.PERKS;
+
         combatant.stats = newStats;
     };
 
