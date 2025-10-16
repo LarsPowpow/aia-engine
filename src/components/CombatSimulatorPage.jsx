@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { calculateWeaponDamage } from '../simulation/formulas';
-import { runSimulationV2 } from '../simulation/engine_v2';
+// --- FIX START ---
+// The import has been updated to point to the new, definitive engine file
+// and use the correctly named `runSimulation` function.
+import { runSimulation } from '../simulation/engine';
+// --- FIX END ---
 import { midComboBlockChoreography } from '../simulation/choreography';
-import ChoreographerPanel from './ChoreographerPanel';
-import PerkLoadoutPanel from './PerkLoadoutPanel';
-import MasteryLoadoutPanel from './MasteryLoadoutPanel';
-import BuildManagerPanel from './BuildManagerPanel';
-import OCRScannerPanel from './OCRScannerPanel';
-import CommandBar from './CommandBar';
+import ChoreographerPanel from '../components/ChoreographerPanel';
+import PerkLoadoutPanel from '../components/PerkLoadoutPanel';
+import MasteryLoadoutPanel from '../components/MasteryLoadoutPanel';
+import BuildManagerPanel from '../components/BuildManagerPanel';
+import OCRScannerPanel from '../components/OCRScannerPanel';
+import CommandBar from '../components/CommandBar';
 import { db as firestore } from '../services/firebase';
-import InspectorPanel from './InspectorPanel';
-import CombatLogPanel from './CombatLogPanel';
+import InspectorPanel from '../components/InspectorPanel';
+import CombatLogPanel from '../components/CombatLogPanel';
 
 // --- Sub-Component: ControlPanel (No Changes) ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
@@ -76,7 +80,6 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
 // --- Main Page Component ---
 const CombatSimulatorPage = ({ addLog }) => {
     const [weaponType, setWeaponType] = useState('Sword');
-    // NOTE: Default attributes remain unchanged for now, per Captain's command.
     const [attributes, setAttributes] = useState({ STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105 });
     const [calculatedDamage, setCalculatedDamage] = useState(0);
     const [combatLog, setCombatLog] = useState([]);
@@ -85,11 +88,7 @@ const CombatSimulatorPage = ({ addLog }) => {
     const [equippedMasteries, setEquippedMasteries] = useState([]);
     const [savedBuilds, setSavedBuilds] = useState([]);
     const [buildName, setBuildName] = useState('');
-    
-    // NEW: State to manage the active analysis tab
     const [activeAnalysisTab, setActiveAnalysisTab] = useState('analysis');
-    
-    // NEW: State for the inspector modal
     const [inspectedIndex, setInspectedIndex] = useState(null);
     const handleRowClick = (index) => setInspectedIndex(index);
     const handleCloseInspector = () => setInspectedIndex(null);
@@ -115,7 +114,10 @@ const CombatSimulatorPage = ({ addLog }) => {
         const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks, masteries: equippedMasteries };
         const target = { id: 'Target Dummy', health: 50000 };
         try {
-            const { rawLog, analysisLog } = await runSimulationV2(combatant, target, midComboBlockChoreography, firestore);
+            // --- FIX START ---
+            // The function call has been updated to `runSimulation`.
+            const { rawLog, analysisLog } = await runSimulation(combatant, target, midComboBlockChoreography, firestore);
+            // --- FIX END ---
             setRawEngineLog(rawLog);
             setCombatLog(analysisLog);
             addLog({ type: 'success', message: 'Simulation complete.' });
@@ -140,27 +142,18 @@ const CombatSimulatorPage = ({ addLog }) => {
                 </div>
                 <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
                 
-                {/* --- NEW LAYOUT --- */}
                 <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
                     
-                    {/* --- LEFT COLUMN (REORDERED) --- */}
                     <div className="lg:col-span-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1">
-                        {/* High Priority */}
                         <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} />
                         <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} />
-                        
-                        {/* Low Priority */}
                         <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                         <BuildManagerPanel savedBuilds={savedBuilds} buildName={buildName} setBuildName={setBuildName} onSaveBuild={handleSaveBuild} onLoadBuild={handleLoadBuild} />
                         <OCRScannerPanel addLog={addLog} setEquippedMasteries={setEquippedMasteries} equippedMasteries={equippedMasteries} />
-                        
-                        {/* Lowest Priority */}
                         <ChoreographerPanel />
                     </div>
 
-                    {/* --- RIGHT COLUMN (NEW TABBED LAYOUT) --- */}
                     <div className="lg:col-span-2 flex flex-col bg-slate-800/40 border border-slate-700 rounded-xl overflow-hidden">
-                        {/* Tab Headers */}
                         <div className="flex border-b border-slate-700 flex-shrink-0">
                             <button onClick={() => setActiveAnalysisTab('analysis')} className={`tab px-4 py-2 font-semibold border-b-2 transition ${activeAnalysisTab === 'analysis' ? 'active' : 'border-transparent text-slate-400 hover:bg-slate-800/50'}`}>
                                 Combat Analysis
@@ -170,7 +163,6 @@ const CombatSimulatorPage = ({ addLog }) => {
                             </button>
                         </div>
                         
-                        {/* Tab Content */}
                         <div className="p-4 flex-grow min-h-0">
                             {activeAnalysisTab === 'analysis' && <CombatAnalysisPanel combatLog={combatLog} onRowClick={handleRowClick} />}
                             {activeAnalysisTab === 'log' && <CombatLogPanel log={rawEngineLog} />}
@@ -179,7 +171,6 @@ const CombatSimulatorPage = ({ addLog }) => {
                 </div>
             </div>
 
-            {/* Inspector Modal remains unchanged */}
             {inspectedIndex !== null && combatLog[inspectedIndex] && (
                 <InspectorPanel 
                     logEntry={combatLog[inspectedIndex]} 

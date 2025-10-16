@@ -1,7 +1,7 @@
 // Filepath: src/components/InspectorPanel.jsx
 import React from 'react';
 
-// NEW: Helper component for rendering the total stat value.
+// Helper component for rendering the total stat value.
 const TotalStat = ({ label, value, unit = '%' }) => (
     <div className="mt-2 pt-2 border-t border-slate-600">
         <div className="flex justify-between items-baseline">
@@ -20,7 +20,10 @@ const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cy
             {effects && effects.length > 0 ? (
                 <ul className="space-y-1 text-sm">
                     {effects.map((effect, index) => {
-                        const displayValue = (Math.abs(parseFloat(effect[valueKey] || 0))).toFixed(0);
+                        // --- FIX START ---
+                        // The value to display is now consistently passed in the 'displayValue' property.
+                        const displayValue = (Math.abs(parseFloat(effect.displayValue || 0))).toFixed(0);
+                        // --- FIX END ---
                         return (
                             <li key={effect.id || index} className="flex justify-between items-center bg-slate-800/50 p-1 rounded">
                                 <span className="text-slate-400">{effect.name}</span>
@@ -34,7 +37,6 @@ const EffectList = ({ title, effects, valueKey, unit = '%', textColor = 'text-cy
             ) : (
                 <p className="text-sm text-slate-500 italic">None</p>
             )}
-            {/* NEW: Display the total value for the stat bucket */}
             <TotalStat label={`Total ${title}`} value={totalValue} />
         </div>
     );
@@ -45,30 +47,51 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
 
     const { action, timestamp, damage } = logEntry;
     
-    // Filtering logic remains the same. This correctly identifies the active effects.
-    const empowerEffects = combatantState.activeEffects?.flatMap(e => 
-        e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
-        .map(m => ({ ...e, value: m.valueFormula })) || []
-    ) || [];
+    // --- FIX START ---
+    // This logic is now robust. It correctly identifies and processes BOTH complex effects
+    // with a nested `modifications` array AND simple `STAT_MODIFIER` effects.
+    const empowerEffects = combatantState.activeEffects?.flatMap(effect => {
+        // Case 1: Complex effects (e.g., from a STATUS_EFFECT)
+        if (effect.modifications) {
+            return effect.modifications
+                .filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
+                .map(m => ({
+                    id: `${effect.id}-${m.statToModify}`, // Create a more unique key for React
+                    name: effect.name,
+                    displayValue: m.valueFormula
+                }));
+        }
+        // Case 2: Simple passive effects (e.g., Canary's Blessing)
+        if (effect.category === 'STAT_MODIFIER' && effect.statusId === 'EMPOWER') {
+            return [{
+                id: effect.id,
+                name: effect.name,
+                displayValue: effect.valueFormula
+            }];
+        }
+        return []; // Return an empty array for effects that don't match
+    }) || [];
+    // --- FIX END ---
 
+    // Note: The filtering logic for other effects remains unchanged for now, but will need a similar upgrade in the future.
     const fortifyEffects = combatantState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
-        .map(m => ({ ...e, value: m.valueFormula })) || []
+        .map(m => ({ ...e, displayValue: m.valueFormula })) || []
     ) || [];
     
-    const uncappedDamageEffects = combatantState.activeEffects?.filter(e => e.category === 'DAMAGE_MODIFIER') || [];
+    const uncappedDamageEffects = combatantState.activeEffects?.filter(e => e.category === 'DAMAGE_MODIFIER').map(e => ({...e, displayValue: e.valueFormula})) || [];
     
     const rendEffects = targetState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'INCOMING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) > 0)
-        .map(m => ({ ...e, value: m.valueFormula })) || []
+        .map(m => ({ ...e, displayValue: m.valueFormula })) || []
     ) || [];
 
     const weakenEffects = targetState.activeEffects?.flatMap(e => 
         e.modifications?.filter(m => m.statToModify === 'OUTGOING_DAMAGE_MODIFIER' && parseFloat(m.valueFormula) < 0)
-        .map(m => ({ ...e, value: m.valueFormula })) || []
+        .map(m => ({ ...e, displayValue: m.valueFormula })) || []
     ) || [];
         
-    const dotEffects = targetState.activeEffects?.filter(e => e.category === 'PROC_DAMAGE' && e.duration > 0) || [];
+    const dotEffects = targetState.activeEffects?.filter(e => e.category === 'PROC_DAMAGE' && e.duration > 0).map(e => ({...e, displayValue: e.valueFormula})) || [];
 
     return (
         <div 
@@ -96,10 +119,9 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
                                 {combatantState.stats?.healingDone || 0}
                             </p>
                         </div>
-                        {/* UPDATED: Pass the total stat value from the combatant's stats object */}
-                        <EffectList title="Empower" effects={empowerEffects} valueKey="value" textColor="text-green-400" totalValue={combatantState.stats.empower || 0} />
-                        <EffectList title="Fortify" effects={fortifyEffects} valueKey="value" textColor="text-blue-400" totalValue={combatantState.stats.fortify || 0} />
-                        <EffectList title="Uncapped Damage %" effects={uncappedDamageEffects} valueKey="valueFormula" textColor="text-yellow-400" totalValue={combatantState.stats.miscDmg || 0} />
+                        <EffectList title="Empower" effects={empowerEffects} textColor="text-green-400" totalValue={combatantState.stats.empower || 0} />
+                        <EffectList title="Fortify" effects={fortifyEffects} textColor="text-blue-400" totalValue={combatantState.stats.fortify || 0} />
+                        <EffectList title="Uncapped Damage %" effects={uncappedDamageEffects} textColor="text-yellow-400" totalValue={combatantState.stats.miscDmg || 0} />
                     </div>
 
                     {/* Target State */}
@@ -109,10 +131,9 @@ export default function InspectorPanel({ logEntry, combatantState, targetState, 
                             <h4 className="font-semibold text-slate-300 mb-1">Damage Dealt</h4>
                             <p className="text-3xl font-bold text-red-400 font-mono">{damage !== undefined ? damage : 'N/A'}</p>
                         </div>
-                         {/* UPDATED: Pass the total stat value from the target's stats object */}
-                        <EffectList title="Rend" effects={rendEffects} valueKey="value" textColor="text-red-400" totalValue={targetState.stats.rend || 0} />
-                        <EffectList title="Weaken" effects={weakenEffects} valueKey="value" textColor="text-orange-400" totalValue={targetState.stats.weaken || 0} />
-                        <EffectList title="Damage over Time (DoTs)" effects={dotEffects} valueKey="valueFormula" unit="% WPN DMG" textColor="text-purple-400" totalValue={0} />
+                        <EffectList title="Rend" effects={rendEffects} textColor="text-red-400" totalValue={targetState.stats.rend || 0} />
+                        <EffectList title="Weaken" effects={weakenEffects} textColor="text-orange-400" totalValue={targetState.stats.weaken || 0} />
+                        <EffectList title="Damage over Time (DoTs)" effects={dotEffects} unit="% WPN DMG" textColor="text-purple-400" totalValue={0} />
                     </div>
                 </div>
 
