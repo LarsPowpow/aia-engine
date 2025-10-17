@@ -1,7 +1,7 @@
 /**
  * @file engine.js
  * @description The primary simulation engine.
- * @version 5.2 - State Corruption Diagnostic Array
+ * @version 6.0 - Weapon Swap Implemented
  */
 
 // --- INTERNAL MODULES ---
@@ -56,9 +56,6 @@ export const runSimulation = async (combatantConfig, targetConfig, choreography,
         const combatant = initializeCombatant(combatantConfig, allSources);
         const target = initializeCombatant(targetConfig, allSources);
 
-        // --- DIAGNOSTIC PROBE ALPHA ---
-        console.log(`[PROBE ALPHA @ t=0.0] Initial combatant state. weaponType: "${combatant.weaponType}"`);
-
         if (!combatant || !target) {
             throw new Error('[runSimulation] initializeCombatant returned invalid value');
         }
@@ -66,8 +63,10 @@ export const runSimulation = async (combatantConfig, targetConfig, choreography,
         for (const event of choreography) {
             timeline = event.timestamp;
 
-            // --- DIAGNOSTIC PROBE BRAVO ---
-            console.log(`[PROBE BRAVO @ t=${timeline}] Start of loop. weaponType: "${combatant.weaponType}"`);
+            // --- NEW: Handle WEAPON_SWAP event ---
+            if (event.action === 'WEAPON_SWAP' && event.targetWeapon) {
+                combatant.weaponType = event.targetWeapon;
+            }
 
             combatant.activeEffects = combatant.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
             target.activeEffects = target.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
