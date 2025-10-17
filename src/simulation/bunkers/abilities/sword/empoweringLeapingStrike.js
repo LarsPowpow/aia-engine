@@ -1,7 +1,7 @@
 // --- METADATA ---
 export const METADATA = {
-  id: 'upgrade_sword_leapingstrike_empower',
-  type: 'MASTERY',
+  id: 'perk_empoweringLeapingStrike',
+  type: 'PERK',
 };
 
 const empoweringLeapingStrike = (context) => {
@@ -60,3 +60,4 @@ const empoweringLeapingStrike = (context) => {
 };
 
 export default empoweringLeapingStrike;
+

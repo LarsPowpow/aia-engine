@@ -13,6 +13,9 @@ import InspectorPanel from '../components/InspectorPanel';
 import CombatLogPanel from '../components/CombatLogPanel';
 // --- REWIRE STEP 1: Import the manifest ---
 import { implementedBunkerIds } from '../simulation/bunkers/bunkerManifest.js';
+console.debug('[UI] implementedBunkerIds:', JSON.stringify(implementedBunkerIds, null, 2));
+// debug what the UI actually offers (remove after verification)
+console.debug('[UI] perkOptions (will be empty until sources load):', JSON.stringify([], null, 2));
 
 // --- Sub-Component: ControlPanel (No Changes) ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
@@ -108,16 +111,16 @@ const CombatSimulatorPage = ({ addLog }) => {
     // --- REWIRE STEP 2: Create filtered lists for the UI ---
     const masteryOptions = useMemo(() => {
         return allSources
-            .filter(source => source.type === 'WEAPON_MASTERY')
+            .filter(source => String(source.type ?? '').toUpperCase() === 'WEAPON_MASTERY')
             .filter(source => implementedBunkerIds.includes(source.id));
     }, [allSources]);
 
     const perkOptions = useMemo(() => {
         return allSources
-            .filter(source => source.type === 'PERK')
+            .filter(source => String(source.type ?? '').toUpperCase() === 'PERK')
             .filter(source => implementedBunkerIds.includes(source.id));
     }, [allSources]);
-
+    console.debug('[UI DEBUG] perkOptions ids:', (perkOptions || []).map(p => p.id));
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
