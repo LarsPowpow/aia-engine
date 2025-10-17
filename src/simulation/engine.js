@@ -1,7 +1,7 @@
 /**
  * @file engine.js
  * @description The primary simulation engine.
- * @version 3.7 - High-Precision Diagnostics Installed
+ * @version 5.2 - State Corruption Diagnostic Array
  */
 
 // --- INTERNAL MODULES ---
@@ -10,37 +10,34 @@ import { initializeCombatant } from './combatant.js';
 import { assembleContext } from './contextAssembler.js';
 import { bunkerHandlers } from './bunkers/bunkerManifest.js';
 
+// --- Centralized Weapon Statistics (Book of Law Compliant) ---
+const WEAPON_STATS = {
+    Sword: { baseCritDamagePercent: 0.3 }, // 30% base crit damage
+    Flail: { baseCritDamagePercent: 0.2 }, // 20% base crit damage
+    Default: { baseCritDamagePercent: 0.2 },
+};
+
 // --- UTILITY FUNCTIONS ---
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
 // --- ENGINE-SIDE STAT AGGREGATOR ---
 const aggregateStats = (combatant) => {
-    // Strict: require a valid combatant and an activeEffects array.
-    if (!combatant) {
-        throw new Error('[aggregateStats] combatant is required');
-    }
-    if (!Array.isArray(combatant.activeEffects)) {
-        throw new Error('[aggregateStats] combatant.activeEffects must be an array');
+    if (!combatant || !Array.isArray(combatant.activeEffects)) {
+        throw new Error('[aggregateStats] Invalid combatant or activeEffects');
     }
 
     const newStats = {
         empower: 0, rend: 0, fortify: 0, weaken: 0, miscDmg: 0,
-        critChance: 0.05, critDamage: 20,
+        critChance: 0.05, critDamage: 0,
     };
 
     for (const effect of combatant.activeEffects) {
-        if (!effect.modifications || effect.modifications.length === 0) continue;
-        for (const mod of effect.modifications) {
-            const value = parseFloat(mod.valueFormula) || 0;
-            switch (mod.damageBucket) {
-                case 'Empower': newStats.empower += value; break;
-                case 'Rend': newStats.rend += value; break;
-                case 'miscDmg': newStats.miscDmg += value; break;
-            }
-        }
+        if (effect.category === 'EMPOWER') newStats.empower += effect.value;
+        if (effect.category === 'UNCAPPED_DAMAGE') newStats.miscDmg += effect.value;
+        if (effect.category === 'CRIT_DAMAGE') newStats.critDamage += effect.value;
     }
-    newStats.empower = Math.min(newStats.empower, 50);
-    newStats.rend = Math.min(newStats.rend, 70);
+    newStats.empower = Math.min(newStats.empower, 0.50);
+    newStats.rend = Math.min(newStats.rend, 0.70);
     combatant.stats = newStats;
 };
 
@@ -51,60 +48,34 @@ export const runSimulation = async (combatantConfig, targetConfig, choreography,
     const rawLog = [];
     const analysisLog = [];
     let timeline = 0.0;
-    
+
+    const sourceNameMap = new Map(allSources.map(s => [s.id, s.name]));
+    const humanize = (s) => (s || '').split('_').map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(' ');
+
     try {
-        // --- HIGH-PRECISION DIAGNOSTIC ---
-        console.log('--- ENGINE PROBE: State of combatantConfig PRE-INITIALIZATION ---');
-        console.log(JSON.stringify(combatantConfig, null, 2));
+        const combatant = initializeCombatant(combatantConfig, allSources);
+        const target = initializeCombatant(targetConfig, allSources);
 
-        // initializeCombatant is strict and will throw on bad input
-        const combatant = initializeCombatant(combatantConfig);
-        const target = initializeCombatant(targetConfig);
+        // --- DIAGNOSTIC PROBE ALPHA ---
+        console.log(`[PROBE ALPHA @ t=0.0] Initial combatant state. weaponType: "${combatant.weaponType}"`);
 
-        // Sanity checks (fail fast; no silent defaults).
         if (!combatant || !target) {
-            throw new Error('[runSimulation] initializeCombatant returned invalid value for combatant or target');
-        }
-        if (!Array.isArray(combatant.activeEffects) || !Array.isArray(target.activeEffects)) {
-            throw new Error('[runSimulation] activeEffects must be arrays for both combatant and target');
+            throw new Error('[runSimulation] initializeCombatant returned invalid value');
         }
 
         for (const event of choreography) {
             timeline = event.timestamp;
 
-            // activeEffects are guaranteed arrays due to earlier validation
+            // --- DIAGNOSTIC PROBE BRAVO ---
+            console.log(`[PROBE BRAVO @ t=${timeline}] Start of loop. weaponType: "${combatant.weaponType}"`);
+
             combatant.activeEffects = combatant.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
             target.activeEffects = target.activeEffects.filter(e => !e.expiresAt || e.expiresAt > timeline);
-            
+
             const context = assembleContext(event, combatant, target);
-
-            // add quick diagnostics
-            console.log('[ENGINE DEBUG]', {
-              ts: event.timestamp, eventType: context.eventType, abilityId: context.abilityId ?? context.event?.abilityId,
-              weaponType: context.source?.weaponType, masteries: context.source?.masteries
-            });
-
-            // --- NEW: Engine derives attack details locally from the minimalist context ---
-            const attackDetails = (() => {
-                // weapon classification
-                const weapon = (context.source?.weaponType || context.combatant?.weaponType || '').toString();
-                const meleeWeapons = ['Sword', 'Flail', 'Mace', 'Dagger', 'Axe'];
-                const rangedWeapons = ['Bow', 'Crossbow', 'Gun'];
-
-                const isMelee = meleeWeapons.includes(weapon);
-                const isRanged = rangedWeapons.includes(weapon) || (!isMelee && !!weapon);
-
-                // canonical ability id lookup (support legacy shapes)
-                const abilityId = context.abilityId ?? context.ability?.id ?? context.event?.abilityId ?? null;
-
-                // an initial baseDamageMultiplier coming from event/ability if present;
-                // bunkers may override via return channel (merged later)
-                const baseDamageMultiplier = Number(context.ability?.baseDamageMultiplier ?? context.event?.baseDamageMultiplier ?? 1.0);
-
-                return { isMelee, isRanged, abilityId, baseDamageMultiplier };
-            })();
-
-            // --- NEW: Dispatch bunkers and collect an explicit return channel ---
+            
+            aggregateStats(combatant);
+            
             const bunkerModifications = {};
             for (const handler of bunkerHandlers) {
                 try {
@@ -113,38 +84,37 @@ export const runSimulation = async (combatantConfig, targetConfig, choreography,
                         Object.assign(bunkerModifications, result);
                     }
                 } catch (err) {
-                    // Log but do NOT rethrow — a single buggy bunker should not abort the whole simulation
                     console.error('[ENGINE] bunker handler failed:', handler?.name || '<anonymous>', err);
-                    // continue to next handler without throwing
                 }
             }
-
+            
             aggregateStats(combatant);
             aggregateStats(target);
             
             let damage = 0;
             let isCrit = false;
             
+            const abilityId = event.abilityId || event.ability?.id;
+            const actionName = sourceNameMap.get(abilityId) || humanize(event.action);
+
             if ((context.eventType || '').includes('ATTACK') || (context.eventType || '').includes('ABILITY_HIT')) {
-                // crit uses combatant.stats (aggregateStats guaranteed it exists) — attackDetails may be used later for special crit rules
                 isCrit = !!event.forceCrit || (Math.random() <= (combatant.stats.critChance || 0.05));
 
                 const weaponDamage = calculateWeaponDamage(combatant.weaponType, combatant.attributes);
 
-                // Resolve baseDamageMultiplier: bunker modifications take precedence, then attackDetails, then 1.0
-                const resolvedBaseMultiplier = Number(
-                    bunkerModifications.baseDamageMultiplier ??
-                    attackDetails.baseDamageMultiplier ??
-                    1.0
-                );
-                const baseDamage = Math.round(weaponDamage * (resolvedBaseMultiplier || 1.0));
+                const resolvedBaseMultiplier = Number(bunkerModifications.baseDamageMultiplier ?? event.ability?.baseDamageMultiplier ?? 1.0);
+                const baseDamage = Math.round(weaponDamage * resolvedBaseMultiplier);
                 
                 let finalDamage = baseDamage;
                 
-                const empowerRendMultiplier = 1 + (combatant.stats.empower / 100) - (target.stats.fortify / 100);
-                const rendMultiplier = 1 + (target.stats.rend / 100);
-                const critMultiplier = isCrit ? (1 + combatant.stats.critDamage / 100) : 1;
-                const miscDamageMultiplier = 1 + (combatant.stats.miscDmg / 100);
+                const empowerRendMultiplier = 1 + (combatant.stats.empower || 0) - (target.stats.fortify || 0);
+                const rendMultiplier = 1 + (target.stats.rend || 0);
+                
+                const weaponBaseCritDamage = WEAPON_STATS[combatant.weaponType]?.baseCritDamagePercent || WEAPON_STATS.Default.baseCritDamagePercent;
+                const perkCritDamageBonus = combatant.stats.critDamage || 0;
+                const critMultiplier = isCrit ? (1 + weaponBaseCritDamage + perkCritDamageBonus) : 1;
+                
+                const miscDamageMultiplier = 1 + (combatant.stats.miscDmg || 0);
 
                 finalDamage *= empowerRendMultiplier;
                 finalDamage *= rendMultiplier;
@@ -152,22 +122,22 @@ export const runSimulation = async (combatantConfig, targetConfig, choreography,
                 finalDamage *= miscDamageMultiplier;
 
                 damage = Math.round(finalDamage);
+                
+                target.state.health -= damage;
             }
             
             analysisLog.push({ 
                 timestamp: event.timestamp, 
-                source: 'Player', 
-                action: event.action, 
-                target: 'Target Dummy', 
+                source: combatant.name, 
+                action: actionName,
+                target: target.name, 
                 isCrit,
                 damage, 
-                healingDone: 0,
                 snapshot: { combatant: deepCopy(combatant), target: deepCopy(target) } 
             });
         }
         return { rawLog, analysisLog };
     } catch (error) {
-        // Fail loudly so callers/ UI see the real error (per strict/fail-fast constraint).
         console.error("[ENGINE] Simulation failed catastrophically:", error);
         throw error;
     }

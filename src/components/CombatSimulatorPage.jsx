@@ -1,23 +1,18 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { calculateWeaponDamage } from '../simulation/formulas';
 import { runSimulation } from '../simulation/engine';
 import { midComboBlockChoreography } from '../simulation/choreography';
-import ChoreographerPanel from '../components/ChoreographerPanel';
 import PerkLoadoutPanel from '../components/PerkLoadoutPanel';
 import MasteryLoadoutPanel from '../components/MasteryLoadoutPanel';
-import OCRScannerPanel from '../components/OCRScannerPanel';
+import RuneglassPanel from '../components/RuneglassPanel';
 import CommandBar from '../components/CommandBar';
 import { db as firestore } from '../services/firebase';
 import InspectorPanel from '../components/InspectorPanel';
 import CombatLogPanel from '../components/CombatLogPanel';
-// --- REWIRE STEP 1: Import the manifest ---
 import { implementedBunkerIds } from '../simulation/bunkers/bunkerManifest.js';
-console.debug('[UI] implementedBunkerIds:', JSON.stringify(implementedBunkerIds, null, 2));
-// debug what the UI actually offers (remove after verification)
-console.debug('[UI] perkOptions (will be empty until sources load):', JSON.stringify([], null, 2));
 
-// --- Sub-Component: ControlPanel (No Changes) ---
+// --- Sub-Component: ControlPanel (Re-integrated to fix build error) ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
     const handleAttributeChange = (attr, value) => {
         const numValue = value === '' ? '' : parseInt(value, 10);
@@ -56,7 +51,7 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
-                    {combatLog.length === 0 ? ( 
+                    {combatLog.length === 0 ? (
                         <tr><td colSpan="6" className="text-center text-slate-500 py-16">Run a simulation to see the results.</td></tr>
                     ) : (
                         combatLog.map((entry, index) => (
@@ -76,16 +71,17 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
     );
 };
 
-
 // --- Main Page Component ---
 const CombatSimulatorPage = ({ addLog }) => {
-    const [weaponType, setWeaponType] = useState('Sword');
+    // --- FINAL FIX: Default weapon is now 'Flail' ---
+    const [weaponType, setWeaponType] = useState('Flail');
     const [attributes, setAttributes] = useState({ STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105 });
     const [calculatedDamage, setCalculatedDamage] = useState(0);
     const [combatLog, setCombatLog] = useState([]);
     const [rawEngineLog, setRawEngineLog] = useState([]);
     const [equippedPerks, setEquippedPerks] = useState([]);
     const [equippedMasteries, setEquippedMasteries] = useState([]);
+    const [equippedRuneglass, setEquippedRuneglass] = useState(null);
     const [activeAnalysisTab, setActiveAnalysisTab] = useState('analysis');
     const [inspectedIndex, setInspectedIndex] = useState(null);
     const [allSources, setAllSources] = useState([]);
@@ -108,7 +104,6 @@ const CombatSimulatorPage = ({ addLog }) => {
         fetchSources();
     }, [addLog]);
 
-    // --- REWIRE STEP 2: Create filtered lists for the UI ---
     const masteryOptions = useMemo(() => {
         return allSources
             .filter(source => String(source.type ?? '').toUpperCase() === 'WEAPON_MASTERY')
@@ -120,7 +115,12 @@ const CombatSimulatorPage = ({ addLog }) => {
             .filter(source => String(source.type ?? '').toUpperCase() === 'PERK')
             .filter(source => implementedBunkerIds.includes(source.id));
     }, [allSources]);
-    console.debug('[UI DEBUG] perkOptions ids:', (perkOptions || []).map(p => p.id));
+
+    const runeglassOptions = useMemo(() => {
+        return allSources
+            .filter(source => String(source.type ?? '').toUpperCase() === 'RUNEGLASS')
+            .filter(source => implementedBunkerIds.includes(source.id));
+    }, [allSources]);
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
@@ -134,50 +134,34 @@ const CombatSimulatorPage = ({ addLog }) => {
 
     const handleRunSimulation = async () => {
         addLog({ type: 'info', message: 'Simulation initiated...' });
-
-        // Ensure attributes shape and numeric values
-        const attrs = attributes || {};
-        const conVal = Number(attrs.CON);
+        const conVal = Number(attributes.CON);
         if (!Number.isFinite(conVal) || conVal <= 0) {
             addLog({ type: 'error', message: 'CON must be a positive number to derive maxHealth' });
             return;
         }
 
-        // Build strict payloads (engine is strict/fail-fast)
-        const maxHealth = Math.max(1, Math.floor(conVal) * 100); // UI supplies explicit positive maxHealth
+        const allEquippedPerks = [...(equippedPerks || [])];
+        if (equippedRuneglass) {
+            allEquippedPerks.push(equippedRuneglass);
+        }
 
+        const maxHealth = Math.max(1, Math.floor(conVal) * 100);
         const combatantPayload = {
-            id: 'Player',
-            name: 'Player',
-            weaponType,
-            attributes,
-            perks: Array.isArray(equippedPerks) ? equippedPerks : [],
-            masteries: Array.isArray(equippedMasteries) ? equippedMasteries : [],
+            id: 'Player', name: 'Player', weaponType, attributes,
+            perks: allEquippedPerks,
+            masteries: equippedMasteries || [],
             maxHealth,
-            state: {
-                health: maxHealth,
-                stamina: 100,
-                mana: 100,
-                cooldowns: {}
-            },
+            state: { health: maxHealth, stamina: 100, mana: 100, cooldowns: {} },
             activeEffects: []
         };
-
         const targetPayload = {
-            id: 'Target Dummy',
-            name: 'Target Dummy',
-            weaponType: 'Sword',
+            id: 'Target Dummy', name: 'Target Dummy', weaponType: 'Sword',
             attributes: { STR: 0, DEX: 0, INT: 0, FOC: 0, CON: 0 },
-            perks: [],
-            masteries: [],
-            maxHealth: 5000,
+            perks: [], masteries: [], maxHealth: 5000,
             state: { health: 5000, stamina: 0, mana: 0, cooldowns: {} },
             activeEffects: []
         };
         
-        // UI diagnostic
-        console.log('--- UI DIAGNOSTIC: DATA SENT TO ENGINE ---', { combatantPayload, targetPayload });
-
         try {
             const { rawLog, analysisLog } = await runSimulation(combatantPayload, targetPayload, midComboBlockChoreography, allSources);
             setRawEngineLog(rawLog);
@@ -205,32 +189,17 @@ const CombatSimulatorPage = ({ addLog }) => {
                 <div className="flex-shrink-0"><CommandBar onRunSimulation={handleRunSimulation} onClearLog={clearCombatLog} isPrimary={true}/></div>
                 
                 <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
-                    
                     <div className="lg:col-span-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1">
-                        {/* --- REWIRE STEP 3: Pass the filtered lists as props --- */}
-                        <PerkLoadoutPanel 
-                            equippedPerks={equippedPerks} 
-                            setEquippedPerks={setEquippedPerks}
-                            perkOptions={perkOptions}
-                        />
-                        <MasteryLoadoutPanel 
-                            equippedMasteries={equippedMasteries} 
-                            setEquippedMasteries={setEquippedMasteries}
-                            masteryOptions={masteryOptions}
-                        />
-                        <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
-                        <OCRScannerPanel addLog={addLog} setEquippedMasteries={setEquippedMasteries} equippedMasteries={equippedMasteries} />
-                        <ChoreographerPanel />
+                        <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} perkOptions={perkOptions} />
+                        <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} masteryOptions={masteryOptions} />
+                        <RuneglassPanel equippedRuneglass={equippedRuneglass} setEquippedRuneglass={setEquippedRuneglass} runeglassOptions={runeglassOptions} />
+                        <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage} />
                     </div>
 
                     <div className="lg:col-span-2 flex flex-col bg-slate-800/40 border border-slate-700 rounded-xl overflow-hidden">
                         <div className="flex border-b border-slate-700 flex-shrink-0">
-                            <button onClick={() => setActiveAnalysisTab('analysis')} className={`tab px-4 py-2 font-semibold border-b-2 transition ${activeAnalysisTab === 'analysis' ? 'active' : 'border-transparent text-slate-400 hover:bg-slate-800/50'}`}>
-                                Combat Analysis
-                            </button>
-                            <button onClick={() => setActiveAnalysisTab('log')} className={`tab px-4 py-2 font-semibold border-b-2 transition ${activeAnalysisTab === 'log' ? 'active' : 'border-transparent text-slate-400 hover:bg-slate-800/50'}`}>
-                                Live Combat Log
-                            </button>
+                            <button onClick={() => setActiveAnalysisTab('analysis')} className={`tab px-4 py-2 font-semibold border-b-2 transition ${activeAnalysisTab === 'analysis' ? 'active' : 'border-transparent text-slate-400 hover:bg-slate-800/50'}`}>Combat Analysis</button>
+                            <button onClick={() => setActiveAnalysisTab('log')} className={`tab px-4 py-2 font-semibold border-b-2 transition ${activeAnalysisTab === 'log' ? 'active' : 'border-transparent text-slate-400 hover:bg-slate-800/50'}`}>Live Combat Log</button>
                         </div>
                         
                         <div className="p-4 flex-grow min-h-0">
@@ -242,12 +211,7 @@ const CombatSimulatorPage = ({ addLog }) => {
             </div>
 
             {inspectedIndex !== null && combatLog[inspectedIndex] && (
-                <InspectorPanel 
-                    logEntry={combatLog[inspectedIndex]} 
-                    combatantState={combatLog[inspectedIndex].snapshot.combatant} 
-                    targetState={combatLog[inspectedIndex].snapshot.target} 
-                    onClose={handleCloseInspector} 
-                />
+                <InspectorPanel logEntry={combatLog[inspectedIndex]} combatantState={combatLog[inspectedIndex].snapshot.combatant} targetState={combatLog[inspectedIndex].snapshot.target} onClose={handleCloseInspector} />
             )}
         </>
     );

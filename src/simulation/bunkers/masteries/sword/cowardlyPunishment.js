@@ -1,55 +1,57 @@
 /**
  * @file cowardlyPunishment.js
  * @description Bunker for the Cowardly Punishment mastery.
- * @version 1.1.0 - Aligned with Bunker Manifest architecture
+ * @version 2.0.0 - Data-Driven Refactor
  */
 
 // --- METADATA ---
 export const METADATA = {
     id: 'upgrade_sword_leapingstrike_slow',
-    type: 'MASTERY',
+    type: 'WEAPON_MASTERY',
 };
 
 // --- BUNKER HANDLER ---
 const cowardlyPunishment = (context) => {
-    console.debug('[BUNKER DEBUG] cowardlyPunishment called', {
-        eventType: context?.eventType,
-        abilityId: context?.abilityId ?? context?.event?.abilityId,
-        masteries: context?.source?.masteries ?? context?.combatant?.masteries
-    });
     // Strict sanity checks
-    if (!context || !context.source) return;
+    if (!context || !context.source || !context.target || !context.source.masteries) {
+        return;
+    }
 
-    // Derive a canonical abilityId from the minimalist context (support legacy shapes)
+    const { source, target, timestamp } = context;
+
+    // Self-check: Is this mastery equipped and does it have a valid effects array?
+    const masterySource = source.masteries.find(m => m.id === METADATA.id);
+    if (!masterySource || !Array.isArray(masterySource.effects) || masterySource.effects.length === 0) {
+        return;
+    }
+
     const abilityId = context.abilityId ?? context.ability?.id ?? context.event?.abilityId ?? null;
 
-    // NEW: Trigger only on an ABILITY_HIT for Leaping Strike (accept common legacy id variants)
-    if (!(context.eventType === 'ABILITY_HIT' &&
-          (abilityId === 'leapingStrike' ||
-           abilityId === 'ability_sword_leapingstrike' ||
-           abilityId === 'ability_sword_leaping_strike'))) {
-        return;
-    }
+    for (const effectDef of masterySource.effects) {
+        // Condition Check: Does the effect's condition match the current event?
+        // Example condition: "ON_ABILITY_HIT:ability_sword_leapingstrike"
+        const condition = effectDef.conditions?.[0];
+        if (!condition) continue;
 
-    // Self-check: Is this mastery equipped? Support either alias (source or combatant)
-    const masteries = context.source?.masteries ?? context.combatant?.masteries ?? [];
-    const isEquipped = Array.isArray(masteries) && masteries.some(m => m?.id === METADATA.id);
-    if (!isEquipped) {
-        return;
-    }
+        const [trigger, requiredId] = condition.split(':');
+        const isTriggerMet = (trigger === 'ON_ABILITY_HIT' && context.eventType === 'ABILITY_HIT');
+        const isIdMet = (abilityId === requiredId);
 
-    // Trigger: Only on Leaping Strike ability hit
-    const slowEffect = {
-        id: 'effect_cowardly_punishment_slow',
-        name: 'Cowardly Punishment - Slow',
-        category: 'DEBUFF',
-        statusId: 'SLOW',
-        value: 30, // 30% slow
-        duration: 3,
-        expiresAt: context.timestamp + 3,
-        sourceName: 'Cowardly Punishment',
-    };
-    context.target.activeEffects.push(slowEffect);
+        if (isTriggerMet && isIdMet) {
+            // Action: Apply the defined effect to the target.
+            const newEffect = {
+                id: effectDef.id,
+                name: effectDef.name,
+                category: effectDef.category,
+                value: parseFloat(effectDef.valueFormula) || 0,
+                duration: effectDef.duration,
+                expiresAt: timestamp + effectDef.duration,
+                sourceName: masterySource.name,
+                sourceId: masterySource.id,
+            };
+            target.activeEffects.push(newEffect);
+        }
+    }
 };
 
 export default cowardlyPunishment;

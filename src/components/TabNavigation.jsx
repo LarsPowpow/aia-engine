@@ -7,6 +7,7 @@ function TabNavigation({ activeTab, setActiveTab }) {
         { id: 'forge', label: 'The Forge' },
         { id: 'migration', label: 'Migration Staging' },
         { id: 'combat_simulator', label: 'Combat Simulator' },
+        { id: 'data_integrity', label: 'Data Integrity' }, // --- NEW: Add Dashboard Tab ---
         { id: 'admin', label: 'System Administration' },
     ];
 
@@ -16,6 +17,7 @@ function TabNavigation({ activeTab, setActiveTab }) {
         if (isActive) {
             if (tabId === 'admin') classes += 'border-red-500 text-red-400';
             else if (tabId === 'migration') classes += 'border-amber-500 text-amber-400';
+            else if (tabId === 'data_integrity') classes += 'border-cyan-500 text-cyan-400'; // --- NEW: Style for Dashboard ---
             else classes += 'border-emerald-400 text-emerald-400';
         } else {
             classes += 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500';

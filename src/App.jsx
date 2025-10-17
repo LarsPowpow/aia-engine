@@ -13,6 +13,7 @@ import SysAdminPanel from './components/SysAdminPanel.jsx';
 import OverrideModal from './components/OverrideModal.jsx';
 import MigrationPanel from "./components/MigrationPanel.jsx";
 import CombatSimulatorPage from './components/CombatSimulatorPage.jsx';
+import DataIntegrityDashboard from './components/DataIntegrityDashboard.jsx'; // --- NEW: Import Dashboard ---
 import { OverridesContext } from './contexts/OverridesContext.jsx';
 import { SchemaContext } from './contexts/SchemaContext.jsx';
 
@@ -233,6 +234,7 @@ function App() {
             case 'forge': return <ForgePanel onDeconstruct={handleDeconstruct} addLog={addLog} />;
             case 'migration': return <MigrationPanel addLog={addLog} db={db} />;
             case 'combat_simulator': return <CombatSimulatorPage addLog={addLog} />;
+            case 'data_integrity': return <DataIntegrityDashboard />; // --- NEW: Add case for dashboard ---
             case 'admin': return (
                 <SysAdminPanel
                     db={db} 

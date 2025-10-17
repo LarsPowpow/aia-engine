@@ -1,63 +1,57 @@
+/**
+ * @file cowardlyPunishment.js
+ * @description Bunker for the Cowardly Punishment mastery.
+ * @version 2.0.0 - Data-Driven Refactor
+ */
+
 // --- METADATA ---
 export const METADATA = {
-  id: 'perk_empoweringLeapingStrike',
-  type: 'PERK',
+    id: 'upgrade_sword_leapingstrike_slow',
+    type: 'WEAPON_MASTERY',
 };
 
-const empoweringLeapingStrike = (context) => {
-  try {
-    // Basic guards: require context and an actor/source alias
-    if (!context) return;
-    const src = context.source ?? context.combatant;
-    if (!src) return;
-
-    // Quick debug to show what masteries array looks like (remove after verifying)
-    // eslint-disable-next-line no-console
-    console.debug('[BUNKER DEBUG] empoweringLeapingStrike context:', {
-      eventType: context?.eventType,
-      abilityId: context?.abilityId ?? context?.event?.abilityId,
-      sourceMasteries: src?.masteries
-    });
-
-    // Only consider ability hits for Leaping Strike
-    const abilityId = context.abilityId ?? context.ability?.id ?? context.event?.abilityId ?? null;
-    if (context.eventType !== 'ABILITY_HIT' || !abilityId) return;
-
-    // Normalize common legacy IDs to a canonical form
-    const canon = (abilityId === 'ability_sword_leaping_strike' || abilityId === 'ability_sword_leapingstrike')
-      ? 'leapingStrike'
-      : abilityId;
-
-    if (canon !== 'leapingStrike') return;
-
-    // Ensure masteries is a real array before iterating
-    const masteries = Array.isArray(src.masteries) ? src.masteries : [];
-    if (masteries.length === 0) return;
-
-    // Iterate defensively — never access m.id unless m is an object
-    for (let i = 0; i < masteries.length; i += 1) {
-      const m = masteries[i];
-      if (!m || typeof m !== 'object') continue;
-      if (typeof m.id === 'undefined' || m.id === null) continue;
-      const mid = String(m.id);
-      if (mid === METADATA.id) {
-        // Return modification instead of mutating shared context
-        return { baseDamageMultiplier: 1.2 };
-      }
+// --- BUNKER HANDLER ---
+const cowardlyPunishment = (context) => {
+    // Strict sanity checks
+    if (!context || !context.source || !context.target || !context.source.masteries) {
+        return;
     }
 
-    return;
-  } catch (err) {
-    // Defensive: log and swallow — bunker must not crash engine
-    // eslint-disable-next-line no-console
-    console.error('[BUNKER] empoweringLeapingStrike encountered error (handled):', err, {
-      eventType: context?.eventType,
-      abilityId: context?.abilityId ?? context?.event?.abilityId,
-      sourceMasteries: context?.source?.masteries
-    });
-    return;
-  }
+    const { source, target, timestamp } = context;
+
+    // Self-check: Is this mastery equipped and does it have a valid effects array?
+    const masterySource = source.masteries.find(m => m.id === METADATA.id);
+    if (!masterySource || !Array.isArray(masterySource.effects) || masterySource.effects.length === 0) {
+        return;
+    }
+
+    const abilityId = context.abilityId ?? context.ability?.id ?? context.event?.abilityId ?? null;
+
+    for (const effectDef of masterySource.effects) {
+        // Condition Check: Does the effect's condition match the current event?
+        // Example condition: "ON_ABILITY_HIT:ability_sword_leapingstrike"
+        const condition = effectDef.conditions?.[0];
+        if (!condition) continue;
+
+        const [trigger, requiredId] = condition.split(':');
+        const isTriggerMet = (trigger === 'ON_ABILITY_HIT' && context.eventType === 'ABILITY_HIT');
+        const isIdMet = (abilityId === requiredId);
+
+        if (isTriggerMet && isIdMet) {
+            // Action: Apply the defined effect to the target.
+            const newEffect = {
+                id: effectDef.id,
+                name: effectDef.name,
+                category: effectDef.category,
+                value: parseFloat(effectDef.valueFormula) || 0,
+                duration: effectDef.duration,
+                expiresAt: timestamp + effectDef.duration,
+                sourceName: masterySource.name,
+                sourceId: masterySource.id,
+            };
+            target.activeEffects.push(newEffect);
+        }
+    }
 };
 
-export default empoweringLeapingStrike;
-
+export default cowardlyPunishment;
