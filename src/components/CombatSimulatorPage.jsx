@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { calculateWeaponDamage } from '../simulation/formulas';
-// --- FIX START ---
-// The import has been updated to point to the new, definitive engine file
-// and use the correctly named `runSimulation` function.
 import { runSimulation } from '../simulation/engine';
-// --- FIX END ---
 import { midComboBlockChoreography } from '../simulation/choreography';
 import ChoreographerPanel from '../components/ChoreographerPanel';
 import PerkLoadoutPanel from '../components/PerkLoadoutPanel';
@@ -16,6 +12,7 @@ import CommandBar from '../components/CommandBar';
 import { db as firestore } from '../services/firebase';
 import InspectorPanel from '../components/InspectorPanel';
 import CombatLogPanel from '../components/CombatLogPanel';
+import RuneglassPanel from '../components/RuneglassPanel'; // <-- IMPORT THE NEW PANEL
 
 // --- Sub-Component: ControlPanel (No Changes) ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
@@ -114,10 +111,7 @@ const CombatSimulatorPage = ({ addLog }) => {
         const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks, masteries: equippedMasteries };
         const target = { id: 'Target Dummy', health: 50000 };
         try {
-            // --- FIX START ---
-            // The function call has been updated to `runSimulation`.
             const { rawLog, analysisLog } = await runSimulation(combatant, target, midComboBlockChoreography, firestore);
-            // --- FIX END ---
             setRawEngineLog(rawLog);
             setCombatLog(analysisLog);
             addLog({ type: 'success', message: 'Simulation complete.' });
@@ -146,6 +140,8 @@ const CombatSimulatorPage = ({ addLog }) => {
                     
                     <div className="lg:col-span-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1">
                         <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} />
+                        {/* --- RENDER THE NEW PANEL --- */}
+                        <RuneglassPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} />
                         <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} />
                         <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
                         <BuildManagerPanel savedBuilds={savedBuilds} buildName={buildName} setBuildName={setBuildName} onSaveBuild={handleSaveBuild} onLoadBuild={handleLoadBuild} />

@@ -9,7 +9,7 @@ const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
             <p className="text-slate-300 font-semibold">{label}</p>
             <hr className="border-slate-700 my-1" />
             <div className="min-h-[20px] text-sm text-slate-400 pl-2">
-                {stat.sources && stat.sources.length > 0 ? (
+                {stat && stat.sources && stat.sources.length > 0 ? (
                     stat.sources.map((source, index) => (
                         <div key={index} className="flex justify-between items-center">
                             <span>{source.name}</span>
@@ -22,7 +22,7 @@ const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
             </div>
             <div className="flex justify-between items-baseline mt-1">
                 <p className="text-slate-300 font-semibold">Total {label}</p>
-                <p className={`font-mono text-lg font-bold text-amber-400`}>{Math.round(stat.total)}%</p>
+                <p className={`font-mono text-lg font-bold text-amber-400`}>{Math.round(stat ? stat.total : 0)}%</p>
             </div>
         </div>
     );
@@ -57,12 +57,14 @@ const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
                     <div className="flex flex-col space-y-2 p-4 bg-slate-800/60 rounded-lg border border-slate-700">
                         <h3 className="text-lg font-bold text-green-400 border-b border-slate-600 pb-2 mb-2">Combatant State</h3>
                         <div>
-                            <p className="text-slate-300 font-semibold">Healing Done</p>
-                            <p className="font-mono text-3xl font-bold text-green-400">{combatantState.stats.healingDone}</p>
+                            <p className="text-slate-300 font-semibold">Healing Done (Event)</p>
+                            {/* [MOD-FIX] Correctly reading from the logEntry top level for event-specific healing */}
+                            <p className="font-mono text-3xl font-bold text-green-400">{logEntry.healingDone || 0}</p>
                         </div>
                         <StatBlock label="Empower" stat={combatantState.stats.empower} />
                         <StatBlock label="Fortify" stat={combatantState.stats.fortify} />
-                        <SimpleStat label="Uncapped Damage %" value={0} />
+                        {/* [MOD-UPGRADE] Upgraded to a full StatBlock to show uncapped damage sources */}
+                        <StatBlock label="Uncapped Damage" stat={combatantState.stats.uncappedDamage} />
                     </div>
 
                     {/* Target State */}
@@ -88,4 +90,3 @@ const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
 };
 
 export default InspectorPanel;
-

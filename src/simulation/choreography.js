@@ -18,7 +18,8 @@ export const midComboBlockChoreography = [
   { timestamp: 6.25, action: 'ABILITY_HIT', abilityId: 'ability_flail_blast', weapon: 'Flail', hitCount: 3, notes: 'Arcane Vortex Hit 3' },
   { timestamp: 6.25, action: 'BLOCK_END', weapon: 'Flail', notes: 'Block (End)' },
   { timestamp: 6.25, action: 'WEAPON_SWAP', notes: 'Weapon Swap to Sword' },
-  { timestamp: 6.35, action: 'ABILITY', abilityId: 'ability_sword_leapingstrike', weapon: 'Sword', conditions: ['ATTACK_IS_BACKSTAB'], notes: 'Leaping Strike (Backstab)' },
+  // [MOD] Changed action to ABILITY_HIT and standardized the abilityId.
+  { timestamp: 6.35, action: 'ABILITY_HIT', abilityId: 'ability_sword_leaping_strike', weapon: 'Sword', conditions: ['ATTACK_IS_BACKSTAB'], notes: 'Leaping Strike (Backstab)' },
   { timestamp: 7.25, action: 'ABILITY', abilityId: 'ability_sword_rush', weapon: 'Sword', notes: 'Shield Rush' },
   { timestamp: 8.4, action: 'HEAVY_ATTACK', weapon: 'Sword', notes: 'Heavy Attack' },
   { timestamp: 9.55, action: 'ABILITY', abilityId: 'ability_sword_whirlingblade', weapon: 'Sword', notes: 'Whirling Blade' },

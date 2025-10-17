@@ -1,6 +1,6 @@
-DOCUMENT ID: AIA-SOT-SCHEMA-V5.2
+DOCUMENT ID: AIA-SOT-SCHEMA-V5.3
 SUBJECT: The Rosetta Stone: Universal Data Schemas & Doctrines
-VERSION: 5.2 (Post-Crucible II)
+VERSION: 5.3 (Post-Crucible II)
 STATUS: ACTIVE SOURCE OF TRUTH
 
 1.0 CORE DOCTRINE: THE SEPARATION OF SOURCE & EFFECT
@@ -167,6 +167,14 @@ String
 (CRITICAL) The primary type of the effect. See Appendix A.
 
 "STAT_MODIFIER"
+
+categories
+
+Array
+
+(Optional) A list of functional categories used for grouping and querying effects.
+
+["CC", "SLOW"]
 
 type
 

@@ -5,10 +5,10 @@
  */
 
 // --- INTERNAL MODULES ---
-import { calculateWeaponDamage, BASE_ABILITY_MODIFIERS } from './formulas.js';
+import { calculateWeaponDamage } from './formulas.js';
 import { initializeCombatant } from './combatant.js';
-import { processTriggers } from './triggers.js';
 import { assembleContext } from './contextAssembler.js';
+import { bunkerHandlers } from './bunkers/index.js';
 
 // --- DATABASE COLLECTIONS (Firestore) ---
 import { collection, getDocs } from 'firebase/firestore';
@@ -46,11 +46,10 @@ export const runSimulation = async (playerConfig, targetConfig, choreography) =>
     };
 
     try {
-        const allEffects = await fetchAllFromUKB('ukb_effects_v2');
         const allSources = await fetchAllFromUKB('ukb_sources_v2');
 
-        let player = initializeCombatant(playerConfig, allSources, allEffects);
-        let target = initializeCombatant(targetConfig, allSources, allEffects);
+        let player = initializeCombatant(playerConfig, allSources);
+        let target = initializeCombatant(targetConfig, allSources);
 
         for (const event of choreography) {
             timeline = event.timestamp;
@@ -62,44 +61,44 @@ export const runSimulation = async (playerConfig, targetConfig, choreography) =>
             target.recalculateStats();
             
             const context = assembleContext(event, player, target);
+
+            // --- BUNKER DISPATCHER ---
+            for (const handler of bunkerHandlers) {
+                handler(context);
+            }
+
+            // --- RECALCULATE STATS POST-BUNKER ---
+            player.recalculateStats();
+            target.recalculateStats();
             
             let damage = 0;
             
-            if (context.eventType.includes('ATTACK')) {
-                // --- FIX: Re-implementing the critical hit calculation ---
+            if (context.eventType.includes('ATTACK') || context.eventType.includes('ABILITY_HIT')) {
                 const isCrit = event.forceCrit || (Math.random() <= player.stats.critChance);
 
                 const weaponDamage = calculateWeaponDamage(player.weaponType, player.attributes);
-                let abilityModifier = 1.0;
-                if (context.eventType === 'LIGHT_ATTACK' || context.eventType === 'HEAVY_ATTACK') {
-                    abilityModifier = BASE_ABILITY_MODIFIERS[player.weaponType]?.[context.eventType] || 1.0;
-                } 
-                const baseDamage = Math.round(weaponDamage * abilityModifier);
-                damage = baseDamage;
+                const baseDamage = Math.round(weaponDamage * context.ability.baseDamageMultiplier);
                 
                 if (!context.damage) {
                     context.damage = {};
                 }
-                context.damage.baseAmount = damage;
-                context.damage.isCrit = isCrit; // Stamping the result onto the context
+                context.damage.baseAmount = baseDamage;
+                context.damage.isCrit = isCrit;
 
                 let finalDamage = baseDamage;
                 
                 const empowerRendMultiplier = 1 + (player.stats.empower.total / 100) + (target.stats.rend.total / 100);
                 const critMultiplier = context.damage.isCrit ? (1 + player.stats.critDamage / 100) : 1;
+                const uncappedDamageMultiplier = 1 + (player.stats.uncappedDamage.total / 100);
 
                 finalDamage *= empowerRendMultiplier;
                 finalDamage *= critMultiplier;
+                finalDamage *= uncappedDamageMultiplier;
+
 
                 damage = Math.round(finalDamage);
             }
             
-            const triggerResult = processTriggers(context, player, target, allEffects, logAndCapture);
-            if (triggerResult.statsChanged) {
-                player.recalculateStats();
-                target.recalculateStats();
-            }
-
             analysisLog.push({ 
                 timestamp: event.timestamp, 
                 source: 'Player', 
@@ -107,7 +106,7 @@ export const runSimulation = async (playerConfig, targetConfig, choreography) =>
                 target: 'Target Dummy', 
                 isCrit: context.damage?.isCrit || false, 
                 damage, 
-                healingDone: triggerResult.healingDone,
+                healingDone: 0,
                 snapshot: { combatant: deepCopy(player), target: deepCopy(target) } 
             });
         }
