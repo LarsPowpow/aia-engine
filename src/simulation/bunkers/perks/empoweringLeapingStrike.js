@@ -1,34 +1,51 @@
-import { hasEffectById } from '../../stateUtils.js';
+/**
+ * @file empoweringLeapingStrike.js
+ * @description Bunker component for the Empowering Leaping Strike perk.
+ * @version 1.2.0 - Corrected context variable from .combatant to .source
+ */
 
-const PERK_ID = 'perkid_weaponmastery_sword_leapingstrike';
-
-const damageBonusEffect = {
-    id: 'effect_empowering_leaping_strike_bonus',
-    name: 'Empowering Leaping Strike Bonus',
-    category: 'UNCAPPED_DAMAGE',
-    statusId: 'UNCAPPED_DAMAGE',
-    duration: 0,
-    valueFormula: '13',
-    scalingPerGearScore: '0,725:0.00365',
+// --- METADATA ---
+export const METADATA = {
+  id: 'perk_empoweringLeapingStrike',
+  type: 'PERK',
 };
 
-export const handleEmpoweringLeapingStrike = (context) => {
-    const isEquipped = context.source.perks?.some(p => p.id === PERK_ID);
-    if (!isEquipped) {
-        return;
-    }
+const empoweringLeapingStrike = (context) => {
+  try {
+    if (!context) return;
+    const src = context.source ?? context.combatant;
+    if (!src) return;
 
-    if (!context.attack) {
-        return;
-    }
+    // Only trigger on ability hits for Leaping Strike (support legacy ids)
+    const abilityId = context.abilityId ?? context.ability?.id ?? context.event?.abilityId ?? null;
+    if (context.eventType !== 'ABILITY_HIT' || !abilityId) return;
 
-    // --- DEFINITIVE FIX V4 ---
-    // Check if the target has the slow effect from a *previous* event.
-    const slowEffect = context.target.activeEffects.find(e => e.id === 'effect_cowardly_punishment_slow');
-    
-    // The effect exists AND it was applied before the current event's timestamp.
-    if (slowEffect && slowEffect.timestamp < context.timestamp) {
-        context.source.activeEffects.push({ ...damageBonusEffect });
+    const canon = (abilityId === 'ability_sword_leaping_strike' || abilityId === 'ability_sword_leapingstrike')
+      ? 'leapingStrike'
+      : abilityId;
+    if (canon !== 'leapingStrike') return;
+
+    // Safely inspect perks array
+    const perks = Array.isArray(src.perks) ? src.perks : [];
+    if (perks.length === 0) return;
+
+    for (let i = 0; i < perks.length; i += 1) {
+      const p = perks[i];
+      if (!p || typeof p !== 'object' || typeof p.id === 'undefined' || p.id === null) continue;
+      if (String(p.id) === METADATA.id) {
+        return { baseDamageMultiplier: 1.2 };
+      }
     }
+    return;
+  } catch (err) {
+    console.error('[BUNKER] perks/empoweringLeapingStrike error (handled):', err, {
+      eventType: context?.eventType,
+      abilityId: context?.abilityId ?? context?.event?.abilityId,
+      sourcePerksPreview: Array.isArray(context?.source?.perks) ? context.source.perks.slice(0,3) : context?.source?.perks
+    });
+    return;
+  }
 };
+
+export default empoweringLeapingStrike;
 

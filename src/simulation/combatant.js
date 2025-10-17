@@ -1,146 +1,81 @@
 /**
  * @file combatant.js
- * @description Manages the creation and state calculation of combatants.
+ * @description Manages the creation of combatant state objects.
+ * @version 3.1 - Strict / Fail-Fast initializer
  */
-import { calculateEffectValue } from './scaling.js';
 
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
 /**
- * Initializes a combatant object from a character definition.
- * @param {object} baseCombatant - The base character definition from the UI.
- * @param {Array<object>} allSources - A complete list of all sources from the UKB.
- * @returns {object} The fully initialized combatant object.
+ * Initializes a combatant object from a configuration.
+ * Strict mode: validates required fields and throws if the shape is incorrect.
+ * This enforces that the caller must provide a fully-formed configuration.
+ *
+ * Required shape (examples):
+ * {
+ *   id: 'Player',
+ *   weaponType: 'Sword',
+ *   attributes: { STR: 10, DEX: 5, INT: 0, FOC: 0, CON: 0 },
+ *   perks: [],
+ *   masteries: [],
+ *   maxHealth: 10000,
+ *   state: { health: 10000, stamina: 100, mana: 100, cooldowns: {} },
+ *   activeEffects: []
+ * }
+ *
+ * @param {object} combatantConfig
+ * @returns {object} deep-copied validated combatant
+ * @throws {Error} if validation fails
  */
-const initializeCombatant = (baseCombatant, allSources) => {
-    const combatant = deepCopy(baseCombatant);
+export const initializeCombatant = (combatantConfig) => {
+  if (!combatantConfig || typeof combatantConfig !== 'object') {
+    throw new Error('[initializeCombatant] Invalid combatantConfig: expected an object.');
+  }
 
-    // --- DEFINITIVE FIX V3 ---
-    // The perks and masteries from the UI loadout MUST be attached directly
-    // to the live combatant object so our Bunkers' "self-check" logic can find them.
-    combatant.perks = baseCombatant.perks || [];
-    combatant.masteries = baseCombatant.masteries || [];
+  if (typeof combatantConfig.id !== 'string' || combatantConfig.id.trim() === '') {
+    throw new Error('[initializeCombatant] Missing or invalid property: id (non-empty string required).');
+  }
 
-    const equippedIds = [
-        ...(combatant.perks).map(p => p.id),
-        ...(combatant.masteries).map(m => m.id)
-    ];
-    combatant.baseSources = allSources.filter(s => equippedIds.includes(s.id));
-    // --- END FIX ---
+  if (typeof combatantConfig.weaponType !== 'string' || combatantConfig.weaponType.trim() === '') {
+    throw new Error('[initializeCombatant] Missing or invalid property: weaponType (non-empty string required).');
+  }
 
-    const maxHealth = baseCombatant.health || 10000;
-    combatant.maxHealth = maxHealth;
-    combatant.state = {
-        health: maxHealth,
-        stamina: 100, mana: 100, cooldowns: {},
-    };
-    
-    combatant.activeEffects = [];
-    
-    for (const source of combatant.baseSources) {
-        if (source.effects) {
-            for (const effectData of source.effects) {
-                if (effectData.trigger === 'ON_EQUIP') {
-                    const effectInstance = deepCopy(effectData);
-                    effectInstance.duration = Infinity;
-                    effectInstance.sourceName = source.name;
-                    combatant.activeEffects.push(effectInstance);
-                }
-            }
-        }
-    }
+  if (!combatantConfig.attributes || typeof combatantConfig.attributes !== 'object') {
+    throw new Error('[initializeCombatant] Missing or invalid property: attributes (object required).');
+  }
 
-    const recalculateStats = () => {
-        const newStats = {
-            empower: { total: 0, sources: [] },
-            fortify: { total: 0, sources: [] },
-            rend: { total: 0, sources: [] },
-            weaken: { total: 0, sources: [] },
-            uncappedDamage: { total: 0, sources: [] },
-            critChance: 0,
-            critDamage: 0,
-        };
+  if (!Number.isFinite(combatantConfig.maxHealth) || combatantConfig.maxHealth <= 0) {
+    throw new Error('[initializeCombatant] Missing or invalid property: maxHealth (positive number required).');
+  }
 
-        const critChanceBuckets = { BASE: 0, PERKS: 0 };
-        const critDamageBuckets = { BASE: 0, PERKS: 0 };
+  if (!combatantConfig.state || typeof combatantConfig.state !== 'object') {
+    throw new Error('[initializeCombatant] Missing or invalid property: state (object required).');
+  }
 
-        if (combatant.weaponType) {
-            switch (combatant.weaponType) {
-                case 'Sword': 
-                    critChanceBuckets.BASE = 0.07; 
-                    critDamageBuckets.BASE = 30;
-                    break;
-                case 'Flail': 
-                    critChanceBuckets.BASE = 0.06; 
-                    critDamageBuckets.BASE = 20;
-                    break;
-                default: 
-                    critChanceBuckets.BASE = 0.05; 
-                    critDamageBuckets.BASE = 20;
-                    break;
-            }
-        }
-        
-        for (const effect of combatant.activeEffects) {
-            const sourceName = effect.sourceName || effect.name;
+  if (!Number.isFinite(combatantConfig.state.health)) {
+    throw new Error('[initializeCombatant] Missing or invalid property: state.health (number required).');
+  }
 
-            const processValue = (value, statusId) => {
-                switch (statusId) {
-                    case 'EMPOWER':
-                        newStats.empower.total += value;
-                        newStats.empower.sources.push({ name: sourceName, value });
-                        break;
-                    case 'FORTIFY':
-                        newStats.fortify.total += value;
-                        newStats.fortify.sources.push({ name: sourceName, value });
-                        break;
-                    case 'REND':
-                        newStats.rend.total += value;
-                        newStats.rend.sources.push({ name: sourceName, value });
-                        break;
-                    case 'WEAKEN':
-                        newStats.weaken.total += value;
-                        newStats.weaken.sources.push({ name: sourceName, value });
-                        break;
-                    case 'UNCAPPED_DAMAGE':
-                        newStats.uncappedDamage.total += value;
-                        newStats.uncappedDamage.sources.push({ name: sourceName, value });
-                        break;
-                    case 'CRITICAL_CHANCE':
-                        critChanceBuckets.PERKS += (value / 100);
-                        break;
-                    default:
-                        break;
-                }
-            };
+  if (!Array.isArray(combatantConfig.activeEffects)) {
+    throw new Error('[initializeCombatant] Missing or invalid property: activeEffects (array required).');
+  }
 
-            if (effect.modifications) {
-                for (const mod of effect.modifications) {
-                    const value = calculateEffectValue(mod.valueFormula, effect.scalingPerGearScore, combatant.gearScore);
-                    const statusId = mod.statusId || effect.statusId;
-                    processValue(value, statusId);
-                }
-            } else {
-                const value = calculateEffectValue(effect.valueFormula, effect.scalingPerGearScore, combatant.gearScore);
-                processValue(value, effect.statusId);
-            }
-        }
-        
-        newStats.empower.total = Math.min(newStats.empower.total, 50);
-        newStats.fortify.total = Math.min(newStats.fortify.total, 50);
-        newStats.rend.total = Math.min(newStats.rend.total, 70);
+  if (!Array.isArray(combatantConfig.perks)) {
+    throw new Error('[initializeCombatant] Missing or invalid property: perks (array required).');
+  }
 
-        newStats.critChance = critChanceBuckets.BASE + critChanceBuckets.PERKS;
-        newStats.critDamage = critDamageBuckets.BASE + critDamageBuckets.PERKS;
+  if (!Array.isArray(combatantConfig.masteries)) {
+    throw new Error('[initializeCombatant] Missing or invalid property: masteries (array required).');
+  }
 
-        combatant.stats = newStats;
-    };
+  // deep-copy to avoid mutations crossing simulation runs
+  const copy = deepCopy(combatantConfig);
 
-    combatant.recalculateStats = recalculateStats;
-    combatant.recalculateStats();
-    
-    return combatant;
+  // Final sanity checks (post-copy)
+  if (copy.state.health > copy.maxHealth) {
+    throw new Error('[initializeCombatant] Invalid config: state.health cannot exceed maxHealth.');
+  }
+
+  return copy;
 };
-
-export { initializeCombatant };
 

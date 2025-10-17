@@ -14,7 +14,7 @@ const SimulationSetupPanel = ({
   const [foc, setFoc] = useState(5);
   const [con, setCon] = useState(5);
 
-  const handleRunSimulation = () => {
+  const handleRunSimulation = async () => {
     const attributes = {
       STR: Number(str),
       DEX: Number(dex),
@@ -22,26 +22,43 @@ const SimulationSetupPanel = ({
       FOC: Number(foc),
       CON: Number(con)
     };
+
+    // Build strict combatant + target payloads (engine expects these fields)
+    const maxHealth = Math.max(1000, (attributes.CON || 0) * 100);
     const combatant = {
       id: 'player',
       name: 'Player',
-      health: 1200,
       weaponType,
-      attack_speed: 1.1,
-      attributes
+      attributes,
+      perks: [],
+      masteries: [],
+      maxHealth,
+      state: { health: maxHealth, stamina: 100, mana: 100, cooldowns: {} },
+      activeEffects: []
     };
     const target = {
       id: 'dummy',
       name: 'Target Dummy',
-      health: 5000,
       weaponType: 'Sword',
-      attack_speed: 999,
-      attributes: { STR: 0, DEX: 0, INT: 0, FOC: 0, CON: 0 }
+      attributes: { STR: 0, DEX: 0, INT: 0, FOC: 0, CON: 0 },
+      perks: [],
+      masteries: [],
+      maxHealth: 5000,
+      state: { health: 5000, stamina: 0, mana: 0, cooldowns: {} },
+      activeEffects: []
     };
+
     addLog('special', `Running simulation for ${combatant.name} (${weaponType}) with attributes: ${JSON.stringify(attributes)}`);
-    const logOutput = runSimulation(combatant, target);
-    setCombatLog(logOutput);
-    addLog('success', `Simulation complete. Results displayed in the Arena.`);
+
+    try {
+      // runSimulation is async in the engine
+      const { rawLog, analysisLog } = await runSimulation(combatant, target);
+      // setCombatLog expects the analysis entries
+      setCombatLog(analysisLog);
+      addLog('success', `Simulation complete. Results displayed in the Arena.`);
+    } catch (err) {
+      addLog('error', `Simulation failed: ${err.message}`);
+    }
   };
 
   return (

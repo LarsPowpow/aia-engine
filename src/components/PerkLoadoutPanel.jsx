@@ -1,59 +1,25 @@
-import React from 'react';
-// CORRECTED: Import the new, dedicated fetchAllPerks function.
-import { fetchAllPerks } from '../lib/firebase/firestore.js';
-
-// --- Custom Hook for Data Fetching (Refactored for Perks) ---
-const usePerks = () => {
-  // CORRECTED: Renamed state variables for clarity (sources -> perks).
-  const [perks, setPerks] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
-
-  React.useEffect(() => {
-    const abortController = new AbortController();
-
-    async function loadPerks() {
-      try {
-        setLoading(true);
-        setError(null);
-        // CORRECTED: Calling the new, dedicated fetchAllPerks function.
-        const data = await fetchAllPerks();
-        if (!abortController.signal.aborted) {
-          const sortedData = data.sort((a, b) => 
-            (a.name || 'Unnamed Perk').localeCompare(b.name || 'Unnamed Perk')
-          );
-          setPerks(sortedData);
-        }
-      } catch (err) {
-        if (!abortController.signal.aborted) {
-          console.error("Failed to load perks:", err);
-          setError("Failed to load perks from UKB.");
-          setPerks([]);
-        }
-      } finally {
-        if (!abortController.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    }
-    
-    loadPerks();
-
-    return () => {
-      abortController.abort();
-    };
-  }, []);
-
-  return { perks, loading, error };
-};
-
+import React, { useMemo, useState } from 'react';
 
 // --- Main Component ---
-const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
-  // CORRECTED: Using the refactored hook and variable names.
-  const { perks, loading, error } = usePerks();
-  const [nameFilter, setNameFilter] = React.useState('');
-  const [bucketFilter, setBucketFilter] = React.useState('');
+const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, perkOptions }) => {
+  const [nameFilter, setNameFilter] = useState('');
+  const [bucketFilter, setBucketFilter] = useState('');
+
+  const uniqueBuckets = useMemo(() => {
+    if (!perkOptions || perkOptions.length === 0) return [];
+    const buckets = new Set(perkOptions.map(p => p.perk_bucket || 'None').filter(Boolean));
+    return ['All Buckets', ...Array.from(buckets).sort()];
+  }, [perkOptions]);
+
+  const filteredPerks = useMemo(() => {
+    if (!perkOptions) return [];
+    return perkOptions.filter(perk => {
+      const nameMatch = (perk.name || '').toLowerCase().includes(nameFilter.toLowerCase());
+      const bucketValue = perk.perk_bucket || 'None';
+      const bucketMatch = bucketFilter === 'All Buckets' || bucketFilter === '' || bucketValue === bucketFilter;
+      return nameMatch && bucketMatch;
+    });
+  }, [perkOptions, nameFilter, bucketFilter]);
 
   const handleToggle = (perk) => {
     const isEquipped = equippedPerks.some(p => p.id === perk.id);
@@ -64,32 +30,12 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
     }
   };
 
-  const uniqueBuckets = React.useMemo(() => {
-    if (perks.length === 0) return [];
-    const buckets = new Set(perks.map(p => p.perk_bucket || 'None').filter(Boolean));
-    return ['All Buckets', ...Array.from(buckets).sort()];
-  }, [perks]);
-
-  const filteredPerks = React.useMemo(() => {
-    return perks.filter(perk => {
-      const nameMatch = (perk.name || '').toLowerCase().includes(nameFilter.toLowerCase());
-      
-      const bucketValue = perk.perk_bucket || 'None';
-      const bucketMatch = bucketFilter === 'All Buckets' || bucketFilter === '' || bucketValue === bucketFilter;
-
-      return nameMatch && bucketMatch;
-    });
-  }, [perks, nameFilter, bucketFilter]);
-
   const renderContent = () => {
-    if (loading) {
-      return <div className="text-center text-slate-400 py-8">Loading perks from UKB...</div>;
+    if (!perkOptions) {
+      return <div className="text-center text-slate-400 py-8">Loading perks...</div>;
     }
-    if (error) {
-      return <div className="text-center text-red-400 py-8">{error}</div>;
-    }
-    if (perks.length === 0) {
-        return <div className="text-center text-slate-500 py-8">No perks found in UKB.</div>;
+    if (perkOptions.length === 0) {
+        return <div className="text-center text-slate-500 py-8">No perks found.</div>;
     }
     return (
       <table className="min-w-full text-sm text-left">
@@ -147,7 +93,7 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks }) => {
         </svg>
         Perk Loadout
       </h2>
-   <div className="flex-grow overflow-auto custom-scrollbar pr-1 h-48">
+      <div className="flex-grow overflow-auto custom-scrollbar pr-1 h-48">
         {renderContent()}
       </div>
     </div>

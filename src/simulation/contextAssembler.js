@@ -9,37 +9,45 @@
  * This object serves as the single source of truth for all downstream systems.
  *
  * @param {object} event - The raw choreography event.
- * @param {object} sourceCombatant - The combatant initiating the event.
- * @param {object} targetCombatant - The combatant receiving the event.
+ * @param {object} combatant - The combatant initiating the event.
+ * @param {object} target - The combatant receiving the event.
  * @returns {object} The fully assembled CombatEventContext object.
  */
-export const assembleContext = (event, sourceCombatant, targetCombatant) => {
-    const context = {
-        timestamp: event.timestamp,
-        eventType: event.action,
-        source: sourceCombatant,
-        target: targetCombatant,
-        attack: null,
-        // --- DEFINITIVE FIX V2 ---
-        // Initialize the ability property to ensure it always exists,
-        // preventing the engine from crashing on non-ability events.
-        ability: { baseDamageMultiplier: 1.0 },
-        damage: null,
-        healing: null
-    };
+export const assembleContext = (event, combatant, target) => {
+  // Strict / fail-fast checks — do not fabricate missing inputs
+  if (!event || typeof event !== 'object') {
+    throw new Error('[assembleContext] event is required and must be an object');
+  }
+  if (!combatant || typeof combatant !== 'object') {
+    throw new Error('[assembleContext] combatant (source) is required and must be an object');
+  }
+  if (!target || typeof target !== 'object') {
+    throw new Error('[assembleContext] target (defender) is required and must be an object');
+  }
 
-    // Populate Attack-Specific Details
-    if (event.action.includes('ATTACK') || event.action.includes('ABILITY_HIT')) {
-        context.attack = {
-            isMelee: ['Sword', 'Flail'].includes(sourceCombatant.weaponType),
-            isRanged: !['Sword', 'Flail'].includes(sourceCombatant.weaponType),
-            isPositional: null, 
-            isFinalInLightChain: false,
-            // Prioritize the specific abilityId from the choreography if it exists.
-            abilityId: event.abilityId || `player_${event.action.toLowerCase()}_${sourceCombatant.weaponType.toLowerCase()}`
-        };
-    }
+  // Minimal normalized context with aliases expected by bunkers.
+  // NOTE: include the choreography "action" as eventType so downstream logic that
+  // checks for 'ABILITY_HIT', 'LIGHT_ATTACK', etc. works.
+  const ctx = {
+    event,
+    // Prefer explicit type if present, otherwise fall back to the action field on the raw event
+    eventType: event.type || event.eventType || event.action || '',
+    action: event.action ?? null,
+    timestamp: event.timestamp ?? 0,
 
-    return context;
+    // Expose abilityId as a top-level convenience (minimal, non-invasive)
+    abilityId: event.ability?.id ?? event.abilityId ?? null,
+
+    // Aliases — include both names so bunkers using either will work
+    source: combatant,
+    combatant: combatant,
+    actor: combatant,
+
+    target: target,
+    defender: target,
+    recipient: target,
+  };
+
+  return ctx;
 };
 

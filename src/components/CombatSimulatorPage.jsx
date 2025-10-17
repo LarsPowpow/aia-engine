@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
 import { calculateWeaponDamage } from '../simulation/formulas';
 import { runSimulation } from '../simulation/engine';
 import { midComboBlockChoreography } from '../simulation/choreography';
 import ChoreographerPanel from '../components/ChoreographerPanel';
 import PerkLoadoutPanel from '../components/PerkLoadoutPanel';
 import MasteryLoadoutPanel from '../components/MasteryLoadoutPanel';
-import BuildManagerPanel from '../components/BuildManagerPanel';
 import OCRScannerPanel from '../components/OCRScannerPanel';
 import CommandBar from '../components/CommandBar';
 import { db as firestore } from '../services/firebase';
 import InspectorPanel from '../components/InspectorPanel';
 import CombatLogPanel from '../components/CombatLogPanel';
-import RuneglassPanel from '../components/RuneglassPanel'; // <-- IMPORT THE NEW PANEL
+// --- REWIRE STEP 1: Import the manifest ---
+import { implementedBunkerIds } from '../simulation/bunkers/bunkerManifest.js';
 
 // --- Sub-Component: ControlPanel (No Changes) ---
 const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
@@ -83,18 +83,41 @@ const CombatSimulatorPage = ({ addLog }) => {
     const [rawEngineLog, setRawEngineLog] = useState([]);
     const [equippedPerks, setEquippedPerks] = useState([]);
     const [equippedMasteries, setEquippedMasteries] = useState([]);
-    const [savedBuilds, setSavedBuilds] = useState([]);
-    const [buildName, setBuildName] = useState('');
     const [activeAnalysisTab, setActiveAnalysisTab] = useState('analysis');
     const [inspectedIndex, setInspectedIndex] = useState(null);
+    const [allSources, setAllSources] = useState([]);
+
     const handleRowClick = (index) => setInspectedIndex(index);
     const handleCloseInspector = () => setInspectedIndex(null);
 
+    useEffect(() => {
+        const fetchSources = async () => {
+            try {
+                addLog({ type: 'info', message: 'Fetching all sources from UKB...' });
+                const querySnapshot = await getDocs(collection(firestore, 'ukb_sources_v2'));
+                const sources = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setAllSources(sources);
+                addLog({ type: 'success', message: `Successfully fetched ${sources.length} sources.` });
+            } catch (error) {
+                addLog({ type: 'error', message: `Failed to fetch sources: ${error.message}` });
+            }
+        };
+        fetchSources();
+    }, [addLog]);
 
-    const fetchBuilds = useCallback(async () => { /* ... no changes ... */ }, [addLog]);
-    useEffect(() => { fetchBuilds(); }, [fetchBuilds]);
-    const handleSaveBuild = async () => { /* ... no changes ... */ };
-    const handleLoadBuild = (buildId) => { /* ... no changes ... */ };
+    // --- REWIRE STEP 2: Create filtered lists for the UI ---
+    const masteryOptions = useMemo(() => {
+        return allSources
+            .filter(source => source.type === 'WEAPON_MASTERY')
+            .filter(source => implementedBunkerIds.includes(source.id));
+    }, [allSources]);
+
+    const perkOptions = useMemo(() => {
+        return allSources
+            .filter(source => source.type === 'PERK')
+            .filter(source => implementedBunkerIds.includes(source.id));
+    }, [allSources]);
+
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
@@ -108,10 +131,52 @@ const CombatSimulatorPage = ({ addLog }) => {
 
     const handleRunSimulation = async () => {
         addLog({ type: 'info', message: 'Simulation initiated...' });
-        const combatant = { id: 'Player', weaponType, attributes, perks: equippedPerks, masteries: equippedMasteries };
-        const target = { id: 'Target Dummy', health: 50000 };
+
+        // Ensure attributes shape and numeric values
+        const attrs = attributes || {};
+        const conVal = Number(attrs.CON);
+        if (!Number.isFinite(conVal) || conVal <= 0) {
+            addLog({ type: 'error', message: 'CON must be a positive number to derive maxHealth' });
+            return;
+        }
+
+        // Build strict payloads (engine is strict/fail-fast)
+        const maxHealth = Math.max(1, Math.floor(conVal) * 100); // UI supplies explicit positive maxHealth
+
+        const combatantPayload = {
+            id: 'Player',
+            name: 'Player',
+            weaponType,
+            attributes,
+            perks: Array.isArray(equippedPerks) ? equippedPerks : [],
+            masteries: Array.isArray(equippedMasteries) ? equippedMasteries : [],
+            maxHealth,
+            state: {
+                health: maxHealth,
+                stamina: 100,
+                mana: 100,
+                cooldowns: {}
+            },
+            activeEffects: []
+        };
+
+        const targetPayload = {
+            id: 'Target Dummy',
+            name: 'Target Dummy',
+            weaponType: 'Sword',
+            attributes: { STR: 0, DEX: 0, INT: 0, FOC: 0, CON: 0 },
+            perks: [],
+            masteries: [],
+            maxHealth: 5000,
+            state: { health: 5000, stamina: 0, mana: 0, cooldowns: {} },
+            activeEffects: []
+        };
+        
+        // UI diagnostic
+        console.log('--- UI DIAGNOSTIC: DATA SENT TO ENGINE ---', { combatantPayload, targetPayload });
+
         try {
-            const { rawLog, analysisLog } = await runSimulation(combatant, target, midComboBlockChoreography, firestore);
+            const { rawLog, analysisLog } = await runSimulation(combatantPayload, targetPayload, midComboBlockChoreography, allSources);
             setRawEngineLog(rawLog);
             setCombatLog(analysisLog);
             addLog({ type: 'success', message: 'Simulation complete.' });
@@ -139,12 +204,18 @@ const CombatSimulatorPage = ({ addLog }) => {
                 <div className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
                     
                     <div className="lg:col-span-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar p-1">
-                        <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} />
-                        {/* --- RENDER THE NEW PANEL --- */}
-                        <RuneglassPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} />
-                        <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} />
+                        {/* --- REWIRE STEP 3: Pass the filtered lists as props --- */}
+                        <PerkLoadoutPanel 
+                            equippedPerks={equippedPerks} 
+                            setEquippedPerks={setEquippedPerks}
+                            perkOptions={perkOptions}
+                        />
+                        <MasteryLoadoutPanel 
+                            equippedMasteries={equippedMasteries} 
+                            setEquippedMasteries={setEquippedMasteries}
+                            masteryOptions={masteryOptions}
+                        />
                         <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage}/>
-                        <BuildManagerPanel savedBuilds={savedBuilds} buildName={buildName} setBuildName={setBuildName} onSaveBuild={handleSaveBuild} onLoadBuild={handleLoadBuild} />
                         <OCRScannerPanel addLog={addLog} setEquippedMasteries={setEquippedMasteries} equippedMasteries={equippedMasteries} />
                         <ChoreographerPanel />
                     </div>
@@ -180,3 +251,4 @@ const CombatSimulatorPage = ({ addLog }) => {
 };
 
 export default CombatSimulatorPage;
+

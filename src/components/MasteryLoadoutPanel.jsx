@@ -1,56 +1,8 @@
 import React from 'react';
-// Import the new, dedicated mastery fetching function
-import { fetchAllMasteries } from '../lib/firebase/firestore.js';
 
-// --- Custom Hook for Mastery Data Fetching ---
-const useMasteries = () => {
-  const [masteries, setMasteries] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
-
-  React.useEffect(() => {
-    const abortController = new AbortController();
-
-    async function loadMasteries() {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await fetchAllMasteries();
-        if (!abortController.signal.aborted) {
-          // Sort masteries alphabetically by name
-          const sortedData = data.sort((a, b) => 
-            (a.name || 'Unnamed Mastery').localeCompare(b.name || 'Unnamed Mastery')
-          );
-          setMasteries(sortedData);
-        }
-      } catch (err) {
-        if (!abortController.signal.aborted) {
-          console.error("Failed to load masteries:", err);
-          setError("Failed to load masteries from UKB.");
-          setMasteries([]);
-        }
-      } finally {
-        if (!abortController.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    }
-    
-    loadMasteries();
-
-    return () => {
-      abortController.abort();
-    };
-  }, []);
-
-  return { masteries, loading, error };
-};
-
-
-// --- Main Component ---
-// This now functions as an interactive selector.
-const MasteryLoadoutPanel = ({ equippedMasteries, setEquippedMasteries }) => {
-  const { masteries, loading, error } = useMasteries();
+// --- Main Component (Refactored) ---
+// This component is now "dumb" and receives its data via props.
+const MasteryLoadoutPanel = ({ equippedMasteries, setEquippedMasteries, masteryOptions }) => {
   const [nameFilter, setNameFilter] = React.useState('');
 
   const handleToggle = (mastery) => {
@@ -63,20 +15,19 @@ const MasteryLoadoutPanel = ({ equippedMasteries, setEquippedMasteries }) => {
   };
 
   const filteredMasteries = React.useMemo(() => {
-    return masteries.filter(mastery => {
+    // GUARD CLAUSE: Ensure masteryOptions is an array before filtering.
+    if (!Array.isArray(masteryOptions)) {
+      return [];
+    }
+    return masteryOptions.filter(mastery => {
       return (mastery.name || '').toLowerCase().includes(nameFilter.toLowerCase());
     });
-  }, [masteries, nameFilter]);
+  }, [masteryOptions, nameFilter]);
 
   const renderContent = () => {
-    if (loading) {
-      return <div className="text-center text-slate-400 py-8">Loading masteries from UKB...</div>;
-    }
-    if (error) {
-      return <div className="text-center text-red-400 py-8">{error}</div>;
-    }
-    if (masteries.length === 0) {
-        return <div className="text-center text-slate-500 py-8">No masteries found in UKB.</div>;
+    // We no longer need a loading or error state, as the parent handles it.
+    if (!Array.isArray(masteryOptions) || masteryOptions.length === 0) {
+        return <div className="text-center text-slate-500 py-8">No mastery options available.</div>;
     }
     return (
       <table className="min-w-full text-sm text-left">

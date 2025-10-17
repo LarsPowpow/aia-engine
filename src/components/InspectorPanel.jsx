@@ -1,89 +1,118 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
-    if (!logEntry) return null;
+// Sub-component for the new "Raw State" tab
+const EffectsTable = ({ title, effects }) => (
+    <div>
+        <h4 className="text-lg font-semibold text-slate-300 mb-2 border-b border-slate-600 pb-1">{title}</h4>
+        {effects && effects.length > 0 ? (
+            <table className="min-w-full text-xs text-left">
+                <thead className="text-slate-400">
+                    <tr>
+                        <th className="p-1.5 font-semibold">Source Name</th>
+                        <th className="p-1.5 font-semibold">Effect ID</th>
+                        <th className="p-1.5 font-semibold text-right">Value</th>
+                        <th className="p-1.5 font-semibold text-right">Duration</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                    {effects.map((effect, index) => (
+                        <tr key={index} className="font-mono">
+                            <td className="p-1.5 whitespace-nowrap">{effect.sourceName || 'Unknown'}</td>
+                            <td className="p-1.5 whitespace-nowrap text-cyan-400">{effect.statusId || effect.id}</td>
+                            <td className="p-1.5 whitespace-nowrap text-right text-amber-400">{effect.valueFormula || 'N/A'}</td>
+                            <td className="p-1.5 whitespace-nowrap text-right">{effect.duration === Infinity ? '∞' : effect.duration?.toFixed(1) || 'N/A'}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        ) : (
+            <p className="text-slate-500 italic px-2 py-4">No active effects.</p>
+        )}
+    </div>
+);
 
-    // A reusable component meticulously styled to match your exact design.
-    const StatBlock = ({ label, stat, colorClass }) => (
-        <div className="py-2">
-            <p className="text-slate-300 font-semibold">{label}</p>
-            <hr className="border-slate-700 my-1" />
-            <div className="min-h-[20px] text-sm text-slate-400 pl-2">
-                {stat && stat.sources && stat.sources.length > 0 ? (
-                    stat.sources.map((source, index) => (
-                        <div key={index} className="flex justify-between items-center">
-                            <span>{source.name}</span>
-                            <span className="font-mono font-bold text-white">{Math.round(source.value)}%</span>
-                        </div>
-                    ))
-                ) : (
-                    <p className="text-slate-500">None</p>
-                )}
-            </div>
-            <div className="flex justify-between items-baseline mt-1">
-                <p className="text-slate-300 font-semibold">Total {label}</p>
-                <p className={`font-mono text-lg font-bold text-amber-400`}>{Math.round(stat ? stat.total : 0)}%</p>
-            </div>
-        </div>
-    );
-    
-    // A component for stats that do not have a source breakdown.
-    const SimpleStat = ({ label, value }) => (
-         <div className="py-2">
-            <p className="text-slate-300 font-semibold">{label}</p>
-             <hr className="border-slate-700 my-1" />
-            <div className="min-h-[20px]"></div>
-             <div className="flex justify-between items-baseline mt-1">
-                <p className="text-slate-300 font-semibold">Total {label}</p>
-                <p className="font-mono text-lg font-bold text-amber-400">{value}%</p>
-            </div>
-        </div>
-    );
+// Sub-component for the "Summary" tab (Placeholder)
+const SummaryTab = ({ logEntry, combatantState, targetState }) => (
+    <div className="p-4">
+        <h3 className="text-xl font-bold text-amber-400 mb-4">Combat Event Summary</h3>
+        <p>This is a placeholder for the original summary view.</p>
+        <p className="mt-2 text-slate-400">Action: <span className="font-mono">{logEntry.action}</span></p>
+        <p className="text-slate-400">Damage: <span className="font-mono">{logEntry.damage}</span></p>
+    </div>
+);
+
+// Sub-component for the new "Raw State" tab
+const RawStateTab = ({ combatantState, targetState }) => {
+    const [isJsonVisible, setIsJsonVisible] = useState(false);
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
-            <div className="bg-slate-900 border-2 border-cyan-500/50 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="p-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <EffectsTable title="Player Active Effects" effects={combatantState?.activeEffects} />
+                <EffectsTable title="Target Active Effects" effects={targetState?.activeEffects} />
+            </div>
+            
+            {/* The JSON "Escape Hatch" */}
+            <div>
+                <button 
+                    onClick={() => setIsJsonVisible(!isJsonVisible)}
+                    className="text-sm text-slate-400 hover:text-cyan-400 transition"
+                >
+                    {isJsonVisible ? 'Hide' : 'Show'} Full Snapshot Data
+                </button>
+                {isJsonVisible && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+                        <pre className="text-xs bg-black/30 p-2 rounded-md overflow-x-auto custom-scrollbar">
+                            {JSON.stringify({ combatantState }, null, 2)}
+                        </pre>
+                        <pre className="text-xs bg-black/30 p-2 rounded-md overflow-x-auto custom-scrollbar">
+                            {JSON.stringify({ targetState }, null, 2)}
+                        </pre>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
+// --- Main InspectorPanel Component ---
+const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
+    const [activeTab, setActiveTab] = useState('rawState'); // Default to the new tab
+
+    if (!logEntry) return null;
+
+    return (
+        // This is a modal-style overlay
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-80 backdrop-blur-sm" onClick={onClose}>
+            <div 
+                className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800/50 rounded-t-xl flex-shrink-0">
+                    <h2 className="text-2xl font-semibold text-cyan-300 flex items-center gap-3">
+                        Inspector: <span className="text-white">{logEntry.action}</span>
+                        <span className="text-sm font-mono bg-slate-700 text-yellow-300 px-2 py-0.5 rounded">@{logEntry.timestamp.toFixed(1)}s</span>
+                    </h2>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
+                </div>
                 
-                <div className="p-4 border-b border-slate-700 flex justify-between items-center flex-shrink-0">
-                    <div>
-                        <h2 className="text-xl font-bold text-cyan-400">Inspector: <span className="text-white">{logEntry.action}</span></h2>
-                        <p className="text-sm text-slate-400 font-mono">@{logEntry.timestamp.toFixed(2)}s</p>
-                    </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white text-3xl font-light leading-none">&times;</button>
+                {/* Tab Navigation */}
+                <div className="flex border-b border-slate-700 flex-shrink-0">
+                    <button onClick={() => setActiveTab('summary')} className={`tab px-4 py-2 font-semibold border-b-2 transition ${activeTab === 'summary' ? 'active' : 'border-transparent text-slate-400 hover:bg-slate-700/50'}`}>
+                        Summary
+                    </button>
+                    <button onClick={() => setActiveTab('rawState')} className={`tab px-4 py-2 font-semibold border-b-2 transition ${activeTab === 'rawState' ? 'active' : 'border-transparent text-slate-400 hover:bg-slate-700/50'}`}>
+                        Raw State
+                    </button>
                 </div>
 
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar">
-                    {/* Combatant State */}
-                    <div className="flex flex-col space-y-2 p-4 bg-slate-800/60 rounded-lg border border-slate-700">
-                        <h3 className="text-lg font-bold text-green-400 border-b border-slate-600 pb-2 mb-2">Combatant State</h3>
-                        <div>
-                            <p className="text-slate-300 font-semibold">Healing Done (Event)</p>
-                            {/* [MOD-FIX] Correctly reading from the logEntry top level for event-specific healing */}
-                            <p className="font-mono text-3xl font-bold text-green-400">{logEntry.healingDone || 0}</p>
-                        </div>
-                        <StatBlock label="Empower" stat={combatantState.stats.empower} />
-                        <StatBlock label="Fortify" stat={combatantState.stats.fortify} />
-                        {/* [MOD-UPGRADE] Upgraded to a full StatBlock to show uncapped damage sources */}
-                        <StatBlock label="Uncapped Damage" stat={combatantState.stats.uncappedDamage} />
-                    </div>
-
-                    {/* Target State */}
-                    <div className="flex flex-col space-y-2 p-4 bg-slate-800/60 rounded-lg border border-slate-700">
-                        <h3 className="text-lg font-bold text-red-400 border-b border-slate-600 pb-2 mb-2">Target State</h3>
-                        <div>
-                            <p className="text-slate-300 font-semibold">Damage Dealt</p>
-                            <p className="font-mono text-3xl font-bold text-red-400">{logEntry.damage}</p>
-                        </div>
-                        <StatBlock label="Rend" stat={targetState.stats.rend} />
-                        <StatBlock label="Weaken" stat={targetState.stats.weaken} />
-                        <SimpleStat label="Damage over Time (DoTs)" value={0} />
-                    </div>
+                {/* Tab Content */}
+                <div className="flex-grow overflow-y-auto custom-scrollbar">
+                    {activeTab === 'summary' && <SummaryTab logEntry={logEntry} combatantState={combatantState} targetState={targetState} />}
+                    {activeTab === 'rawState' && <RawStateTab combatantState={combatantState} targetState={targetState} />}
                 </div>
-                
-                <div className="p-3 bg-slate-900/50 border-t border-slate-700 flex-shrink-0 text-right">
-                     <button onClick={onClose} className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-md transition-colors text-sm">Close</button>
-                </div>
-
             </div>
         </div>
     );
