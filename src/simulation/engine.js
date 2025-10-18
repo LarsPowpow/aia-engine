@@ -102,10 +102,9 @@ const calculateFinalDamage = (context, modifierRequests, damageTerms) => {
     const baseDamage = weaponDamage * abilityBaseDamageMultiplier;
 
     // Use provided damageTerms (from activeEffects at start of step)
-        // Apply uncapped damage percent after empower/rend, per schema
+        // Apply misc damage percent after empower/rend, per schema
         const finalDamage = baseDamage *
             (1 + (damageTerms.empowerPercent || 0) - (damageTerms.rendPercent || 0)) *
-            (1 + (damageTerms.uncappedDamagePercent || 0)) *
             (1 + (damageTerms.baseCritDmgPercent || 0)) *
             (1 + (damageTerms.positionalDmgPercent || 0)) *
             (1 + (damageTerms.miscDmgPercent || 0));
@@ -134,7 +133,6 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         baseCritDmgPercent: 0,
         positionalDmgPercent: 0,
         miscDmgPercent: 0,
-        uncappedDamagePercent: 0,
     };
     // F12 console logging for debugging
     if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
@@ -143,7 +141,6 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             damageTerms,
             modifierRequests,
         });
-        addRawLog({ level: 'debug', message: `Uncapped Damage Percent: ${damageTerms.uncappedDamagePercent}`, event });
     }
     // --- DIAGNOSTIC PROBE 2 ---
     console.log('%c[INSPECTING EVENT]', 'color: #ffa500; font-weight: bold;', event);
@@ -203,10 +200,10 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // ...existing code...
     if (source.activeEffects) {
         for (const effect of source.activeEffects) {
-            if (effect && effect.category) {
+            if (effect && effect.category && effect.id !== 'computed_misc_damage') {
                 if (effect.category === 'EMPOWER') damageTerms.empowerPercent += effect.value || 0;
                 if (effect.category === 'REND') damageTerms.rendPercent += effect.value || 0;
-                if (effect.category === 'UNCAPPED_DAMAGE') damageTerms.uncappedDamagePercent += effect.value || 0;
+                if (effect.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += effect.value || 0;
                 // Add more as needed
             }
         }
@@ -226,15 +223,12 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         for (const mod of modifierRequests) {
             if (mod.category === 'EMPOWER') damageTerms.empowerPercent += mod.value || 0;
             if (mod.category === 'REND') damageTerms.rendPercent += mod.value || 0;
-            if (mod.category === 'UNCAPPED_DAMAGE') damageTerms.uncappedDamagePercent += mod.value || 0;
+            if (mod.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += mod.value || 0;
             // Add more as needed
         }
     }
 
-    // Treat uncappedDamagePercent as miscDmgPercent for final calculation
-    if (damageTerms.uncappedDamagePercent) {
-        damageTerms.miscDmgPercent += damageTerms.uncappedDamagePercent;
-    }
+    // All handled as miscDmgPercent
 
     if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
         // --- DAMAGE CALCULATION ---
@@ -250,7 +244,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     }
     for (const effectRequest of effectRequests) {
         // Apply effects to correct combatant and pass correct source context
-        if (effectRequest.category === 'UNCAPPED_DAMAGE' && source.id === 'Player') {
+        if (effectRequest.category === 'MISC_DAMAGE' && source.id === 'Player') {
             stateManager.applyEffect(source, effectRequest, { ...context, source });
         } else {
             stateManager.applyEffect(target, effectRequest, { ...context, source });

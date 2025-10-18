@@ -11,7 +11,7 @@ const punishingMalachite_Modifiers = createModifierBunker({
     id: METADATA.id,
     // Define the categories this Modifier Bunker is responsible for.
     modifierCategories: [
-        'Uncapped_Damage_%'
+         'MISC_DAMAGE'
     ],
 });
 

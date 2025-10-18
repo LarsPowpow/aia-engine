@@ -52,3 +52,4 @@ export const checkConditions = (conditions, context) => {
     }
     return true; // All conditions passed.
 };
+

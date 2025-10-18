@@ -1,24 +1,22 @@
 /**
- * @file CowardlyPunishmentBunker.js
- * @description Mass-producible effect bunker for Cowardly Punishment and similar effects.
- * @version 4.0.0 (Template-Driven)
+ * @file empoweringLeapingStrike_Effects.js
+ * @description Mass-producible effect bunker for Empowering Leaping Strike.
  */
 
-import { METADATA as templateMetadata, createEffectBunker as templateCreateEffectBunker } from '../../../templates/TEMPLATE_EffectBunker.js';
-import { checkContext, checkSource, checkConditions } from '/src/simulation/bunkers/bunkerUtils.js';
+import { METADATA as templateMetadata } from '../../templates/TEMPLATE_EffectBunker.js';
+import { checkContext, checkSource, checkConditions } from '../../bunkers/bunkerUtils.js';
 
 export const METADATA = {
     ...templateMetadata,
-    id: 'upgrade_sword_leapingstrike_slow',
+    id: 'perk_empoweringLeapingStrike',
     type: 'WEAPON_MASTERY',
-    label: 'Cowardly Punishment',
+    label: 'Empowering Leaping Strike',
     defaultDuration: 3.0,
-    defaultValue: 0.36,
-    category: 'SLOW',
+    defaultValue: 0.2,
+    category: 'MISC_DAMAGE',
     conditions: ['ON_ABILITY_HIT:ability_sword_leaping_strike'],
 };
 
-// Mass-producible factory for effect bunkers
 export function createEffectBunker(config = {}) {
     const meta = { ...METADATA, ...config };
     return {
@@ -32,10 +30,9 @@ export function createEffectBunker(config = {}) {
             // Find mastery config for this effect
             const masterySource = context.source.masteries.find(m => m.id === meta.id);
             if (!masterySource) return null;
-            // Use config or masterySource.effects
-            const effectsToApply = [];
+            // Apply misc damage buff to player for 3 seconds on Leaping Strike hit
             const effectDef = {
-                id: meta.id + '_slow',
+                id: meta.id + '_misc',
                 name: meta.label,
                 category: meta.category,
                 value: meta.defaultValue,
@@ -45,16 +42,11 @@ export function createEffectBunker(config = {}) {
                 conditions: meta.conditions,
             };
             if (checkConditions(meta.conditions, context)) {
-                effectsToApply.push(effectDef);
-            }
-            if (effectsToApply.length > 0) {
-                return { applyEffects: effectsToApply };
+                return { applyEffects: [effectDef] };
             }
             return null;
         }
     };
 }
 
-// Default export: Cowardly Punishment effect bunker (template-driven)
 export default createEffectBunker();
-
