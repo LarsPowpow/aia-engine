@@ -164,6 +164,13 @@ const CombatSimulatorPage = ({ addLog }) => {
         
         try {
             const { rawLog, analysisLog } = await runSimulation(combatantPayload, targetPayload, midComboBlockChoreography, allSources);
+            
+            // --- UI PROBE 1 ---
+            console.log('%c[UI PROBE 1: DATA RECEIVED FROM ENGINE]', 'color: #00ffff; font-weight: bold;', {
+                analysisLog,
+                rawLog
+            });
+
             setRawEngineLog(rawLog);
             setCombatLog(analysisLog);
             addLog({ type: 'success', message: 'Simulation complete.' });

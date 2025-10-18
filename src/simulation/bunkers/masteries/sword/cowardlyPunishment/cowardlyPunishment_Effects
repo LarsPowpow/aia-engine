@@ -1,0 +1,48 @@
+/**
+ * @file cowardlyPunishment.js
+ * @description "Dumb Brick" implementation for the Cowardly Punishment mastery.
+ * @version 3.0.0 (Forge-Compatible)
+ */
+
+import { METADATA as templateMetadata } from '../../../templates/TEMPLATE_EffectBunker.js';
+import {
+    checkContext,
+    checkSource,
+    checkConditions
+} from '../../../bunkerUtils.js'; // Assuming a shared util file
+
+export const METADATA = {
+    ...templateMetadata,
+    id: 'upgrade_sword_leapingstrike_slow',
+    type: 'WEAPON_MASTERY',
+};
+
+const cowardlyPunishment = (context) => {
+    if (!checkContext(context) || !checkSource(context.source, 'masteries')) {
+        return null;
+    }
+
+    const { source } = context;
+    const effectsToApply = [];
+
+    // The source has only one mastery tree. Find the specific mastery.
+    const masterySource = source.masteries.find(m => m.id === METADATA.id);
+    if (!masterySource || !masterySource.effects || masterySource.effects.length === 0) {
+        return null;
+    }
+
+    for (const effectDef of masterySource.effects) {
+        if (checkConditions(effectDef.conditions, context)) {
+            effectsToApply.push(effectDef);
+        }
+    }
+
+    if (effectsToApply.length > 0) {
+        return { applyEffects: effectsToApply };
+    }
+
+    return null;
+};
+
+export default cowardlyPunishment;
+

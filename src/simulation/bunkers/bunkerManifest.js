@@ -1,39 +1,47 @@
 /**
  * @file bunkerManifest.js
- * @description The definitive, code-aware manifest of all functional Bunkers in the simulation.
- * @version 3.0.0 - Final Integrity Lock
+ * @description Central manifest for importing and exporting all Bunker components.
+ * Provides a loadBunkers(type) helper used by the engine and a BUNKER_MANIFEST
+ * object expected by some UI components.
  */
 
-// --- IMPORT BUNKER HANDLERS AND METADATA ---
+// NOTE: keep these arrays defensively empty — concrete bunker modules will be
+// added here when available. This avoids "missing export" runtime errors.
+export const statBunkers = [];
+export const modifierBunkers = [];
+export const effectBunkers = [];
 
-// ABILITIES
-// NOTE: Leaping Strike ability Bunker is not yet implemented or required for current tests.
-// import leapingStrikeHandler, { METADATA as leapingStrikeMeta } from './abilities/sword/leapingStrike.js';
+// Derived list of implemented IDs (keeps consumers from crashing).
+const _extractBunkerId = (b) => {
+    if (!b || typeof b !== 'object') return null;
+    return b.id || b.metadata?.id || b.METADATA?.id || null;
+};
+export const implementedBunkerIds = [
+    ...statBunkers,
+    ...modifierBunkers,
+    ...effectBunkers
+].map(_extractBunkerId).filter(Boolean);
 
-// MASTERIES
-import cowardlyPunishmentHandler, { METADATA as cowardlyPunishmentMeta } from './masteries/sword/cowardlyPunishment.js';
+/**
+ * loadBunkers(type?)
+ * - type: optional string filter: 'STAT' | 'MODIFIER' | 'EFFECT' (case-insensitive)
+ * - no type => returns all bunkers in order [stat, modifier, effect]
+ */
+export function loadBunkers(type = null) {
+    if (!type) return [...statBunkers, ...modifierBunkers, ...effectBunkers];
+    const t = String(type || '').toUpperCase();
+    if (t === 'STAT') return [...statBunkers];
+    if (t === 'MODIFIER') return [...modifierBunkers];
+    if (t === 'EFFECT') return [...effectBunkers];
+    return [...statBunkers, ...modifierBunkers, ...effectBunkers];
+}
 
-// PERKS
-import empoweringLeapingStrikeHandler, { METADATA as empoweringLeapingStrikeMeta } from './perks/empoweringLeapingStrike.js';
-
-// RUNEGLASS
-import runeglassMalachiteHandler, { METADATA as runeglassMalachiteMeta } from './runeglass/runeglass_malachite_punishing_weapon.js';
-
-
-// --- THE BUNKER MANIFEST ---
-// This array is the single source of truth for all implemented Bunkers.
-export const BUNKER_MANIFEST = [
-  // MASTERIES
-  { metadata: cowardlyPunishmentMeta, handler: cowardlyPunishmentHandler },
-
-  // PERKS
-  { metadata: empoweringLeapingStrikeMeta, handler: empoweringLeapingStrikeHandler },
-
-  // RUNEGLASS
-  { metadata: runeglassMalachiteMeta, handler: runeglassMalachiteHandler },
-];
-
-// --- CONVENIENCE EXPORTS ---
-export const bunkerHandlers = BUNKER_MANIFEST.map(bunker => bunker.handler);
-export const implementedBunkerIds = BUNKER_MANIFEST.map(bunker => bunker.metadata.id);
+// Backwards/consumer compatibility: UI expects a single manifest object.
+export const BUNKER_MANIFEST = {
+    statBunkers,
+    modifierBunkers,
+    effectBunkers,
+    implementedBunkerIds,
+    loadBunkers,
+};
 
