@@ -5,6 +5,7 @@
  */
 
 import { METADATA as templateMetadata, createEffectBunker as templateCreateEffectBunker } from '../../../templates/TEMPLATE_EffectBunker.js';
+import { BUNKER_METADATA_SCHEMA, validateSchema } from '../../../../schema.js';
 import { checkContext, checkSource, checkConditions } from '/src/simulation/bunkers/bunkerUtils.js';
 
 export const METADATA = {
@@ -12,15 +13,20 @@ export const METADATA = {
     id: 'upgrade_sword_leapingstrike_slow',
     type: 'WEAPON_MASTERY',
     label: 'Cowardly Punishment',
-    defaultDuration: 3.0,
-    defaultValue: 0.36,
+    description: 'Inflicts slow on target when hit by Leaping Strike.',
+    amount: 0.36,
+    eventType: 'ABILITY_HIT',
+    abilityId: 'ability_sword_leaping_strike',
+    damageType: 'SLOW',
     category: 'SLOW',
     conditions: ['ON_ABILITY_HIT:ability_sword_leaping_strike'],
 };
+validateSchema(METADATA, BUNKER_METADATA_SCHEMA);
 
 // Mass-producible factory for effect bunkers
 export function createEffectBunker(config = {}) {
     const meta = { ...METADATA, ...config };
+    validateSchema(meta, BUNKER_METADATA_SCHEMA);
     return {
         id: meta.id,
         type: meta.type,

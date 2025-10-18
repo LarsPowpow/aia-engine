@@ -16,9 +16,11 @@ export const statBunkers = [
 ];
 import empower20 from './modifierBunkers/empower20.js';
 import cowardlyPunishment from './masteries/sword/cowardlyPunishment/cowardlyPunishment_Effects';
+import leapingStrike from './masteries/sword/leapingStrike_Effects.js';
+import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringLeapingStrike_Modifiers.js';
 // empower20 removed; add real modifier bunkers here as needed
-export const modifierBunkers = [];
-export const effectBunkers = [cowardlyPunishment];
+export const modifierBunkers = [empoweringLeapingStrike];
+export const effectBunkers = [cowardlyPunishment, leapingStrike];
 
 // Derived list of implemented IDs (keeps consumers from crashing).
 const _extractBunkerId = (b) => {

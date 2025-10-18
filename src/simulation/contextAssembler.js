@@ -9,7 +9,7 @@
  * This object serves as the single source of truth for all downstream systems.
  *
  * @param {object} event - The raw choreography event.
- * @param {object} combatant - The combatant initiating the event.
+import { EVENT_SCHEMA, validateSchema } from './schema';
  * @param {object} target - The combatant receiving the event.
  * @returns {object} The fully assembled CombatEventContext object.
  */
@@ -25,24 +25,29 @@ export const assembleContext = (event, combatant, target) => {
     throw new Error('[assembleContext] target (defender) is required and must be an object');
   }
 
+  // Validate event against canonical schema
+  validateSchema(event, EVENT_SCHEMA);
+
   // Minimal normalized context with aliases expected by bunkers.
   // NOTE: include the choreography "action" as eventType so downstream logic that
   // checks for 'ABILITY_HIT', 'LIGHT_ATTACK', etc. works.
   const ctx = {
     event,
     // Prefer explicit type if present, otherwise fall back to the action field on the raw event
-    eventType: event.type || event.eventType || event.action || '',
-    action: event.action ?? null,
-    timestamp: event.timestamp ?? 0,
+    eventType: event.eventType,
+    action: event.action,
+    abilityId: event.abilityId,
+    timestamp: event.timestamp,
+    conditions: event.conditions,
+    weapon: event.weapon,
+    sourceId: event.sourceId,
+    targetId: event.targetId,
+    notes: event.notes,
 
-    // Expose abilityId as a top-level convenience (minimal, non-invasive)
-    abilityId: event.ability?.id ?? event.abilityId ?? null,
-
-    // Aliases — include both names so bunkers using either will work
+    // Aliases for downstream compatibility
     source: combatant,
     combatant: combatant,
     actor: combatant,
-
     target: target,
     defender: target,
     recipient: target,

@@ -19,10 +19,18 @@ export const checkSource = (source, requiredProperty) => {
 
 /**
  * A generic condition checker that processes an array of condition strings.
+ * Uses canonical schema from schema.js. Extensible for future condition types.
+ *
+ * Supported condition types:
+ * - ON_ABILITY_HIT:abilityId
+ * - SOURCE_PERK_LOCATION:slot
+ * - (future) TARGET_HAS_CC, ATTACK_IS_BACKSTAB, etc.
+ *
  * @param {string[]} conditions - An array of condition strings from the effect data.
  * @param {object} context - The full CombatEventContext.
  * @returns {boolean} - True if all conditions are met, false otherwise.
  */
+import { EVENT_SCHEMA } from '../schema.js';
 export const checkConditions = (conditions, context) => {
     if (!conditions || !Array.isArray(conditions)) {
         return true; // No conditions means it's always valid.
@@ -30,7 +38,7 @@ export const checkConditions = (conditions, context) => {
 
     for (const condition of conditions) {
         const [type, value] = condition.split(':');
-        const abilityId = context.abilityId ?? context.ability?.id ?? context.event?.abilityId ?? null;
+        const abilityId = context.abilityId;
 
         switch (type) {
             case 'ON_ABILITY_HIT':
@@ -39,8 +47,13 @@ export const checkConditions = (conditions, context) => {
                 }
                 break;
             case 'SOURCE_PERK_LOCATION':
-                // This is a placeholder for future logic. For now, it requires the context to have this info.
                 if (context.sourcePerkLocation !== value) {
+                    return false;
+                }
+                break;
+            // Example: check for backstab
+            case 'ATTACK_IS_BACKSTAB':
+                if (!context.conditions || !context.conditions.includes('ATTACK_IS_BACKSTAB')) {
                     return false;
                 }
                 break;
