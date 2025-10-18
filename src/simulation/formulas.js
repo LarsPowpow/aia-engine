@@ -9,11 +9,11 @@
 export const BASE_ABILITY_MODIFIERS = {
     Sword: {
         LIGHT_ATTACK: 1.0, // 100% of Weapon Damage
-        HEAVY_ATTACK: 1.2  // 120% of Weapon Damage
+        HEAVY_ATTACK: 1.3  // 130% of Weapon Damage
     },
     Flail: {
         LIGHT_ATTACK: 1.0, // 100% of Weapon Damage
-        HEAVY_ATTACK: 1.2  // 120% of Weapon Damage
+        HEAVY_ATTACK: 1.3  // 130% of Weapon Damage
     }
 };
 

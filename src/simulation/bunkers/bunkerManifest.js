@@ -7,9 +7,18 @@
 
 // NOTE: keep these arrays defensively empty — concrete bunker modules will be
 // added here when available. This avoids "missing export" runtime errors.
-export const statBunkers = [];
-export const modifierBunkers = [];
-export const effectBunkers = [];
+
+// TEMP: Add test bunkers to enable UI population
+export const statBunkers = [
+    { id: 'perk_empoweringLeapingStrike', handler: () => {} },
+    { id: 'perkid_slottable_common_empower', handler: () => {} },
+    { id: 'runeglass_gem_malachite_melee', handler: () => {} },
+    { id: 'upgrade_sword_leapingstrike_slow', handler: () => {} }
+];
+import empower20 from './modifierBunkers/empower20.js';
+import cowardlyPunishment from './masteries/sword/cowardlyPunishment/cowardlyPunishment_Effects';
+export const modifierBunkers = [empower20];
+export const effectBunkers = [cowardlyPunishment];
 
 // Derived list of implemented IDs (keeps consumers from crashing).
 const _extractBunkerId = (b) => {

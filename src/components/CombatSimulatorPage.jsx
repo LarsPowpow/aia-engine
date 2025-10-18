@@ -146,10 +146,27 @@ const CombatSimulatorPage = ({ addLog }) => {
         }
 
         const maxHealth = Math.max(1, Math.floor(conVal) * 100);
+        // Only include Cowardly Punishment mastery if selected in UI
+        const hasCowardlySelected = (equippedMasteries || []).some(m => m.id === 'upgrade_sword_leapingstrike_slow');
+        const cowardlyPunishmentMastery = hasCowardlySelected ? {
+            id: 'upgrade_sword_leapingstrike_slow',
+            effects: [
+                {
+                    id: 'cowardly_punishment_slow',
+                    category: 'SLOW',
+                    value: 0.3, // 30% slow
+                    duration: 3.0,
+                    conditions: ['ON_ABILITY_HIT:ability_sword_leaping_strike']
+                }
+            ]
+        } : null;
+        const masteriesPayload = cowardlyPunishmentMastery
+            ? [...(equippedMasteries || []).filter(m => m.id !== 'upgrade_sword_leapingstrike_slow'), cowardlyPunishmentMastery]
+            : (equippedMasteries || []);
         const combatantPayload = {
             id: 'Player', name: 'Player', weaponType, attributes,
             perks: allEquippedPerks,
-            masteries: equippedMasteries || [],
+            masteries: masteriesPayload,
             maxHealth,
             state: { health: maxHealth, stamina: 100, mana: 100, cooldowns: {} },
             activeEffects: []

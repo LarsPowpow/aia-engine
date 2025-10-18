@@ -59,15 +59,18 @@ const applyEffect = (target, effectData, context) => {
 
     if (existingEffect) {
         // --- Refresh Logic ---
-        // For now, we only refresh duration. More complex rules can be added here.
         existingEffect.expiresAt = now + effectData.duration;
-        existingEffect.appliedAt = now; // Update timestamp of last application
+        existingEffect.appliedAt = now;
+        if (context.source && context.source.name) {
+            existingEffect.sourceName = context.source.name;
+        }
     } else {
         // --- Application Logic ---
         const newEffect = {
             ...effectData,
             appliedAt: now,
             expiresAt: now + effectData.duration,
+            sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
         };
         target.activeEffects.push(newEffect);
     }

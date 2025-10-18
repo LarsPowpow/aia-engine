@@ -19,8 +19,12 @@ const EffectsTable = ({ title, effects }) => (
                         <tr key={index} className="font-mono">
                             <td className="p-1.5 whitespace-nowrap">{effect.sourceName || 'Unknown'}</td>
                             <td className="p-1.5 whitespace-nowrap text-cyan-400">{effect.statusId || effect.id}</td>
-                            <td className="p-1.5 whitespace-nowrap text-right text-amber-400">{effect.valueFormula || 'N/A'}</td>
-                            <td className="p-1.5 whitespace-nowrap text-right">{effect.duration === Infinity ? '∞' : effect.duration?.toFixed(1) || 'N/A'}</td>
+                            <td className="p-1.5 whitespace-nowrap text-right text-amber-400">{effect.value !== undefined ? `${(effect.value * 100).toFixed(0)}%` : (effect.valueFormula || 'N/A')}</td>
+                            <td className="p-1.5 whitespace-nowrap text-right">{
+    typeof effect.duration === 'number'
+        ? (effect.duration === Infinity ? '∞' : effect.duration.toFixed(1))
+        : effect.duration || 'N/A'
+}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -42,14 +46,44 @@ const SummaryTab = ({ logEntry, combatantState, targetState }) => (
 );
 
 // Sub-component for the new "Raw State" tab
-const RawStateTab = ({ combatantState, targetState }) => {
+const RawStateTab = ({ combatantState, targetState, logEntry }) => {
     const [isJsonVisible, setIsJsonVisible] = useState(false);
+
+    // Helper to synthesize computed damage modifiers for display
+    function getComputedEffects(state, snapshotEffects, miscPercent) {
+        let effects = Array.isArray(state?.activeEffects) && state.activeEffects.length > 0
+            ? [...state.activeEffects]
+            : Array.isArray(snapshotEffects) ? [...snapshotEffects] : [];
+        // Only add miscDmgPercent if not already present and nonzero
+        const hasMisc = effects.some(e => e.id === 'computed_misc_damage');
+        if (miscPercent && miscPercent !== 0 && !hasMisc) {
+            effects.push({
+                sourceName: state?.name || 'Computed',
+                id: 'computed_misc_damage',
+                value: miscPercent,
+                duration: null,
+            });
+        }
+        return effects;
+    }
+
+    // Use snapshot if combatantState.activeEffects is empty
+    const playerEffects = getComputedEffects(
+        combatantState,
+        logEntry?.snapshot?.combatant?.activeEffects,
+        combatantState?.miscDmgPercent || logEntry?.snapshot?.combatant?.miscDmgPercent
+    );
+    const targetEffects = getComputedEffects(
+        targetState,
+        logEntry?.snapshot?.target?.activeEffects,
+        targetState?.miscDmgPercent || logEntry?.snapshot?.target?.miscDmgPercent
+    );
 
     return (
         <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <EffectsTable title="Player Active Effects" effects={combatantState?.activeEffects} />
-                <EffectsTable title="Target Active Effects" effects={targetState?.activeEffects} />
+                <EffectsTable title="Player Active Effects" effects={playerEffects} />
+                <EffectsTable title="Target Active Effects" effects={targetEffects} />
             </div>
             
             {/* The JSON "Escape Hatch" */}
@@ -111,7 +145,7 @@ const InspectorPanel = ({ logEntry, combatantState, targetState, onClose }) => {
                 {/* Tab Content */}
                 <div className="flex-grow overflow-y-auto custom-scrollbar">
                     {activeTab === 'summary' && <SummaryTab logEntry={logEntry} combatantState={combatantState} targetState={targetState} />}
-                    {activeTab === 'rawState' && <RawStateTab combatantState={combatantState} targetState={targetState} />}
+                    {activeTab === 'rawState' && <RawStateTab combatantState={combatantState} targetState={targetState} logEntry={logEntry} />}
                 </div>
             </div>
         </div>

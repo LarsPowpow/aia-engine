@@ -1,48 +1,60 @@
 /**
- * @file cowardlyPunishment.js
- * @description "Dumb Brick" implementation for the Cowardly Punishment mastery.
- * @version 3.0.0 (Forge-Compatible)
+ * @file CowardlyPunishmentBunker.js
+ * @description Mass-producible effect bunker for Cowardly Punishment and similar effects.
+ * @version 4.0.0 (Template-Driven)
  */
 
-import { METADATA as templateMetadata } from '../../../templates/TEMPLATE_EffectBunker.js';
-import {
-    checkContext,
-    checkSource,
-    checkConditions
-} from '../../../bunkerUtils.js'; // Assuming a shared util file
+import { METADATA as templateMetadata, createEffectBunker as templateCreateEffectBunker } from '../../../templates/TEMPLATE_EffectBunker.js';
+import { checkContext, checkSource, checkConditions } from '../../bunkers/bunkerUtils.js';
 
 export const METADATA = {
     ...templateMetadata,
     id: 'upgrade_sword_leapingstrike_slow',
     type: 'WEAPON_MASTERY',
+    label: 'Cowardly Punishment',
+    defaultDuration: 3.0,
+    defaultValue: 0.36,
+    category: 'SLOW',
+    conditions: ['ON_ABILITY_HIT:ability_sword_leaping_strike'],
 };
 
-const cowardlyPunishment = (context) => {
-    if (!checkContext(context) || !checkSource(context.source, 'masteries')) {
-        return null;
-    }
-
-    const { source } = context;
-    const effectsToApply = [];
-
-    // The source has only one mastery tree. Find the specific mastery.
-    const masterySource = source.masteries.find(m => m.id === METADATA.id);
-    if (!masterySource || !masterySource.effects || masterySource.effects.length === 0) {
-        return null;
-    }
-
-    for (const effectDef of masterySource.effects) {
-        if (checkConditions(effectDef.conditions, context)) {
-            effectsToApply.push(effectDef);
+// Mass-producible factory for effect bunkers
+export function createEffectBunker(config = {}) {
+    const meta = { ...METADATA, ...config };
+    return {
+        id: meta.id,
+        type: meta.type,
+        metadata: meta,
+        handler: (context) => {
+            if (!checkContext(context) || !checkSource(context.source, 'masteries')) {
+                return null;
+            }
+            // Find mastery config for this effect
+            const masterySource = context.source.masteries.find(m => m.id === meta.id);
+            if (!masterySource) return null;
+            // Use config or masterySource.effects
+            const effectsToApply = [];
+            const effectDef = {
+                id: meta.id + '_slow',
+                name: meta.label,
+                category: meta.category,
+                value: meta.defaultValue,
+                duration: meta.defaultDuration,
+                expiresAt: context.timestamp + meta.defaultDuration,
+                sourceName: context.source.name,
+                conditions: meta.conditions,
+            };
+            if (checkConditions(meta.conditions, context)) {
+                effectsToApply.push(effectDef);
+            }
+            if (effectsToApply.length > 0) {
+                return { applyEffects: effectsToApply };
+            }
+            return null;
         }
-    }
+    };
+}
 
-    if (effectsToApply.length > 0) {
-        return { applyEffects: effectsToApply };
-    }
-
-    return null;
-};
-
-export default cowardlyPunishment;
+// Default export: Cowardly Punishment effect bunker (template-driven)
+export default createEffectBunker();
 
