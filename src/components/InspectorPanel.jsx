@@ -77,7 +77,15 @@ const SummaryTab = ({ logEntry, combatantState, targetState }) => (
             <h4 className="text-lg font-semibold text-green-400 mb-2">Total Healing</h4>
             <div className="text-2xl font-bold text-green-300 mb-2">{
                 Array.isArray(logEntry.healing)
-                    ? logEntry.healing.reduce((sum, h) => sum + (typeof h.value === 'number' ? h.value : 0), 0)
+                    ? logEntry.healing.reduce((sum, h) => {
+                        if (h.valueType === 'baseHealth') {
+                            // Find the target's baseHealth (should be Player for self-heals)
+                            const target = h.targetId === 'Player' ? combatantState : h.targetId === 'Target Dummy' ? targetState : null;
+                            const baseHealth = target && (target.baseHealth || target.maxHealth || 0);
+                            return sum + (typeof h.value === 'number' ? h.value * baseHealth : 0);
+                        }
+                        return sum + (typeof h.value === 'number' ? h.value : 0);
+                    }, 0)
                     : (logEntry.totalHealing ?? logEntry.healing ?? 0)
             }</div>
             {Array.isArray(logEntry.healing) && logEntry.healing.length > 0 ? (
@@ -90,13 +98,21 @@ const SummaryTab = ({ logEntry, combatantState, targetState }) => (
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
-                        {logEntry.healing.map((h, idx) => (
-                            <tr key={idx} className="font-mono">
-                                <td className="p-1.5 whitespace-nowrap">{h.targetId || 'Unknown'}</td>
-                                <td className="p-1.5 whitespace-nowrap text-cyan-400">{h.valueType || 'HEAL'}</td>
-                                <td className="p-1.5 whitespace-nowrap text-right text-green-400">{h.value ?? 0}</td>
-                            </tr>
-                        ))}
+                        {logEntry.healing.map((h, idx) => {
+                            let amount = h.value;
+                            if (h.valueType === 'baseHealth') {
+                                const target = h.targetId === 'Player' ? combatantState : h.targetId === 'Target Dummy' ? targetState : null;
+                                const baseHealth = target && (target.baseHealth || target.maxHealth || 0);
+                                amount = typeof h.value === 'number' ? h.value * baseHealth : 0;
+                            }
+                            return (
+                                <tr key={idx} className="font-mono">
+                                    <td className="p-1.5 whitespace-nowrap">{h.targetId || 'Unknown'}</td>
+                                    <td className="p-1.5 whitespace-nowrap text-cyan-400">{h.valueType || 'HEAL'}</td>
+                                    <td className="p-1.5 whitespace-nowrap text-right text-green-400">{amount}</td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             ) : (
