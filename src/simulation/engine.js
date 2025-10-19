@@ -1,3 +1,13 @@
+// Utility: classify condition types
+const isOngoingCondition = (condition) => {
+    // Add all ongoing condition types here
+    return condition.startsWith('TARGET_HAS_CC');
+};
+
+const hasOngoingCondition = (conditions) => {
+    if (!Array.isArray(conditions)) return false;
+    return conditions.some(isOngoingCondition);
+};
 /**
  * @file engine.js
  * @description The core "Three Stage" simulation engine.
@@ -12,13 +22,8 @@ import { calculateWeaponDamage } from './formulas';
  * The main exportable function that the UI calls.
  */
 export const runSimulation = (playerPayload, targetPayload, choreography, allSources) => {
-    // --- DIAGNOSTIC PROBE 1 ---
-    console.log('%c[ENGINE RECEIVED PAYLOAD]', 'color: #7cfc00; font-weight: bold;', {
-        player: playerPayload,
-        target: targetPayload,
-        choreographyLength: choreography.length,
-        sourceCount: allSources.length,
-    });
+    // [ENGINE] Payload received (concise log, uncomment for debugging)
+    // console.log('[ENGINE] Payload received', { player: playerPayload, target: targetPayload, choreographyLength: choreography.length, sourceCount: allSources.length });
 
     const rawLog = [];
     const analysisLog = [];
@@ -44,11 +49,11 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
     // Sort choreography by timestamp to ensure correct order
     const sortedChoreography = [...choreography].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
     for (const event of sortedChoreography) {
-        // DIAGNOSTIC: Log target's activeEffects at the start of each event
-        const targetId = event.targetId;
-        if (combatants[targetId]) {
-            console.log('[ENGINE DIAGNOSTIC] Before event', event.notes || event.abilityId || event.action, 'target activeEffects:', JSON.parse(JSON.stringify(combatants[targetId].activeEffects)));
-        }
+        // [ENGINE] Before event (concise, for debugging only)
+        // const targetId = event.targetId;
+        // if (combatants[targetId]) {
+        //     console.log('[ENGINE] Before event', event.notes || event.abilityId || event.action, 'target activeEffects:', JSON.parse(JSON.stringify(combatants[targetId].activeEffects)));
+        // }
         const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(event, combatants, allSources, addRawLog, analysisLog);
         // Immediately update combatants so next event sees all new effects
         combatants = JSON.parse(JSON.stringify(updatedCombatants));
@@ -141,15 +146,12 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         miscDmgPercent: 0,
     };
     // F12 console logging for debugging
-    if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
-        console.log('[ENGINE DEBUG] Damage Event:', {
-            event,
-            damageTerms,
-            modifierRequests,
-        });
-    }
+    // [ENGINE] Damage Event (debug, uncomment for troubleshooting)
+    // if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
+    //     console.log('[ENGINE] Damage Event:', { event, damageTerms, modifierRequests });
+    // }
     // --- DIAGNOSTIC PROBE 2 ---
-    console.log('%c[INSPECTING EVENT]', 'color: #ffa500; font-weight: bold;', event);
+    console.log('%c[ENGINE] Inspecting event:', 'color: #ffa500; font-weight: bold;', event);
 
     if (!event || !event.sourceId || !event.targetId) {
         addRawLog({ level: 'warn', message: 'Skipping malformed event: Missing sourceId or targetId.', event });
@@ -159,14 +161,28 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     let updatedCombatants = JSON.parse(JSON.stringify(currentCombatants));
     const source = updatedCombatants[event.sourceId];
     const target = updatedCombatants[event.targetId];
-    // Purge expired effects for both combatants
+    // Purge expired and invalid conditional effects for both combatants
     const now = (typeof event.timestamp === 'number') ? event.timestamp : (performance.now() / 1000);
-    if (source.activeEffects) {
-        source.activeEffects = source.activeEffects.filter(e => !e.expiresAt || e.expiresAt > now);
-    }
-    if (target.activeEffects) {
-        target.activeEffects = target.activeEffects.filter(e => !e.expiresAt || e.expiresAt > now);
-    }
+    const purgeInvalidEffects = (combatant, context) => {
+        if (!combatant.activeEffects) return [];
+        return combatant.activeEffects.filter(eff => {
+            // Remove if expired
+            if (eff.expiresAt && eff.expiresAt <= now) return false;
+            // Only auto-purge if effect has ongoing conditions
+            if (Array.isArray(eff.conditions) && eff.conditions.length > 0 && hasOngoingCondition(eff.conditions)) {
+                try {
+                    const { checkConditions } = require('../bunkers/bunkerUtils');
+                    const effectContext = { ...context, source: combatant, target: (combatant.id === context.sourceId ? context.target : context.source) };
+                    if (!checkConditions(eff.conditions, effectContext)) return false;
+                } catch (e) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    };
+    source.activeEffects = purgeInvalidEffects(source, event);
+    target.activeEffects = purgeInvalidEffects(target, event);
     // Use event.timestamp if present, else fallback to performance.now
     const timestamp = (typeof event.timestamp === 'number') ? event.timestamp : (performance.now() / 1000);
 
@@ -239,7 +255,8 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
         // --- DAMAGE CALCULATION ---
         finalDamage = calculateFinalDamage(context, [], damageTerms);
-        console.log('[ENGINE DEBUG] Final Damage:', finalDamage);
+        // [ENGINE] Final Damage (debug, uncomment for troubleshooting)
+        // console.log('[ENGINE] Final Damage:', finalDamage);
     }
     effectRequests = [];
     for (const bunker of effectBunkers) {
@@ -248,15 +265,40 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             effectRequests.push(...result.applyEffects);
         }
     }
-    for (const effectRequest of effectRequests) {
-        // Apply effects to correct combatant and pass correct source context
-        if ((['MISC_DAMAGE', 'EMPOWER'].includes(effectRequest.category)) && source.id === 'Player') {
-            stateManager.applyEffect(source, effectRequest, { ...context, source });
-        } else {
-            stateManager.applyEffect(target, effectRequest, { ...context, source });
+    // --- GATEKEEPER: consolidate and apply effects with proper anti-stacking rules ---
+    const grouped = {};
+    for (const eff of effectRequests) {
+        // normalize target: misc/empower to source when applicable
+        const applyToSource = (['MISC_DAMAGE', 'EMPOWER'].includes(eff.category) && source.id === 'Player');
+        const targetKey = applyToSource ? source.id : target.id;
+        const key = `${targetKey}::${eff.id}`;
+        if (!grouped[key]) grouped[key] = { ...eff, targetId: targetKey };
+        else {
+            // If duplicate, prefer the later expiresAt
+            const existing = grouped[key];
+            if ((eff.expiresAt || 0) > (existing.expiresAt || 0)) {
+                grouped[key] = { ...eff, targetId: targetKey };
+            }
         }
     }
-    addRawLog({ level: 'debug', message: `Stroke 2 (Effects) complete. Requests: ${effectRequests.length}`, effectRequests });
+
+    // Apply the consolidated effects via stateManager which handles refresh logic
+    for (const k of Object.keys(grouped)) {
+        const eff = grouped[k];
+        const applyToSource = (eff.targetId === source.id);
+        const targetCombatant = applyToSource ? source : target;
+        // Ensure duration/expiresAt are relative to current timestamp if not already set
+        const now = timestamp;
+        if (!eff.duration && eff.expiresAt) {
+            eff.duration = Math.max(0, eff.expiresAt - now);
+        }
+        if (!eff.expiresAt && typeof eff.duration === 'number') {
+            eff.expiresAt = now + eff.duration;
+        }
+        stateManager.applyEffect(targetCombatant, eff, { ...context, source, timestamp: now });
+    }
+    // [ENGINE] Stroke 2 (Effects) complete. Requests: ${effectRequests.length}
+    // addRawLog({ level: 'debug', message: `Stroke 2 (Effects) complete. Requests: ${effectRequests.length}`, effectRequests });
 
     // --- ANALYSIS LOGGING (THE FIX) ---
     // Add miscDmgPercent to combatant and target snapshot for InspectorPanel

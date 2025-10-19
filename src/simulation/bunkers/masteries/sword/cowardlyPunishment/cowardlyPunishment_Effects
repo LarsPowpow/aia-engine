@@ -14,7 +14,8 @@ export const METADATA = {
     type: 'WEAPON_MASTERY',
     label: 'Cowardly Punishment',
     description: 'Inflicts slow on target when hit by Leaping Strike.',
-    amount: 0.36,
+    defaultValue: 0.36,
+    defaultDuration: 3,
     eventType: 'ABILITY_HIT',
     abilityId: 'ability_sword_leaping_strike',
     damageType: 'SLOW',
@@ -35,10 +36,16 @@ export function createEffectBunker(config = {}) {
             if (!checkContext(context) || !checkSource(context.source, 'masteries')) {
                 return null;
             }
+            // Only apply on correct event and ability
+            if (
+                context.eventType !== 'ABILITY_HIT' ||
+                context.abilityId !== meta.abilityId
+            ) {
+                return null;
+            }
             // Find mastery config for this effect
             const masterySource = context.source.masteries.find(m => m.id === meta.id);
             if (!masterySource) return null;
-            // Use config or masterySource.effects
             const effectsToApply = [];
             const effectDef = {
                 id: meta.id + '_slow',
