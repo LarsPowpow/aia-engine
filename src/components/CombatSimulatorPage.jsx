@@ -126,9 +126,12 @@ const CombatSimulatorPage = ({ addLog }) => {
     // Debug logs for component-scoped values — prevents module-scope ReferenceError
     useEffect(() => {
         try {
-            console.log('All sources:', allSources.map(s => s.id));
-            console.log('Implemented bunker IDs:', implementedBunkerIds);
-            console.log('Perk options:', perkOptions.map(p => p.id));
+            console.log('%c[DEBUG] All sources:', 'color: #00ff00; font-weight: bold;', allSources);
+            console.log('%c[DEBUG] Implemented bunker IDs:', 'color: #00ffff; font-weight: bold;', implementedBunkerIds);
+            console.log('%c[DEBUG] Perk options:', 'color: #ff00ff; font-weight: bold;', perkOptions);
+            if (perkOptions.length === 0) {
+                console.warn('%c[DEBUG] No perks found. Check that Firestore source type, id, and bucket match generated bunker METADATA.', 'color: #ff0000; font-weight: bold;');
+            }
         } catch (err) {
             console.warn('Debug logging failed:', err);
         }
@@ -180,6 +183,8 @@ const CombatSimulatorPage = ({ addLog }) => {
             perks: allEquippedPerks,
             masteries: masteriesPayload,
             maxHealth,
+            baseHealth: maxHealth,
+            health: maxHealth,
             state: { health: maxHealth, stamina: 100, mana: 100, cooldowns: {} },
             activeEffects: []
         };
@@ -187,6 +192,8 @@ const CombatSimulatorPage = ({ addLog }) => {
             id: 'Target Dummy', name: 'Target Dummy', weaponType: 'Sword',
             attributes: { STR: 0, DEX: 0, INT: 0, FOC: 0, CON: 0 },
             perks: [], masteries: [], maxHealth: 5000,
+            baseHealth: 5000,
+            health: 5000,
             state: { health: 5000, stamina: 0, mana: 0, cooldowns: {} },
             activeEffects: []
         };

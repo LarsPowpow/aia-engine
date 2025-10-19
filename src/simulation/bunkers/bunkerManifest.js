@@ -1,4 +1,6 @@
-import counterAttackEmpower from './generated/perk_counter_attack_empower.js';
+// --- AUTO-IMPORT all generated effect bunkers using Vite import.meta.glob ---
+const generatedBunkerModules = import.meta.glob('./generated/*.js', { eager: true });
+const generatedBunkers = Object.values(generatedBunkerModules).map(mod => mod.default).filter(Boolean);
 /**
  * @file bunkerManifest.js
  * @description Central manifest for importing and exporting all Bunker components.
@@ -23,7 +25,14 @@ import punishingMalachiteCruelEmpower from './runeglass/punishingMalachite/punis
 import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringLeapingStrike_Modifiers.js';
 // empower20 removed; add real modifier bunkers here as needed
 export const modifierBunkers = [empoweringLeapingStrike];
-export const effectBunkers = [cowardlyPunishment, leapingStrike, punishingMalachiteArmorMisc, punishingMalachiteWeaponMisc, punishingMalachiteCruelEmpower, counterAttackEmpower];
+export const effectBunkers = [
+    cowardlyPunishment,
+    leapingStrike,
+    punishingMalachiteArmorMisc,
+    punishingMalachiteWeaponMisc,
+    punishingMalachiteCruelEmpower,
+    ...generatedBunkers
+];
 
 // Derived list of implemented IDs (keeps consumers from crashing).
 const _extractBunkerId = (b) => {

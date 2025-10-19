@@ -39,9 +39,70 @@ const EffectsTable = ({ title, effects }) => (
 const SummaryTab = ({ logEntry, combatantState, targetState }) => (
     <div className="p-4">
         <h3 className="text-xl font-bold text-amber-400 mb-4">Combat Event Summary</h3>
-        <p>This is a placeholder for the original summary view.</p>
-        <p className="mt-2 text-slate-400">Action: <span className="font-mono">{logEntry.action}</span></p>
-        <p className="text-slate-400">Damage: <span className="font-mono">{logEntry.damage}</span></p>
+        <div className="mb-4">
+            <div className="text-slate-400 mb-2">Action: <span className="font-mono">{logEntry.action}</span></div>
+            <div className="text-slate-400 mb-2">Timestamp: <span className="font-mono">{logEntry.timestamp?.toFixed(1)}s</span></div>
+        </div>
+
+        {/* Total Damage & Breakdown */}
+        <div className="mb-6">
+            <h4 className="text-lg font-semibold text-red-400 mb-2">Total Damage</h4>
+            <div className="text-2xl font-bold text-red-300 mb-2">{logEntry.totalDamage ?? logEntry.damage ?? 0}</div>
+            {Array.isArray(logEntry.damageBreakdown) && logEntry.damageBreakdown.length > 0 ? (
+                <table className="min-w-full text-xs text-left mb-2">
+                    <thead className="text-slate-400">
+                        <tr>
+                            <th className="p-1.5 font-semibold">Source</th>
+                            <th className="p-1.5 font-semibold">Type</th>
+                            <th className="p-1.5 font-semibold text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/50">
+                        {logEntry.damageBreakdown.map((src, idx) => (
+                            <tr key={idx} className="font-mono">
+                                <td className="p-1.5 whitespace-nowrap">{src.sourceName || src.source || 'Unknown'}</td>
+                                <td className="p-1.5 whitespace-nowrap text-cyan-400">{src.type || src.category || 'Effect'}</td>
+                                <td className="p-1.5 whitespace-nowrap text-right text-red-400">{src.amount ?? src.value ?? 0}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            ) : (
+                <p className="text-slate-500 italic px-2 py-2">No breakdown available.</p>
+            )}
+        </div>
+
+        {/* Total Healing & Breakdown */}
+        <div className="mb-6">
+            <h4 className="text-lg font-semibold text-green-400 mb-2">Total Healing</h4>
+            <div className="text-2xl font-bold text-green-300 mb-2">{
+                Array.isArray(logEntry.healing)
+                    ? logEntry.healing.reduce((sum, h) => sum + (typeof h.value === 'number' ? h.value : 0), 0)
+                    : (logEntry.totalHealing ?? logEntry.healing ?? 0)
+            }</div>
+            {Array.isArray(logEntry.healing) && logEntry.healing.length > 0 ? (
+                <table className="min-w-full text-xs text-left mb-2">
+                    <thead className="text-slate-400">
+                        <tr>
+                            <th className="p-1.5 font-semibold">Target</th>
+                            <th className="p-1.5 font-semibold">Type</th>
+                            <th className="p-1.5 font-semibold text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/50">
+                        {logEntry.healing.map((h, idx) => (
+                            <tr key={idx} className="font-mono">
+                                <td className="p-1.5 whitespace-nowrap">{h.targetId || 'Unknown'}</td>
+                                <td className="p-1.5 whitespace-nowrap text-cyan-400">{h.valueType || 'HEAL'}</td>
+                                <td className="p-1.5 whitespace-nowrap text-right text-green-400">{h.value ?? 0}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            ) : (
+                <p className="text-slate-500 italic px-2 py-2">No healing breakdown available.</p>
+            )}
+        </div>
     </div>
 );
 

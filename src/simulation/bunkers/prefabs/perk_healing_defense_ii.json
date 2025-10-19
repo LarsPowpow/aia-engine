@@ -1,0 +1,23 @@
+{
+  "id": "perk_healing_defense_ii",
+  "type": "PERK",
+  "bucket": "fixed_perk",
+  "label": "Healing Defense II",
+  "name": "Healing Defense II",
+  "description": "On Block: Heal for 2.5% base health (5s cooldown).",
+  "event": "onBlock",
+  "condition": {
+    "type": "activeItem",
+    "itemType": "Kite Shield"
+  },
+  "cooldown": 5,
+  "effects": [
+    {
+      "type": "heal",
+      "value": 0.025,
+      "valueType": "baseHealth",
+      "target": "self"
+    }
+  ],
+  "labels": ["D_Fixed_Shield_Kite_OnBlock"]
+}

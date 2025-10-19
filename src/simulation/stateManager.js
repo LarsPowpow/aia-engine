@@ -55,6 +55,28 @@ const applyEffect = (target, effectData, context) => {
     }
 
     const now = context.timestamp;
+    // --- HEAL effect: apply healing directly ---
+    if (effectData.category === 'HEAL') {
+        // Always apply healing to self (source)
+        let healTarget = context.source;
+        let healAmount = effectData.value;
+        if (effectData.valueType === 'baseHealth' && healTarget.baseHealth) {
+            healAmount = effectData.value * healTarget.baseHealth;
+        }
+        if (!healTarget.health) healTarget.health = healTarget.baseHealth || 0;
+        healTarget.health = Math.min(healTarget.health + healAmount, healTarget.baseHealth || healTarget.health);
+        console.log('[STATE MANAGER] Applied healing:', healAmount, 'to', healTarget.id, 'new health:', healTarget.health);
+        // Optionally, log the effect as applied
+        const healEffect = {
+            ...effectData,
+            appliedAt: now,
+            expiresAt: now + effectData.duration,
+            sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
+        };
+        healTarget.activeEffects.push(healEffect);
+        return;
+    }
+
     const existingEffect = target.activeEffects.find(e => e.id === effectData.id);
 
     if (existingEffect) {

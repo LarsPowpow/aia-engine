@@ -150,8 +150,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
     //     console.log('[ENGINE] Damage Event:', { event, damageTerms, modifierRequests });
     // }
-    // --- DIAGNOSTIC PROBE 2 ---
-    console.log('%c[ENGINE] Inspecting event:', 'color: #ffa500; font-weight: bold;', event);
+        // ...existing code...
 
     if (!event || !event.sourceId || !event.targetId) {
         addRawLog({ level: 'warn', message: 'Skipping malformed event: Missing sourceId or targetId.', event });
@@ -161,6 +160,16 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     let updatedCombatants = JSON.parse(JSON.stringify(currentCombatants));
     const source = updatedCombatants[event.sourceId];
     const target = updatedCombatants[event.targetId];
+    // --- DIAGNOSTIC PROBE: Healing Defense ---
+    if (event.action && event.action.startsWith('BLOCK')) {
+        addRawLog({
+            level: 'debug',
+            message: '[Healing Defense] Block event detected.',
+            event,
+            sourceActiveEffects: source.activeEffects,
+            targetActiveEffects: target.activeEffects
+        });
+    }
     // Purge expired and invalid conditional effects for both combatants
     const now = (typeof event.timestamp === 'number') ? event.timestamp : (performance.now() / 1000);
     const purgeInvalidEffects = (combatant, context) => {
@@ -311,6 +320,9 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         target: target.name,
         isCrit: false,
         damage: finalDamage,
+        healing: effectRequests
+            .filter(eff => eff.category === 'HEAL')
+            .map(eff => ({ value: eff.value, valueType: eff.valueType, targetId: eff.targetId })),
         snapshot: {
             combatant: combatantSnapshot,
             target: targetSnapshot,
