@@ -81,7 +81,8 @@ const CombatSimulatorPage = ({ addLog }) => {
     const [rawEngineLog, setRawEngineLog] = useState([]);
     const [equippedPerks, setEquippedPerks] = useState([]);
     const [equippedMasteries, setEquippedMasteries] = useState([]);
-    const [equippedRuneglass, setEquippedRuneglass] = useState(null);
+    // Multi-select: equippedRuneglass is now an array
+    const [equippedRuneglass, setEquippedRuneglass] = useState([]);
     const [activeAnalysisTab, setActiveAnalysisTab] = useState('analysis');
     const [inspectedIndex, setInspectedIndex] = useState(null);
     const [allSources, setAllSources] = useState([]);
@@ -141,8 +142,8 @@ const CombatSimulatorPage = ({ addLog }) => {
         }
 
         const allEquippedPerks = [...(equippedPerks || [])];
-        if (equippedRuneglass) {
-            allEquippedPerks.push(equippedRuneglass);
+        if (equippedRuneglass && Array.isArray(equippedRuneglass)) {
+            allEquippedPerks.push(...equippedRuneglass);
         }
 
         const maxHealth = Math.max(1, Math.floor(conVal) * 100);

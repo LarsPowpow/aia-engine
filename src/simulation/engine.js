@@ -44,8 +44,14 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
     // Sort choreography by timestamp to ensure correct order
     const sortedChoreography = [...choreography].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
     for (const event of sortedChoreography) {
+        // DIAGNOSTIC: Log target's activeEffects at the start of each event
+        const targetId = event.targetId;
+        if (combatants[targetId]) {
+            console.log('[ENGINE DIAGNOSTIC] Before event', event.notes || event.abilityId || event.action, 'target activeEffects:', JSON.parse(JSON.stringify(combatants[targetId].activeEffects)));
+        }
         const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(event, combatants, allSources, addRawLog, analysisLog);
-        combatants = updatedCombatants;
+        // Immediately update combatants so next event sees all new effects
+        combatants = JSON.parse(JSON.stringify(updatedCombatants));
         if (eventAnalysis) {
             analysisLog.push(eventAnalysis);
         }
@@ -244,7 +250,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     }
     for (const effectRequest of effectRequests) {
         // Apply effects to correct combatant and pass correct source context
-        if (effectRequest.category === 'MISC_DAMAGE' && source.id === 'Player') {
+        if ((['MISC_DAMAGE', 'EMPOWER'].includes(effectRequest.category)) && source.id === 'Player') {
             stateManager.applyEffect(source, effectRequest, { ...context, source });
         } else {
             stateManager.applyEffect(target, effectRequest, { ...context, source });

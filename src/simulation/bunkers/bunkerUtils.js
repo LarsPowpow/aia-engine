@@ -57,7 +57,16 @@ export const checkConditions = (conditions, context) => {
                     return false;
                 }
                 break;
-            // Add other condition types here (e.g., TARGET_HAS_CC)
+            case 'TARGET_HAS_CC': {
+                // Check if target has any active CC effect: SLOW, STUN, ROOT
+                const ccCategories = ['SLOW', 'STUN', 'ROOT'];
+                const targetEffects = (context.target?.activeEffects || []);
+                console.log('[CHECKCONDITIONS DEBUG] TARGET_HAS_CC: targetEffects=', JSON.parse(JSON.stringify(targetEffects)));
+                const hasCC = targetEffects.some(eff => ccCategories.includes(eff.category));
+                console.log('[CHECKCONDITIONS DEBUG] TARGET_HAS_CC: hasCC=', hasCC);
+                if (!hasCC) return false;
+                break;
+            }
             default:
                 // If we don't recognize the condition type, assume it fails.
                 return false;
