@@ -64,6 +64,7 @@ const applyEffect = (target, effectData, context) => {
         if (context.source && context.source.name) {
             existingEffect.sourceName = context.source.name;
         }
+        console.log('[STATE MANAGER] Refreshed effect:', existingEffect, 'on', target.id);
     } else {
         // --- Application Logic ---
         const newEffect = {
@@ -73,6 +74,7 @@ const applyEffect = (target, effectData, context) => {
             sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
         };
         target.activeEffects.push(newEffect);
+        console.log('[STATE MANAGER] Applied new effect:', newEffect, 'to', target.id);
     }
 };
 

@@ -31,6 +31,7 @@ function counterAttackEmpowerHandler(context) {
   const eventTypeOk = eventType === expectedType;
   const shouldProc = contextOk && conditionsOk && eventTypeOk;
   const effect = shouldProc ? [{
+    id: METADATA.id,
     target: context.source.id,
     category: METADATA.category,
     value: METADATA.defaultValue,
@@ -38,7 +39,8 @@ function counterAttackEmpowerHandler(context) {
     source: METADATA.id,
     label: METADATA.label,
     description: METADATA.description
-  }] : null;
+  }] : [];
+  const result = effect.length > 0 ? { applyEffects: effect } : null;
   console.log('[COUNTER ATTACK HANDLER]', {
     eventType,
     expectedType,
@@ -47,9 +49,10 @@ function counterAttackEmpowerHandler(context) {
     conditionsOk,
     shouldProc,
     context,
-    effect
+    effect,
+    result
   });
-  return effect;
+  return result;
 }
 
 export const handler = counterAttackEmpowerHandler;
