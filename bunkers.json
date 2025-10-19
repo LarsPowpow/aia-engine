@@ -1,0 +1,13 @@
+[
+  {
+    "id": "perk_counter_attack_empower",
+    "type": "PERK",
+    "label": "Counter Attack",
+    "description": "On Block: Gain a 20% Empower for 4s.",
+    "defaultValue": 0.2,
+    "defaultDuration": 4,
+    "eventType": "BLOCK_START",
+    "category": "EMPOWER",
+    "conditions": ["ON_BLOCK"]
+  }
+]

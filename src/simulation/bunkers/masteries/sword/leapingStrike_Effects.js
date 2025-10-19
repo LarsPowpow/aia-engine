@@ -32,32 +32,21 @@ export function createEffectBunker(config = {}) {
         type: meta.type,
         metadata: meta,
         handler: (context) => {
-            console.log('[ELS Effect Bunker] Handler called:', {
-                eventType: context.eventType,
-                abilityId: context.abilityId,
-                source: context.source,
-                target: context.target,
-                masteries: context.source?.masteries,
-                conditions: meta.conditions
-            });
+            // [ELS Effect Bunker] Handler called (log removed for clarity)
             if (!checkContext(context) || !checkSource(context.source, 'perks')) {
-                console.log('[ELS Effect Bunker] Context/source check failed (perks)');
+                // console.log('[ELS Effect Bunker] Context/source check failed (perks)');
                 return null;
             }
             const perkSource = context.source.perks.find(p => p.id === meta.id);
             if (!perkSource) {
-                console.log('[ELS Effect Bunker] Perk not found:', meta.id);
+                // console.log('[ELS Effect Bunker] Perk not found:', meta.id);
                 return null;
             }
             if (!checkConditions(meta.conditions, context)) {
-                console.log('[ELS Effect Bunker] Conditions not met:', meta.conditions);
+                // console.log('[ELS Effect Bunker] Conditions not met:', meta.conditions);
                 return null;
             }
-            console.log('[ELS Effect Bunker] Applying effect:', {
-                id: meta.id + '_misc',
-                value: meta.amount,
-                duration: meta.defaultDuration
-            });
+            // [ELS Effect Bunker] Applying effect (log removed for clarity)
             return {
                 applyEffects: [{
                     id: meta.id + '_misc',

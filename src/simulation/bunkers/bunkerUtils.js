@@ -32,46 +32,64 @@ export const checkSource = (source, requiredProperty) => {
  */
 import { EVENT_SCHEMA } from '../schema.js';
 export const checkConditions = (conditions, context) => {
-    if (!conditions || !Array.isArray(conditions)) {
-        return true; // No conditions means it's always valid.
-    }
+    if (!conditions || !Array.isArray(conditions)) return true;
+
+    // Helper: normalize keys to the canonical event schema names
+    const normalizeKey = (k) => k.replace(/^ON_/, '').toLowerCase();
 
     for (const condition of conditions) {
-        const [type, value] = condition.split(':');
-        const abilityId = context.abilityId;
+        // condition can be 'KEY' or 'KEY:VALUE'
+        const [rawKey, rawValue] = condition.split(':');
+        const key = rawKey.trim();
+        const value = rawValue !== undefined ? rawValue.trim() : undefined;
 
-        switch (type) {
-            case 'ON_ABILITY_HIT':
-                if (context.eventType !== 'ABILITY_HIT' || abilityId !== value) {
-                    return false;
+        // If condition starts with ON_, treat it as a test against eventType or generic presence
+        if (key.startsWith('ON_')) {
+            const expectedEvent = key.replace('ON_', '').toUpperCase();
+            // allow eventType or action to satisfy an ON_ condition
+            const actualEvent = (context.eventType || context.action || '').toUpperCase();
+            if (actualEvent !== expectedEvent) return false;
+            continue;
+        }
+
+        // Generic KEY:VALUE matching against the EVENT_SCHEMA fields
+        const schemaKey = normalizeKey(key);
+        if (schemaKey in EVENT_SCHEMA) {
+            // if a value is provided, compare; otherwise just check presence/truthiness
+            const ctxVal = context[schemaKey] ?? context[rawKey] ?? context[key];
+            if (value !== undefined) {
+                // numeric compare when schema expects number
+                const expectedType = EVENT_SCHEMA[schemaKey].replace('?', '');
+                if (expectedType === 'number') {
+                    if (Number(ctxVal) !== Number(value)) return false;
+                } else {
+                    if (String(ctxVal) !== value) return false;
                 }
-                break;
-            case 'SOURCE_PERK_LOCATION':
-                if (context.sourcePerkLocation !== value) {
-                    return false;
-                }
-                break;
-            // Example: check for backstab
-            case 'ATTACK_IS_BACKSTAB':
-                if (!context.conditions || !context.conditions.includes('ATTACK_IS_BACKSTAB')) {
-                    return false;
-                }
-                break;
+            } else {
+                if (ctxVal === undefined || ctxVal === null) return false;
+            }
+            continue;
+        }
+
+        // Special-cases: known composite checks
+        switch (key) {
             case 'TARGET_HAS_CC': {
-                // Check if target has any active CC effect: SLOW, STUN, ROOT
                 const ccCategories = ['SLOW', 'STUN', 'ROOT'];
                 const targetEffects = (context.target?.activeEffects || []);
-                console.log('[CHECKCONDITIONS DEBUG] TARGET_HAS_CC: targetEffects=', JSON.parse(JSON.stringify(targetEffects)));
                 const hasCC = targetEffects.some(eff => ccCategories.includes(eff.category));
-                console.log('[CHECKCONDITIONS DEBUG] TARGET_HAS_CC: hasCC=', hasCC);
                 if (!hasCC) return false;
                 break;
             }
+            case 'ATTACK_IS_BACKSTAB': {
+                if (!context.conditions || !context.conditions.includes('ATTACK_IS_BACKSTAB')) return false;
+                break;
+            }
             default:
-                // If we don't recognize the condition type, assume it fails.
+                // Unknown condition type — fail closed to avoid accidental procs
                 return false;
         }
     }
-    return true; // All conditions passed.
+
+    return true;
 };
 

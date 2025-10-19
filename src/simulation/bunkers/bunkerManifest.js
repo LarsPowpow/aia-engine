@@ -1,3 +1,4 @@
+import counterAttackEmpower from './generated/perk_counter_attack_empower.js';
 /**
  * @file bunkerManifest.js
  * @description Central manifest for importing and exporting all Bunker components.
@@ -11,8 +12,7 @@
 // TEMP: Add test bunkers to enable UI population
 export const statBunkers = [
     { id: 'perkid_slottable_common_empower', handler: () => {} },
-    { id: 'runeglass_gem_malachite_melee', handler: () => {} },
-    { id: 'upgrade_sword_leapingstrike_slow', handler: () => {} }
+    { id: 'runeglass_gem_malachite_melee', handler: () => {} }
 ];
 import empower20 from './modifierBunkers/empower20.js';
 import cowardlyPunishment from './masteries/sword/cowardlyPunishment/cowardlyPunishment_Effects';
@@ -23,7 +23,7 @@ import punishingMalachiteCruelEmpower from './runeglass/punishingMalachite/punis
 import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringLeapingStrike_Modifiers.js';
 // empower20 removed; add real modifier bunkers here as needed
 export const modifierBunkers = [empoweringLeapingStrike];
-export const effectBunkers = [cowardlyPunishment, leapingStrike, punishingMalachiteArmorMisc, punishingMalachiteWeaponMisc, punishingMalachiteCruelEmpower];
+export const effectBunkers = [cowardlyPunishment, leapingStrike, punishingMalachiteArmorMisc, punishingMalachiteWeaponMisc, punishingMalachiteCruelEmpower, counterAttackEmpower];
 
 // Derived list of implemented IDs (keeps consumers from crashing).
 const _extractBunkerId = (b) => {

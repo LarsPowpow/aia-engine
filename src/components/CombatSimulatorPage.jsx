@@ -123,6 +123,17 @@ const CombatSimulatorPage = ({ addLog }) => {
             .filter(source => implementedBunkerIds.includes(source.id));
     }, [allSources]);
 
+    // Debug logs for component-scoped values — prevents module-scope ReferenceError
+    useEffect(() => {
+        try {
+            console.log('All sources:', allSources.map(s => s.id));
+            console.log('Implemented bunker IDs:', implementedBunkerIds);
+            console.log('Perk options:', perkOptions.map(p => p.id));
+        } catch (err) {
+            console.warn('Debug logging failed:', err);
+        }
+    }, [allSources, perkOptions]);
+
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
         if (weaponType && allAttributesValid) {
@@ -243,4 +254,7 @@ const CombatSimulatorPage = ({ addLog }) => {
 };
 
 export default CombatSimulatorPage;
+
+// Debugging logs: moved into a useEffect within the component to avoid referencing
+// component-scoped variables from module scope which leads to ReferenceError.
 

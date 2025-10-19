@@ -30,18 +30,18 @@ export function createEffectBunker(config = {}) {
         type: meta.type,
         metadata: meta,
         handler: (context) => {
-            console.log('[PUNISHING CRUEL DEBUG] Handler called with context:', JSON.parse(JSON.stringify(context)));
+            // console.log('[PUNISHING CRUEL DEBUG] Handler called with context:', JSON.parse(JSON.stringify(context)));
             if (!checkContext(context)) {
-                console.log('[PUNISHING CRUEL DEBUG] Context check failed.');
+                // console.log('[PUNISHING CRUEL DEBUG] Context check failed.');
                 return null;
             }
             const conditionsMet = checkConditions(meta.conditions, context);
-            console.log('[PUNISHING CRUEL DEBUG] Conditions met:', conditionsMet);
+            // console.log('[PUNISHING CRUEL DEBUG] Conditions met:', conditionsMet);
             if (!conditionsMet) {
-                console.log('[PUNISHING CRUEL DEBUG] Condition TARGET_HAS_CC not met. No empower applied.');
+                // console.log('[PUNISHING CRUEL DEBUG] Condition TARGET_HAS_CC not met. No empower applied.');
                 return null;
             }
-            console.log('[PUNISHING CRUEL DEBUG] Condition met. Applying empower effect:', meta.amount);
+            // console.log('[PUNISHING CRUEL DEBUG] Condition met. Applying empower effect:', meta.amount);
             return {
                 applyEffects: [{
                     id: meta.id + '_empower',
