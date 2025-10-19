@@ -12,7 +12,7 @@ export const METADATA = {
   "label": "Healing Defense II",
   "name": "Healing Defense II",
   "description": "On Block: Heal for 2.5% base health (5s cooldown).",
-  "event": "onBlock",
+  "event": "BLOCK_START",
   "condition": {
     "type": "activeItem",
     "itemType": "Kite Shield"

@@ -49,17 +49,25 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
     // Sort choreography by timestamp to ensure correct order
     const sortedChoreography = [...choreography].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
     for (const event of sortedChoreography) {
-        // [ENGINE] Before event (concise, for debugging only)
-        // const targetId = event.targetId;
-        // if (combatants[targetId]) {
-        //     console.log('[ENGINE] Before event', event.notes || event.abilityId || event.action, 'target activeEffects:', JSON.parse(JSON.stringify(combatants[targetId].activeEffects)));
-        // }
-        const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(event, combatants, allSources, addRawLog, analysisLog);
-        // Immediately update combatants so next event sees all new effects
-        combatants = JSON.parse(JSON.stringify(updatedCombatants));
-        if (eventAnalysis) {
-            analysisLog.push(eventAnalysis);
-        }
+            const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(event, combatants, allSources, addRawLog, analysisLog);
+            combatants = JSON.parse(JSON.stringify(updatedCombatants));
+            if (eventAnalysis) {
+                // --- PATCH: Ensure healing is always an array and add totalHealing ---
+                if (eventAnalysis.healing && !Array.isArray(eventAnalysis.healing)) {
+                    eventAnalysis.healing = [eventAnalysis.healing];
+                }
+                if (Array.isArray(eventAnalysis.healing)) {
+                    eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {
+                        if (h.valueType === 'baseHealth') {
+                            const target = h.targetId === 'Player' ? eventAnalysis.snapshot?.combatant : h.targetId === 'Target Dummy' ? eventAnalysis.snapshot?.target : null;
+                            const baseHealth = target && (target.baseHealth || target.maxHealth || 0);
+                            return sum + (typeof h.value === 'number' ? h.value * baseHealth : 0);
+                        }
+                        return sum + (typeof h.value === 'number' ? h.value : 0);
+                    }, 0);
+                }
+                analysisLog.push(eventAnalysis);
+            }
     }
 
     addRawLog({ level: 'info', message: 'Simulation complete.' });

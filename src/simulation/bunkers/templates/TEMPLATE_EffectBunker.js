@@ -11,7 +11,8 @@
  *  - category: effect category (EMPOWER, REND, MISC_DAMAGE, etc.)
  *  - defaultValue / amount: numeric value
  *  - defaultDuration / duration: seconds (use Infinity for passive)
- *  - eventType: optional, e.g. 'BLOCK_START'
+ *  - event: canonical event string (e.g. 'BLOCK_START', 'BLOCK_HIT', etc.)
+ *  - eventType: legacy/optional, but always set from prefab 'event' for workflow compliance
  *  - conditions: optional array of condition strings
  */
 
@@ -24,10 +25,12 @@ import { checkConditions } from '../bunkerUtils.js';
 
 const templateEffectBunker = (context, config = {}) => {
     if (!context || !context.source) return null;
+    // Always set eventType from config.event or meta.event for prefab-driven workflow
     const meta = { ...METADATA, ...config };
+    const eventType = config.event || meta.event || meta.eventType;
 
-    // 1) Condition / event matching
-    if (meta.eventType && context.eventType && meta.eventType.toUpperCase() !== context.eventType.toUpperCase()) {
+    // 1) Condition / event matching (permanent fix: always use eventType from prefab/config)
+    if (eventType && context.eventType && eventType.toUpperCase() !== context.eventType.toUpperCase()) {
         return null;
     }
     if (Array.isArray(meta.conditions) && !checkConditions(meta.conditions, context)) {
