@@ -289,7 +289,9 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
 
     let isCrit = false;
     let critMultiplier = 1.0;
-    if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
+    // (Removed) Force crit for Leaping Strike
+    // Force crit for Trip
+    if (event.action === 'ABILITY' && event.abilityId === 'ability_flail_trip') {
         isCrit = true;
         critMultiplier = 1.3;
     }
