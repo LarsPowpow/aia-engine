@@ -88,77 +88,94 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
     // --- STAGE 2: "TWO STROKE" EVENT PROCESSING ---
     addRawLog({ level: 'info', message: 'Entering Stage 2: Event Processing.' });
 
-    // Build a dynamic choreography that includes DOT ticks
+    // Sort choreography
     let sortedChoreography = [...choreography].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
-    let processedEvents = new Set();
 
-    // Process events chronologically, injecting DOT ticks as we go
+    // Pre-inject potential DOT tick timestamps (every 0.1s for checking)
+    const maxTime = Math.max(...sortedChoreography.map(e => e.timestamp || 0), 13);
+    const dotCheckTimestamps = [];
+    for (let t = 1.0; t <= maxTime; t += 0.1) {
+        dotCheckTimestamps.push(t);
+    }
+
+    // Merge with choreography
+    const allTimestamps = [...new Set([
+        ...sortedChoreography.map(e => e.timestamp),
+        ...dotCheckTimestamps
+    ])].sort((a, b) => a - b);
+
+    console.log('[ENGINE] Will check for DOT ticks at these times:', allTimestamps.map(t => t.toFixed(1)));
+
     let eventIndex = 0;
-    while (eventIndex < sortedChoreography.length) {
-        const event = sortedChoreography[eventIndex];
-        const currentTime = event.timestamp || 0;
-        
-        // Inject DOT ticks that should happen at this timestamp
-        if (!processedEvents.has(`dot_check_${currentTime.toFixed(2)}`)) {
-            const dotTicks = injectDOTTickEvents(sortedChoreography, combatants, currentTime);
+    const processedDOTChecks = new Set();
+
+    for (const checkTime of allTimestamps) {
+        // First, inject any DOT ticks for this timestamp
+        const timeKey = checkTime.toFixed(2);
+        if (!processedDOTChecks.has(timeKey)) {
+            const dotTicks = injectDOTTickEvents(sortedChoreography, combatants, checkTime);
             if (dotTicks.length > 0) {
-                // Insert DOT ticks before current event
-                sortedChoreography.splice(eventIndex, 0, ...dotTicks);
-                processedEvents.add(`dot_check_${currentTime.toFixed(2)}`);
-                continue; // Re-process from same index to handle injected events
+                sortedChoreography.push(...dotTicks);
+                sortedChoreography.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
             }
-            processedEvents.add(`dot_check_${currentTime.toFixed(2)}`);
+            processedDOTChecks.add(timeKey);
         }
         
-        // Process forced crit for Leaping Strike
-        if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
-            if (combatants['Player']) {
-                const forcedCritPerk = {
-                    id: 'forced_leaping_strike_crit',
-                    category: 'CRIT_MULTIPLIER',
-                    value: 1.3,
-                    notes: 'Injected by engine for test',
-                };
-                combatants['Player'].perks = [...(combatants['Player'].perks || []), forcedCritPerk];
+        // Then process all real events at this timestamp
+        while (eventIndex < sortedChoreography.length) {
+            const event = sortedChoreography[eventIndex];
+            if (Math.abs((event.timestamp || 0) - checkTime) > 0.05) break;
+            
+            // Process forced crit for Leaping Strike
+            if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
+                if (combatants['Player']) {
+                    const forcedCritPerk = {
+                        id: 'forced_leaping_strike_crit',
+                        category: 'CRIT_MULTIPLIER',
+                        value: 1.3,
+                        notes: 'Injected by engine for test',
+                    };
+                    combatants['Player'].perks = [...(combatants['Player'].perks || []), forcedCritPerk];
+                }
             }
+            
+            const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(
+                event, 
+                combatants, 
+                allSources, 
+                addRawLog, 
+                analysisLog,
+                activeModifierBunkers,
+                activeEffectBunkers
+            );
+            
+            combatants = JSON.parse(JSON.stringify(updatedCombatants));
+            
+            if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
+                if (combatants['Player']) {
+                    combatants['Player'].perks = (combatants['Player'].perks || []).filter(p => p.id !== 'forced_leaping_strike_crit');
+                }
+            }
+            
+            if (eventAnalysis) {
+                if (eventAnalysis.healing && !Array.isArray(eventAnalysis.healing)) {
+                    eventAnalysis.healing = [eventAnalysis.healing];
+                }
+                if (Array.isArray(eventAnalysis.healing)) {
+                    eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {
+                        if (h.valueType === 'baseHealth') {
+                            const target = h.targetId === 'Player' ? eventAnalysis.snapshot?.combatant : h.targetId === 'Target Dummy' ? eventAnalysis.snapshot?.target : null;
+                            const baseHealth = target && (target.baseHealth || target.maxHealth || 0);
+                            return sum + (typeof h.value === 'number' ? h.value * baseHealth : 0);
+                        }
+                        return sum + (typeof h.value === 'number' ? h.value : 0);
+                    }, 0);
+                }
+                analysisLog.push(eventAnalysis);
+            }
+            
+            eventIndex++;
         }
-        
-        const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(
-            event, 
-            combatants, 
-            allSources, 
-            addRawLog, 
-            analysisLog,
-            activeModifierBunkers,
-            activeEffectBunkers
-        );
-        
-        combatants = JSON.parse(JSON.stringify(updatedCombatants));
-        
-        if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
-            if (combatants['Player']) {
-                combatants['Player'].perks = (combatants['Player'].perks || []).filter(p => p.id !== 'forced_leaping_strike_crit');
-            }
-        }
-        
-        if (eventAnalysis) {
-            if (eventAnalysis.healing && !Array.isArray(eventAnalysis.healing)) {
-                eventAnalysis.healing = [eventAnalysis.healing];
-            }
-            if (Array.isArray(eventAnalysis.healing)) {
-                eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {
-                    if (h.valueType === 'baseHealth') {
-                        const target = h.targetId === 'Player' ? eventAnalysis.snapshot?.combatant : h.targetId === 'Target Dummy' ? eventAnalysis.snapshot?.target : null;
-                        const baseHealth = target && (target.baseHealth || target.maxHealth || 0);
-                        return sum + (typeof h.value === 'number' ? h.value * baseHealth : 0);
-                    }
-                    return sum + (typeof h.value === 'number' ? h.value : 0);
-                }, 0);
-            }
-            analysisLog.push(eventAnalysis);
-        }
-        
-        eventIndex++;
     }
 
     addRawLog({ level: 'info', message: 'Simulation complete.' });
@@ -227,13 +244,10 @@ const calculateFinalDamage = (context, modifierRequests, damageTerms) => {
  * STAGE 2: Processes a single event through the "Two Stroke" model.
  */
 const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, analysisLog, activeModifierBunkers = modifierBunkers, activeEffectBunkers = effectBunkers) => {
-    // Always define modifierRequests before any usage
     let modifierRequests = [];
-    // List of non-damaging actions (declare only once at the top)
     const NON_DAMAGE_ACTIONS = [
         'BLOCK_START', 'BLOCK_HIT', 'BLOCK_END', 'CONSUMABLE', 'WEAPON_SWAP'
     ];
-    // Always define damageTerms with defaults
     let damageTerms = {
         empowerPercent: 0,
         rendPercent: 0,
@@ -241,11 +255,6 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         positionalDmgPercent: 0,
         miscDmgPercent: 0,
     };
-    // F12 console logging for debugging
-    // [ENGINE] Damage Event (debug, uncomment for troubleshooting)
-    // if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
-    //     console.log('[ENGINE] Damage Event:', { event, damageTerms, modifierRequests });
-    // }
 
     if (!event || !event.sourceId || !event.targetId) {
         addRawLog({ level: 'warn', message: 'Skipping malformed event: Missing sourceId or targetId.', event });
@@ -255,6 +264,30 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     let updatedCombatants = JSON.parse(JSON.stringify(currentCombatants));
     const source = updatedCombatants[event.sourceId];
     const target = updatedCombatants[event.targetId];
+
+    // ✅ DETERMINE CRIT STATUS FIRST (before any bunker runs)
+    let isCrit = false;
+    let critMultiplier = 1.0;
+    
+    if (event.action === 'ABILITY' && event.abilityId === 'ability_flail_trip') {
+        isCrit = true;
+        critMultiplier = 1.3;
+        console.log('[ENGINE] 🎯 Trip is a guaranteed crit');
+    }
+    
+    // FOR TESTING: Force first Arcane Vortex hit to crit
+    if (event.action === 'ABILITY_HIT' && 
+        event.abilityId === 'ability_arcane_vortex' && 
+        event.timestamp < 5.0) {
+        isCrit = true;
+        critMultiplier = 1.3;
+        console.log('[ENGINE] 🎯 Forced crit for Arcane Vortex Hit 1 (testing Keenly Jagged)');
+    }
+    
+    // Store on event for bunkers to access
+    event.isCrit = isCrit;
+    event.critMultiplier = critMultiplier;
+
     // --- DIAGNOSTIC PROBE: Healing Defense ---
     if (event.action && event.action.startsWith('BLOCK')) {
         addRawLog({
@@ -265,6 +298,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             targetActiveEffects: target.activeEffects
         });
     }
+
     // Purge expired and invalid conditional effects for both combatants
     const now = (typeof event.timestamp === 'number') ? event.timestamp : (performance.now() / 1000);
     const purgeInvalidEffects = (combatant, context) => {
@@ -321,14 +355,12 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     let finalDamage = 0;
     let effectRequests = [];
 
-    // Always define damageTerms with defaults
     if (source.activeEffects) {
         for (const effect of source.activeEffects) {
             if (effect && effect.category && effect.id !== 'computed_misc_damage') {
                 if (effect.category === 'EMPOWER') damageTerms.empowerPercent += effect.value || 0;
                 if (effect.category === 'REND') damageTerms.rendPercent += effect.value || 0;
                 if (effect.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += effect.value || 0;
-                // Add more as needed
             }
         }
     }
@@ -348,19 +380,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             if (mod.category === 'EMPOWER') damageTerms.empowerPercent += mod.value || 0;
             if (mod.category === 'REND') damageTerms.rendPercent += mod.value || 0;
             if (mod.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += mod.value || 0;
-            // Add more as needed
         }
-    }
-
-    // All handled as miscDmgPercent
-
-    let isCrit = false;
-    let critMultiplier = 1.0;
-    // (Removed) Force crit for Leaping Strike
-    // Force crit for Trip
-    if (event.action === 'ABILITY' && event.abilityId === 'ability_flail_trip') {
-        isCrit = true;
-        critMultiplier = 1.3;
     }
 
     if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
@@ -512,19 +532,42 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
 const injectDOTTickEvents = (choreography, combatants, currentTime) => {
     const dotTicks = [];
     
+    console.log(`[DOT] Checking for ticks at ${currentTime.toFixed(2)}s`);
+    
     // Check all combatants for active DOT effects
     for (const combatantId in combatants) {
         const combatant = combatants[combatantId];
         
-        if (!combatant.activeEffects) continue;
+        if (!combatant.activeEffects || combatant.activeEffects.length === 0) {
+            continue;
+        }
+        
+        console.log(`[DOT] ${combatantId} has ${combatant.activeEffects.length} active effects:`, 
+            combatant.activeEffects.map(e => ({ 
+                id: e.id, 
+                category: e.category, 
+                nextTickAt: e.nextTickAt?.toFixed(2),
+                expiresAt: e.expiresAt?.toFixed(2)
+            }))
+        );
         
         for (const effect of combatant.activeEffects) {
             // Only process BLEED category effects
-            if (effect.category !== 'BLEED') continue;
+            if (effect.category !== 'BLEED') {
+                continue;
+            }
+            
+            console.log(`[DOT] Found BLEED effect:`, {
+                id: effect.id,
+                nextTickAt: effect.nextTickAt?.toFixed(2),
+                currentTime: currentTime.toFixed(2),
+                difference: effect.nextTickAt ? Math.abs(effect.nextTickAt - currentTime).toFixed(3) : 'N/A',
+                shouldTick: effect.nextTickAt && Math.abs(effect.nextTickAt - currentTime) < 0.01
+            });
             
             // Check if a tick should happen at this time
             if (effect.nextTickAt && Math.abs(effect.nextTickAt - currentTime) < 0.01) {
-                console.log(`[DOT] Injecting tick for ${effect.id} at ${currentTime.toFixed(2)}s`);
+                console.log(`[DOT] ✅ Injecting tick for ${effect.id} at ${currentTime.toFixed(2)}s`);
                 
                 dotTicks.push({
                     timestamp: currentTime,
@@ -538,10 +581,20 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
                     notes: `Bleed Tick (${effect.metadata?.sourceName || 'Unknown'})`
                 });
                 
-                // Update next tick time
-                effect.nextTickAt = currentTime + (effect.tickInterval || 1);
+                // Update next tick time (if not expired)
+                if (currentTime + effect.tickInterval <= effect.expiresAt) {
+                    effect.nextTickAt = currentTime + (effect.tickInterval || 1);
+                    console.log(`[DOT] Updated nextTickAt to ${effect.nextTickAt.toFixed(2)}s`);
+                } else {
+                    effect.nextTickAt = null;
+                    console.log(`[DOT] Bleed expired, no more ticks`);
+                }
             }
         }
+    }
+    
+    if (dotTicks.length > 0) {
+        console.log(`[DOT] 🩸 Injected ${dotTicks.length} DOT tick(s)`);
     }
     
     return dotTicks;

@@ -30,25 +30,48 @@ export const METADATA = {
 const handler = (context) => {
     const { event, source, target, timestamp } = context;
     
+    console.log('[Keenly Jagged II] Handler called:', {
+        action: event.action,
+        isCrit: event.isCrit,
+        timestamp: timestamp?.toFixed(2)
+    });
+    
     // Only trigger on crit hits
     if (!event.isCrit) {
+        console.log('[Keenly Jagged II] Not a crit, skipping');
         return null;
     }
     
+    console.log('[Keenly Jagged II] ✓ Crit detected! Checking cooldown...');
+    
     // Check cooldown (stored in source.cooldowns)
     const cooldownKey = 'perk_keenly_jagged_ii';
-    const lastProc = source.cooldowns?.[cooldownKey] || 0;
+    if (!source.cooldowns) source.cooldowns = {};
+    const lastProc = source.cooldowns[cooldownKey] || -999; // ✅ Changed from 0 to -999
+    const timeSinceLastProc = timestamp - lastProc;
     
-    if (timestamp - lastProc < 7) {
-        console.log('[Keenly Jagged II] On cooldown, skipping application');
+    console.log('[Keenly Jagged II] Cooldown check:', {
+        lastProc: lastProc.toFixed(2),
+        timeSince: timeSinceLastProc.toFixed(2),
+        cooldownDuration: 7,
+        ready: timeSinceLastProc >= 7
+    });
+    
+    if (timeSinceLastProc < 7) {
+        console.log(`[Keenly Jagged II] ❌ On cooldown (${(7 - timeSinceLastProc).toFixed(2)}s remaining)`);
         return null;
     }
     
     // Update cooldown
-    if (!source.cooldowns) source.cooldowns = {};
     source.cooldowns[cooldownKey] = timestamp;
     
-    console.log('[Keenly Jagged II] Applying bleed on crit');
+    console.log('[Keenly Jagged II] ✅ Applying bleed!', {
+        targetId: target.id,
+        damagePercent: 0.09,
+        duration: 6,
+        weaponType: source.weaponType,
+        attributes: source.attributes
+    });
     
     // Apply bleed effect that will generate tick events
     return {
