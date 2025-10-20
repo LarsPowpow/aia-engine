@@ -1,0 +1,136 @@
+
+Documentation: Healing Defense II Perk Implementation
+Overview
+Successfully implemented the Healing Defense II perk, which heals the player for 2.5% of base health on block with a 5-second cooldown. This required fixes across multiple systems including the engine, state manager, UI components, and perk bunker.
+
+What We Achieved
+1. Perk Functionality ✅
+Perk: Healing Defense II
+Effect: Heals player for 2.5% base health (263 HP) on block
+Cooldown: 5 seconds
+File: perk_healing_defense_ii.js
+2. New HEAL Category ✅
+Added category: 'HEAL' to the effect system
+Heals apply instantly (duration: 0) and don't persist in activeEffects
+Heals use valueType: 'baseHealth' to calculate actual HP healed
+State manager handles heal application separate from buff/debuff logic
+3. Engine Target Resolution ✅
+Fixed effect grouping logic to respect targetId from bunkers
+Self-heals (targetId: 'Player') now correctly target the player instead of the opponent
+File: engine.js (lines 404-412)
+4. State Manager Heal Logic ✅
+Instant heals (duration: 0) apply immediately and are NOT added to activeEffects
+HoT effects (duration > 0) would be added to activeEffects (for future use)
+File: stateManager.js (lines 60-76)
+5. UI: Combat Analysis Table ✅
+Added "Healing" column to Combat Analysis tab
+Shows actual HP healed (263) not percentages
+Empty cells when no healing occurs
+File: CombatSimulatorPage.jsx (lines 58-78)
+6. UI: Inspector Panel ✅
+Filters out instant effects (duration: 0) from Raw State tab
+Summary tab shows healing breakdown with actual HP values
+File: InspectorPanel.jsx (lines 168-172)
+Key Learnings
+1. Effect Targeting Architecture
+Problem: Effects were being applied to the wrong combatant because the engine's grouping logic ignored targetId from bunkers.
+
+Solution:
+
+Lesson: Always preserve targetId from bunkers through the entire effect pipeline.
+
+2. Instant vs. Persistent Effects
+Problem: Instant heals (duration: 0) were being added to activeEffects array, polluting the UI.
+
+Solution:
+
+Lesson: Instant effects (duration: 0) should never appear in activeEffects - they happen immediately and have no ongoing state.
+
+3. Value vs. ValueType Pattern
+Problem: Healing percentages (0.025) vs. actual HP (263) caused confusion in the UI.
+
+Solution:
+
+Lesson: Use valueType to distinguish between raw values and percentages that need calculation.
+
+4. Data Flow for Combat Log
+Problem: Healing data wasn't reaching the Combat Analysis table.
+
+Data Flow:
+
+Bunker → Returns { applyEffects: [{ category: 'HEAL', value, valueType, targetId }] }
+Engine → Collects heals in effectRequests, adds to eventAnalysis.healing[]
+Engine → Calculates eventAnalysis.totalHealing (lines 161-174)
+UI → Reads entry.totalHealing or calculates from entry.healing[] array
+Lesson: Track where data is transformed at each layer and ensure it's preserved through the pipeline.
+
+5. UI Filtering Best Practices
+Problem: Old instant effects cluttering the Inspector display.
+
+Solution:
+
+Lesson: Filter display data to match user expectations - instant effects shouldn't show as "active" since they're already done.
+
+Code References
+Key Files Modified
+perk_healing_defense_ii.js
+
+Lines 45-60: Heal effect return structure
+engine.js
+
+Lines 404-412: Effect grouping with targetId preservation
+Lines 463-465: Healing data collection
+Lines 161-174: totalHealing calculation
+stateManager.js
+
+Lines 60-76: HEAL category handling with instant effect logic
+CombatSimulatorPage.jsx
+
+Lines 48: Added "Healing" column header
+Lines 58-78: Healing calculation and display in table rows
+InspectorPanel.jsx
+
+Lines 168-172: Filter instant effects from Raw State tab
+Lines 95-145: Summary tab healing display
+Debug Patterns Used
+1. Trace Effect Through Pipeline
+2. Console Log Analysis
+3. Variable Name Confusion
+combatant vs. target vs. source - these mean different things in different contexts!
+Always check function parameters and variable scope when debugging targeting issues
+Testing Checklist
+ Healing Defense procs on block
+ Healing applies to Player (not Target Dummy)
+ 5-second cooldown works correctly
+ Heals for correct amount (2.5% = 263 HP at 10500 max health)
+ Healing shows in Combat Analysis table
+ Healing shows in Inspector Summary tab
+ Instant heals don't clutter Raw State tab
+ Multiple blocks trigger multiple heals (respecting cooldown)
+Future Considerations
+1. Heal-over-Time (HoT) Effects
+The current system supports HoT effects (duration > 0) but none are implemented yet. When adding HoTs:
+
+They WILL appear in activeEffects
+They need tick logic similar to DoTs
+Consider adding HoT tick visualization in UI
+2. Multiple Heal Sources
+If multiple heal perks/effects exist:
+
+Engine already aggregates healing in eventAnalysis.healing[] array
+UI already calculates totalHealing from array
+System is ready for multiple simultaneous heals
+3. Overheal Prevention
+Currently handled in state manager:
+
+This caps healing at max health - consider tracking overheal for analytics.
+
+Common Pitfalls to Avoid
+Don't use combatant in stateManager.js - use target (the parameter name)
+Always preserve targetId - don't overwrite it during effect grouping
+Filter instant effects from UI - users don't need to see duration: 0 effects
+Use valueType: 'baseHealth' for percentage-based heals
+Check entry.totalHealing first - engine pre-calculates it for you
+Generated: 2025-10-20
+Context: Healing Defense II implementation
+Status: Complete and working ✅
