@@ -61,29 +61,46 @@ Document the "why" behind key design choices to preserve institutional knowledge
 
 ---
 
-## ADR-003: Why Snapshot DoT Damage?
+## ADR-003: Why Dynamic DoT Damage Calculation?
 
 **Date**: 2025-10-16  
-**Status**: Implemented
+**Status**: Implemented (**Corrected 2025-10-20**)
 
-**Context**: DoT damage could be calculated fresh on each tick or stored once at application.
+**Context**: DoT damage could be snapshotted at application or calculated dynamically on each tick.
 
-**Decision**: Snapshot damage value when DoT is applied, store in `effect.value`.
+**Decision**: Calculate DoT damage dynamically on each tick using current combatant stats and modifiers.
 
 **Reasoning**:
-- Matches New World behavior: DoTs don't scale with buffs gained after application
-- Simpler logic: No need to recalculate damage with current stats on each tick
-- More predictable: Players know exactly how much damage their DoT will deal
-- Avoids edge cases: What if empower expires mid-DoT? Snapshot avoids this question
+- More interesting gameplay: DoTs benefit from buffs applied after them
+- Rewards timing: Players can buff themselves after applying DoT for increased damage
+- Simpler bunker code: Just store base damage (11% weapon damage), engine handles scaling
+- More flexible: DoTs automatically scale with any stat changes (empower, rend, misc damage)
+
+**Implementation**:
+- Bunker stores base damage in `effect.value` (e.g., weaponDamage * 0.11)
+- Engine reads current damage modifiers (empower, rend, misc damage, etc.) on each tick
+- Tick damage = base damage × (1 + current modifiers)
 
 **Consequences**:
-- DoTs don't benefit from buffs applied after them (intended behavior)
-- Damage value stored in effect object (small memory cost)
-- If we want "dynamic DoTs" later, need different category
+- DoTs benefit from buffs applied after them (INTENDED BEHAVIOR - very cool!)
+- DoTs benefit from debuffs applied after them (INTENDED BEHAVIOR - very cool!)
+- Damage can vary between ticks if buffs expire mid-DoT (dynamic!)
+- More interesting optimization for players (when to buff for max DoT damage?)
+- Slightly more complex tick processing (need to read current combatant state)
+
+**Example**:
+```
+Apply Keenly Jagged bleed at 1.5s (base: 100 dmg/tick)
+Tick at 2.0s: 100 damage (no buffs)
+Gain 20% empower at 7.0s
+Tick at 8.0s: 120 damage (100 * 1.20) ← Dynamic scaling!
+Empower expires at 9.0s
+Tick at 10.0s: 100 damage (back to base)
+```
 
 **Code Location**: 
-- Bunker: `/src/simulation/bunkers/generated/perk_keenly_jagged_ii.js` (lines 45-50)
-- Engine: `/src/simulation/engine.js` (DoT tick processing uses stored value)
+- Bunker: `/src/simulation/bunkers/generated/perk_keenly_jagged_ii.js` (stores base damage)
+- Engine: `/src/simulation/engine.js` (DoT tick processing calculates with current modifiers)
 
 ---
 
