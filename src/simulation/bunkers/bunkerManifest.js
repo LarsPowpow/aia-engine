@@ -1,21 +1,12 @@
 // --- AUTO-IMPORT all generated effect bunkers using Vite import.meta.glob ---
 const generatedBunkerModules = import.meta.glob('./generated/*.js', { eager: true });
 const generatedBunkers = Object.values(generatedBunkerModules).map(mod => mod.default).filter(Boolean);
-/**
- * @file bunkerManifest.js
- * @description Central manifest for importing and exporting all Bunker components.
- * Provides a loadBunkers(type) helper used by the engine and a BUNKER_MANIFEST
- * object expected by some UI components.
- */
 
-// NOTE: keep these arrays defensively empty — concrete bunker modules will be
-// added here when available. This avoids "missing export" runtime errors.
-
-// TEMP: Add test bunkers to enable UI population
 export const statBunkers = [
     { id: 'perkid_slottable_common_empower', handler: () => {} },
     { id: 'runeglass_gem_malachite_melee', handler: () => {} }
 ];
+
 import empower20 from './modifierBunkers/empower20.js';
 import cowardlyPunishment from './masteries/sword/cowardlyPunishment/cowardlyPunishment_Effects';
 import leapingStrike from './masteries/sword/leapingStrike_Effects.js';
@@ -23,7 +14,8 @@ import punishingMalachiteArmorMisc from './runeglass/punishingMalachite/punishin
 import punishingMalachiteWeaponMisc from './runeglass/punishingMalachite/punishingMalachite_WeaponMisc.js';
 import punishingMalachiteCruelEmpower from './runeglass/punishingMalachite/punishingMalachite_CruelEmpower.js';
 import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringLeapingStrike_Modifiers.js';
-// empower20 removed; add real modifier bunkers here as needed
+import keenlyJaggedII from './generated/perk_keenly_jagged_ii.js';
+
 export const modifierBunkers = [empoweringLeapingStrike];
 export const effectBunkers = [
     cowardlyPunishment,
@@ -31,6 +23,7 @@ export const effectBunkers = [
     punishingMalachiteArmorMisc,
     punishingMalachiteWeaponMisc,
     punishingMalachiteCruelEmpower,
+    keenlyJaggedII,
     ...generatedBunkers
 ];
 

@@ -87,12 +87,31 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
 
     // --- STAGE 2: "TWO STROKE" EVENT PROCESSING ---
     addRawLog({ level: 'info', message: 'Entering Stage 2: Event Processing.' });
-    // Sort choreography by timestamp to ensure correct order
-    const sortedChoreography = [...choreography].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
-    for (const event of sortedChoreography) {
-        // Inject forced crit multiplier perk for Leaping Strike
+
+    // Build a dynamic choreography that includes DOT ticks
+    let sortedChoreography = [...choreography].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+    let processedEvents = new Set();
+
+    // Process events chronologically, injecting DOT ticks as we go
+    let eventIndex = 0;
+    while (eventIndex < sortedChoreography.length) {
+        const event = sortedChoreography[eventIndex];
+        const currentTime = event.timestamp || 0;
+        
+        // Inject DOT ticks that should happen at this timestamp
+        if (!processedEvents.has(`dot_check_${currentTime.toFixed(2)}`)) {
+            const dotTicks = injectDOTTickEvents(sortedChoreography, combatants, currentTime);
+            if (dotTicks.length > 0) {
+                // Insert DOT ticks before current event
+                sortedChoreography.splice(eventIndex, 0, ...dotTicks);
+                processedEvents.add(`dot_check_${currentTime.toFixed(2)}`);
+                continue; // Re-process from same index to handle injected events
+            }
+            processedEvents.add(`dot_check_${currentTime.toFixed(2)}`);
+        }
+        
+        // Process forced crit for Leaping Strike
         if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
-            // Synthesize a crit multiplier perk and add to Player's perks for this event only
             if (combatants['Player']) {
                 const forcedCritPerk = {
                     id: 'forced_leaping_strike_crit',
@@ -100,10 +119,10 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
                     value: 1.3,
                     notes: 'Injected by engine for test',
                 };
-                // Temporarily add to Player's perks
                 combatants['Player'].perks = [...(combatants['Player'].perks || []), forcedCritPerk];
             }
         }
+        
         const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(
             event, 
             combatants, 
@@ -113,15 +132,16 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
             activeModifierBunkers,
             activeEffectBunkers
         );
+        
         combatants = JSON.parse(JSON.stringify(updatedCombatants));
+        
         if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
-            // Remove the forced perk after event
             if (combatants['Player']) {
                 combatants['Player'].perks = (combatants['Player'].perks || []).filter(p => p.id !== 'forced_leaping_strike_crit');
             }
         }
+        
         if (eventAnalysis) {
-            // --- PATCH: Ensure healing is always an array and add totalHealing ---
             if (eventAnalysis.healing && !Array.isArray(eventAnalysis.healing)) {
                 eventAnalysis.healing = [eventAnalysis.healing];
             }
@@ -137,6 +157,8 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
             }
             analysisLog.push(eventAnalysis);
         }
+        
+        eventIndex++;
     }
 
     addRawLog({ level: 'info', message: 'Simulation complete.' });
@@ -414,6 +436,114 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         }
     };
 
+    // Handle DOT tick events specially
+    if (event.action === 'DOT_TICK') {
+        const source = updatedCombatants[event.sourceId];
+        const target = updatedCombatants[event.targetId];
+        
+        if (!source || !target) {
+            addRawLog({ level: 'warn', message: 'DOT tick skipped: source or target not found', event });
+            return { updatedCombatants: currentCombatants, eventAnalysis: null };
+        }
+        
+        // Calculate DOT damage based on stored metadata
+        const weaponDamage = calculateWeaponDamage(
+            event.metadata.weaponType,
+            event.metadata.attributes
+        );
+        const dotDamage = Math.round(weaponDamage * event.damagePercent);
+        
+        // Apply damage modifiers from current effects
+        let damageTerms = {
+            empowerPercent: 0,
+            rendPercent: 0,
+            baseCritDmgPercent: 0,
+            positionalDmgPercent: 0,
+            miscDmgPercent: 0,
+        };
+        
+        if (source.activeEffects) {
+            for (const effect of source.activeEffects) {
+                if (effect.category === 'EMPOWER') damageTerms.empowerPercent += effect.value || 0;
+                if (effect.category === 'REND') damageTerms.rendPercent += effect.value || 0;
+                if (effect.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += effect.value || 0;
+            }
+        }
+        
+        const finalDamage = Math.round(dotDamage *
+            (1 + (damageTerms.empowerPercent || 0) - (damageTerms.rendPercent || 0)) *
+            (1 + (damageTerms.miscDmgPercent || 0))
+        );
+        
+        addRawLog({ 
+            level: 'info', 
+            message: `DOT Tick: ${finalDamage} damage to ${target.name}`, 
+            event,
+            baseDamage: dotDamage,
+            finalDamage,
+            modifiers: damageTerms
+        });
+        
+        const eventAnalysis = {
+            timestamp: event.timestamp,
+            source: source.name,
+            action: event.notes || 'Bleed Tick',
+            target: target.name,
+            isCrit: false,
+            damage: finalDamage,
+            snapshot: {
+                combatant: JSON.parse(JSON.stringify(source)),
+                target: JSON.parse(JSON.stringify(target)),
+                stroke1_modifiers: [],
+                stroke2_effects: [],
+                damageTerms
+            }
+        };
+        
+        return { updatedCombatants, eventAnalysis };
+    }
+
     return { updatedCombatants, eventAnalysis };
+};
+
+/**
+ * Injects DOT tick events into the choreography based on active BLEED/DOT effects
+ */
+const injectDOTTickEvents = (choreography, combatants, currentTime) => {
+    const dotTicks = [];
+    
+    // Check all combatants for active DOT effects
+    for (const combatantId in combatants) {
+        const combatant = combatants[combatantId];
+        
+        if (!combatant.activeEffects) continue;
+        
+        for (const effect of combatant.activeEffects) {
+            // Only process BLEED category effects
+            if (effect.category !== 'BLEED') continue;
+            
+            // Check if a tick should happen at this time
+            if (effect.nextTickAt && Math.abs(effect.nextTickAt - currentTime) < 0.01) {
+                console.log(`[DOT] Injecting tick for ${effect.id} at ${currentTime.toFixed(2)}s`);
+                
+                dotTicks.push({
+                    timestamp: currentTime,
+                    action: 'DOT_TICK',
+                    type: 'BLEED_TICK',
+                    sourceId: effect.sourceId,
+                    targetId: effect.targetId,
+                    effectId: effect.id,
+                    damagePercent: effect.damagePercent,
+                    metadata: effect.metadata,
+                    notes: `Bleed Tick (${effect.metadata?.sourceName || 'Unknown'})`
+                });
+                
+                // Update next tick time
+                effect.nextTickAt = currentTime + (effect.tickInterval || 1);
+            }
+        }
+    }
+    
+    return dotTicks;
 };
 
