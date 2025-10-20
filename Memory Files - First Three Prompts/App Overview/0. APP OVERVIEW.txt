@@ -1,0 +1,81 @@
+# AI Onboarding Brief — aia-engine
+
+Purpose
+- Short, high-level overview every new AI instance should read before editing code.
+- Goal: make safe, minimal, reversible changes; preserve data flow and conventions.
+
+Core concepts
+- Event vs Effect
+  - Event: a combat occurrence (attack, block, DOT_TICK).
+  - Effect: consequence produced by a bunker or engine (DOT, HEAL, EMPOWER, REND, FORTIFY, MISC_DAMAGE).
+- Combatants: `source` (actor applying effects) and `target` (recipient). IDs: `sourceId`, `targetId`.
+- Snapshotting: effects that depend on current stats should snapshot values (store computed value on apply).
+
+Major components
+- Bunkers: /src/simulation/bunkers/generated/*.js
+  - Implement perk/ability rules. Return `{ applyEffects: [...] }` where each effect has id, category, value, valueType, duration, sourceId, targetId, metadata.
+- Engine: /src/simulation/engine.js
+  - Collects events -> runs bunkers -> groups effects -> passes them to stateManager -> schedules DOT ticks -> builds `eventAnalysis` entries for UI.
+- State manager: /src/simulation/stateManager.js
+  - Applies single effects, enforces stacking/cap rules, mutates combatant state (`health`, `activeEffects`).
+- UI
+  - Combat analysis & live log: /src/components/CombatSimulatorPage.jsx
+  - Inspector: /src/components/InspectorPanel.jsx
+
+Effect lifecycle (high level)
+1. Event occurs (rotation or synthetic DOT_TICK).
+2. Engine runs matching bunkers; bunkers output effect requests.
+3. Engine groups/consolidates effects, preserves `targetId`.
+4. Engine calls stateManager.applyEffect(targetCombatant, effect, context).
+5. stateManager applies effect:
+   - HEAL: apply immediately; do NOT add instant heals (duration===0) to activeEffects.
+   - DOT: snapshot value, add to target.activeEffects if same-id not already active.
+   - EMPOWER/REND/FORTIFY/MISC: per-source refresh + stacking across unique sources; enforce caps (Empower 50%, Fortify 50%, Rend 70%, Misc uncapped). Same source refreshes duration and does not add duplicate stacks.
+6. Engine produces eventAnalysis (damage, healing, snapshots) for UI.
+
+Stacking & cap rules (summary)
+- DOT (e.g., Keenly Jagged): anti-stack by effect.id — NO stacking, NO refresh.
+- EMPOWER: stack across unique sources, same-source refreshes, cap 50% (apply partial if last source would exceed cap).
+- REND: same as EMPOWER but cap 70%.
+- FORTIFY: same as EMPOWER, cap 50%.
+- MISC_DAMAGE: uncapped, same-source refreshes.
+
+Important conventions
+- Use `valueType` (e.g., `baseHealth`) when `value` is a fraction; engine/UI must convert to HP using snapshot `baseHealth` or `maxHealth`.
+- Always set `sourceId` and `targetId` in bunker effects.
+- Use `context.timestamp` when computing appliedAt/expiresAt.
+- Do not mutate incoming effect requests outside of the engine grouping step — clone when needed.
+
+Key files to check when changing behavior
+- Bunkers: /src/simulation/bunkers/generated/
+- Engine grouping & DOT scheduling: /src/simulation/engine.js
+- Effect application & stacking logic: /src/simulation/stateManager.js
+- UI display and summary calculations: /src/components/CombatSimulatorPage.jsx and /src/components/InspectorPanel.jsx
+
+Debugging checklist (quick)
+- Reproduce scenario in UI → open browser console.
+- Grep for these strings to find code paths:
+  - "applyEffect" (engine/stateManager)
+  - "Applied healing" / "Applied new effect" (stateManager logs)
+  - "HEAL effect grouping" / "DOT" / "Checking for ticks" (engine)
+- Inspect `eventAnalysis` snapshot to confirm `effectRequests`, `snapshot.combatant`, `snapshot.target`.
+- Verify target resolution: engine must preserve `eff.targetId` through grouping into `grouped[key]`.
+- Confirm activeEffects contents via Inspector Raw State; filter out duration===0 effects for clarity.
+
+Testing & safety
+- Run simulation via UI "Run Simulation".
+- Small iterative changes: add console logs, run, revert if failing.
+- Prefer non-destructive changes (add guards and tests) before sweeping refactors.
+- When changing stacking/cap logic, add unit tests for stateManager.applyEffect behavior.
+
+Dev container & tools
+- Environment: Ubuntu 24.04.3 LTS devcontainer.
+- Open host browser: use the environment variable command: `$BROWSER <url>`
+- Useful CLIs: git, grep, sed, node/npm (if present).
+
+Contact points & notes
+- Preserve log messages — they are the primary debugging signals.
+- If uncertain about semantics, search existing perks/bunkers for examples (`perk_keenly_jagged_ii`, `perk_healing_defense_ii`).
+- Keep changes localized: modify engine/stateManager and update tests/UI as needed.
+
+End of brief.

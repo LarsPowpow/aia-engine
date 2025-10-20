@@ -55,10 +55,11 @@ const applyEffect = (target, effectData, context) => {
     }
 
     const now = context.timestamp;
+    
     // --- HEAL effect: apply healing directly ---
     if (effectData.category === 'HEAL') {
         const healAmount = effectData.value;
-        const healTarget = target; // Use 'target' not 'combatant'
+        const healTarget = target;
         healTarget.health = Math.min(healTarget.maxHealth, healTarget.health + healAmount);
         console.log('[STATE MANAGER] Applied healing:', healAmount, 'to', healTarget.id, 'new health:', healTarget.health);
 
@@ -78,27 +79,94 @@ const applyEffect = (target, effectData, context) => {
         return;
     }
 
-    const existingEffect = target.activeEffects.find(e => e.id === effectData.id);
-
-    if (existingEffect) {
-        // --- Refresh Logic ---
-        existingEffect.expiresAt = now + effectData.duration;
-        existingEffect.appliedAt = now;
-        if (context.source && context.source.name) {
-            existingEffect.sourceName = context.source.name;
+    // --- DOT effect: Anti-stack by effect ID ---
+    if (effectData.category === 'DOT') {
+        const existingDoT = target.activeEffects.find(e => 
+            e.category === 'DOT' && e.id === effectData.id
+        );
+        
+        if (existingDoT) {
+            console.log(`[STATE MANAGER] DoT ${effectData.id} already active on ${target.id}, blocking reapplication (no stacking, no refresh)`);
+            return;
         }
-        console.log('[STATE MANAGER] Refreshed effect:', existingEffect, 'on', target.id);
-    } else {
-        // --- Application Logic ---
-        const newEffect = {
+        
+        // Apply new DoT
+        const newDoT = {
             ...effectData,
             appliedAt: now,
             expiresAt: now + effectData.duration,
             sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
         };
-        target.activeEffects.push(newEffect);
-        console.log('[STATE MANAGER] Applied new effect:', newEffect, 'to', target.id);
+        target.activeEffects.push(newDoT);
+        console.log(`[STATE MANAGER] Applied new DoT ${effectData.id} to ${target.id}, expires at ${newDoT.expiresAt.toFixed(2)}s`);
+        return;
     }
+
+    // --- EMPOWER, REND, FORTIFY, MISC_DAMAGE: Anti-stack by source, with caps ---
+    if (['EMPOWER', 'REND', 'FORTIFY', 'MISC_DAMAGE'].includes(effectData.category)) {
+        // Check if same source already has this effect active
+        const existingFromSameSource = target.activeEffects.find(e => 
+            e.category === effectData.category && 
+            e.sourceId === effectData.sourceId
+        );
+        
+        if (existingFromSameSource) {
+            // Refresh duration (extend expiration)
+            existingFromSameSource.expiresAt = now + effectData.duration;
+            existingFromSameSource.appliedAt = now;
+            console.log(`[STATE MANAGER] Refreshed ${effectData.category} from ${effectData.sourceId} on ${target.id}, new expiration: ${existingFromSameSource.expiresAt.toFixed(2)}s`);
+            return;
+        }
+        
+        // Calculate current total from this category
+        const currentTotal = target.activeEffects
+            .filter(e => e.category === effectData.category)
+            .reduce((sum, e) => sum + (e.value || 0), 0);
+        
+        // Define caps per category
+        const caps = {
+            EMPOWER: 0.50,
+            FORTIFY: 0.50,
+            REND: 0.70,
+            MISC_DAMAGE: Infinity  // Uncapped
+        };
+        
+        const cap = caps[effectData.category] || Infinity;
+        let valueToApply = effectData.value;
+        
+        // Apply partial amount if would exceed cap
+        if (currentTotal + valueToApply > cap) {
+            const originalValue = valueToApply;
+            valueToApply = Math.max(0, cap - currentTotal);
+            console.log(`[STATE MANAGER] ${effectData.category} would exceed ${(cap * 100).toFixed(0)}% cap. Applying partial: ${(valueToApply * 100).toFixed(1)}% (was ${(originalValue * 100).toFixed(1)}%)`);
+        }
+        
+        // Don't apply if value becomes 0 or negative
+        if (valueToApply <= 0) {
+            console.log(`[STATE MANAGER] ${effectData.category} already at cap (${(cap * 100).toFixed(0)}%), blocking new effect from ${effectData.sourceId}`);
+            return;
+        }
+        
+        // Apply new effect with (possibly capped) value
+        const newEffect = {
+            ...effectData,
+            value: valueToApply,
+            appliedAt: now,
+            expiresAt: now + effectData.duration,
+            sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
+        };
+        target.activeEffects.push(newEffect);
+        console.log(`[STATE MANAGER] Applied ${effectData.category} from ${effectData.sourceId} to ${target.id}: ${(valueToApply * 100).toFixed(1)}% (total now: ${((currentTotal + valueToApply) * 100).toFixed(1)}%)`);
+        return;
+    }
+
+    // --- Fallback for unknown categories ---
+    console.warn(`[STATE MANAGER] Unknown effect category: ${effectData.category}, applying without special logic`);
+    target.activeEffects.push({
+        ...effectData,
+        appliedAt: now,
+        expiresAt: now + effectData.duration,
+    });
 };
 
 
