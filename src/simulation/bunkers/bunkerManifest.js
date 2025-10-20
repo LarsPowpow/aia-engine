@@ -9,7 +9,6 @@ export const statBunkers = [
 
 import empower20 from './modifierBunkers/empower20.js';
 import cowardlyPunishment from './masteries/sword/cowardlyPunishment/cowardlyPunishment_Effects';
-import leapingStrike from './masteries/sword/leapingStrike_Effects.js';
 import punishingMalachiteArmorMisc from './runeglass/punishingMalachite/punishingMalachite_ArmorMisc.js';
 import punishingMalachiteWeaponMisc from './runeglass/punishingMalachite/punishingMalachite_WeaponMisc.js';
 import punishingMalachiteCruelEmpower from './runeglass/punishingMalachite/punishingMalachite_CruelEmpower.js';
@@ -17,13 +16,10 @@ import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringL
 import perk_keenly_jagged_ii from './generated/perk_keenly_jagged_ii';
 import perk_keenly_empowered_ii from './generated/perk_keenly_empowered_ii';
 
-export const modifierBunkers = [empoweringLeapingStrike];
+export const modifierBunkers = [];
+
 export const effectBunkers = [
-    cowardlyPunishment,
-    leapingStrike,
-    punishingMalachiteArmorMisc,
-    punishingMalachiteWeaponMisc,
-    punishingMalachiteCruelEmpower,
+    empoweringLeapingStrike,
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     ...generatedBunkers
