@@ -22,8 +22,49 @@ import { calculateWeaponDamage } from './formulas';
  * The main exportable function that the UI calls.
  */
 export const runSimulation = (playerPayload, targetPayload, choreography, allSources) => {
-    // [ENGINE] Payload received (concise log, uncomment for debugging)
-    // console.log('[ENGINE] Payload received', { player: playerPayload, target: targetPayload, choreographyLength: choreography.length, sourceCount: allSources.length });
+    // ✅ NEW: Filter bunkers based on selected sources
+    const selectedSourceIds = new Set((allSources || []).map(s => s.id));
+    const hasSelections = selectedSourceIds.size > 0;
+    
+    // Log bunker IDs vs source IDs for debugging
+    console.log('[ENGINE] Available bunker IDs:', {
+        stat: statBunkers.map(b => b.id || b.METADATA?.id || b.metadata?.id),
+        modifier: modifierBunkers.map(b => b.id || b.METADATA?.id || b.metadata?.id),
+        effect: effectBunkers.map(b => b.id || b.METADATA?.id || b.metadata?.id)
+    });
+    console.log('[ENGINE] Selected source IDs:', Array.from(selectedSourceIds));
+    
+    const activeStatBunkers = hasSelections 
+        ? statBunkers.filter(b => {
+            const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
+            const matched = selectedSourceIds.has(bunkerId);
+            console.log(`[ENGINE] Stat bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}`);
+            return matched;
+        })
+        : [];
+    
+    const activeModifierBunkers = hasSelections
+        ? modifierBunkers.filter(b => {
+            const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
+            const matched = selectedSourceIds.has(bunkerId);
+            console.log(`[ENGINE] Modifier bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}`);
+            return matched;
+        })
+        : [];
+    
+    const activeEffectBunkers = hasSelections
+        ? effectBunkers.filter(b => {
+            const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
+            const matched = selectedSourceIds.has(bunkerId);
+            console.log(`[ENGINE] Effect bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}`);
+            return matched;
+        })
+        : [];
+    
+    console.log('[ENGINE] Bunker filtering result:', { 
+        selectedIds: Array.from(selectedSourceIds),
+        active: { stat: activeStatBunkers.length, modifier: activeModifierBunkers.length, effect: activeEffectBunkers.length }
+    });
 
     const rawLog = [];
     const analysisLog = [];
@@ -42,7 +83,7 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
 
     // --- STAGE 1: STAT CALCULATION ---
     addRawLog({ level: 'info', message: 'Entering Stage 1: Stat Calculation.' });
-    combatants = calculateBaseStats(combatants, allSources, addRawLog);
+    combatants = calculateBaseStats(combatants, allSources, addRawLog, activeStatBunkers);
 
     // --- STAGE 2: "TWO STROKE" EVENT PROCESSING ---
     addRawLog({ level: 'info', message: 'Entering Stage 2: Event Processing.' });
@@ -63,7 +104,15 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
                 combatants['Player'].perks = [...(combatants['Player'].perks || []), forcedCritPerk];
             }
         }
-        const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(event, combatants, allSources, addRawLog, analysisLog);
+        const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(
+            event, 
+            combatants, 
+            allSources, 
+            addRawLog, 
+            analysisLog,
+            activeModifierBunkers,
+            activeEffectBunkers
+        );
         combatants = JSON.parse(JSON.stringify(updatedCombatants));
         if (event.action === 'ABILITY_HIT' && event.abilityId === 'ability_sword_leaping_strike') {
             // Remove the forced perk after event
@@ -97,14 +146,14 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
 /**
  * STAGE 1: Calculates all passive, "Always On" bonuses.
  */
-const calculateBaseStats = (currentCombatants, allSources, addRawLog) => {
+const calculateBaseStats = (currentCombatants, allSources, addRawLog, activeBunkers = statBunkers) => {
     let updatedCombatants = JSON.parse(JSON.stringify(currentCombatants));
 
     for (const combatantId in updatedCombatants) {
         const combatant = updatedCombatants[combatantId];
         addRawLog({ level: 'info', message: `Calculating base stats for ${combatant.name}...`, combatantId });
 
-        for (const bunker of statBunkers) {
+        for (const bunker of activeBunkers) {
             const context = { source: combatant, allSources };
             const result = bunker.handler(context);
             if (result && result.addPassiveModifier) {
@@ -155,16 +204,13 @@ const calculateFinalDamage = (context, modifierRequests, damageTerms) => {
 /**
  * STAGE 2: Processes a single event through the "Two Stroke" model.
  */
-const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, analysisLog) => {
+const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, analysisLog, activeModifierBunkers = modifierBunkers, activeEffectBunkers = effectBunkers) => {
     // Always define modifierRequests before any usage
     let modifierRequests = [];
     // List of non-damaging actions (declare only once at the top)
     const NON_DAMAGE_ACTIONS = [
         'BLOCK_START', 'BLOCK_HIT', 'BLOCK_END', 'CONSUMABLE', 'WEAPON_SWAP'
     ];
-    // Always define damageTerms with defaults
-    // ...existing code...
-    // ...existing code...
     // Always define damageTerms with defaults
     let damageTerms = {
         empowerPercent: 0,
@@ -178,7 +224,6 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
     //     console.log('[ENGINE] Damage Event:', { event, damageTerms, modifierRequests });
     // }
-        // ...existing code...
 
     if (!event || !event.sourceId || !event.targetId) {
         addRawLog({ level: 'warn', message: 'Skipping malformed event: Missing sourceId or targetId.', event });
@@ -268,7 +313,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
 
     // Collect modifier requests from bunkers
     modifierRequests = [];
-    for (const bunker of modifierBunkers) {
+    for (const bunker of activeModifierBunkers) {
         const result = bunker.handler({ ...context, timestamp });
         if (result && result.modifyDamage) {
             modifierRequests.push(...result.modifyDamage);
@@ -306,7 +351,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         // console.log('[ENGINE] Final Damage:', finalDamage);
     }
     effectRequests = [];
-    for (const bunker of effectBunkers) {
+    for (const bunker of activeEffectBunkers) {
         const result = bunker.handler({ ...context, timestamp });
         if (result && result.applyEffects) {
             effectRequests.push(...result.applyEffects);

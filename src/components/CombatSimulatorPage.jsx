@@ -161,7 +161,6 @@ const CombatSimulatorPage = ({ addLog }) => {
         }
 
         const maxHealth = Math.max(1, Math.floor(conVal) * 100);
-        // Only include Cowardly Punishment mastery if selected in UI
         const hasCowardlySelected = (equippedMasteries || []).some(m => m.id === 'upgrade_sword_leapingstrike_slow');
         const cowardlyPunishmentMastery = hasCowardlySelected ? {
             id: 'upgrade_sword_leapingstrike_slow',
@@ -169,7 +168,7 @@ const CombatSimulatorPage = ({ addLog }) => {
                 {
                     id: 'cowardly_punishment_slow',
                     category: 'SLOW',
-                    value: 0.3, // 30% slow
+                    value: 0.3,
                     duration: 3.0,
                     conditions: ['ON_ABILITY_HIT:ability_sword_leaping_strike']
                 }
@@ -198,10 +197,29 @@ const CombatSimulatorPage = ({ addLog }) => {
             activeEffects: []
         };
         
+        // ✅ FIX: Build selectedSources from checkbox selections
+        const selectedSources = [
+            ...(equippedPerks || []),
+            ...(equippedMasteries || []),
+            ...(equippedRuneglass || [])
+        ];
+        
+        console.log('[UI] Selected sources for simulation:', {
+            perks: equippedPerks?.length || 0,
+            masteries: equippedMasteries?.length || 0,
+            runeglass: equippedRuneglass?.length || 0,
+            total: selectedSources.length
+        });
+        
         try {
-            const { rawLog, analysisLog } = await runSimulation(combatantPayload, targetPayload, midComboBlockChoreography, allSources);
+            // ✅ Pass selectedSources instead of allSources
+            const { rawLog, analysisLog } = await runSimulation(
+                combatantPayload, 
+                targetPayload, 
+                midComboBlockChoreography, 
+                selectedSources  // ← Changed from allSources
+            );
             
-            // --- UI PROBE 1 ---
             console.log('%c[UI PROBE 1: DATA RECEIVED FROM ENGINE]', 'color: #00ffff; font-weight: bold;', {
                 analysisLog,
                 rawLog
