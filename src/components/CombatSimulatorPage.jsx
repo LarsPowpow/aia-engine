@@ -48,22 +48,42 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
                         <th className="p-2 font-semibold text-slate-300">Target</th>
                         <th className="p-2 font-semibold text-slate-300 text-center">Crit?</th>
                         <th className="p-2 font-semibold text-slate-300 text-right">Damage</th>
+                        <th className="p-2 font-semibold text-slate-300 text-right">Healing</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
                     {combatLog.length === 0 ? (
-                        <tr><td colSpan="6" className="text-center text-slate-500 py-16">Run a simulation to see the results.</td></tr>
+                        <tr><td colSpan="7" className="text-center text-slate-500 py-16">Run a simulation to see the results.</td></tr>
                     ) : (
-                        combatLog.map((entry, index) => (
-                            <tr key={index} className="hover:bg-slate-700/50 cursor-pointer transition-colors duration-150 even:bg-slate-800/20" onClick={() => onRowClick(index)}>
-                                <td className="p-2 whitespace-nowrap text-slate-400 font-mono">{entry.timestamp.toFixed(1)}s</td>
-                                <td className="p-2 whitespace-nowrap text-green-400 font-semibold">{entry.source}</td>
-                                <td className="p-2 whitespace-nowrap">{entry.action}</td>
-                                <td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td>
-                                <td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td>
-                                <td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td>
-                            </tr>
-                        ))
+                        combatLog.map((entry, index) => {
+                            // Calculate healing value
+                            const healingValue = entry.totalHealing ?? (
+                                Array.isArray(entry.healing)
+                                    ? entry.healing.reduce((sum, h) => {
+                                        if (h.valueType === 'baseHealth') {
+                                            const target = h.targetId === 'Player' 
+                                                ? entry.snapshot?.combatant 
+                                                : entry.snapshot?.target;
+                                            const baseHealth = target?.baseHealth || target?.maxHealth || 0;
+                                            return sum + (h.value * baseHealth);
+                                        }
+                                        return sum + (h.value || 0);
+                                    }, 0)
+                                    : 0
+                            );
+
+                            return (
+                                <tr key={index} className="hover:bg-slate-700/50 cursor-pointer transition-colors duration-150 even:bg-slate-800/20" onClick={() => onRowClick(index)}>
+                                    <td className="p-2 whitespace-nowrap text-slate-400 font-mono">{entry.timestamp.toFixed(1)}s</td>
+                                    <td className="p-2 whitespace-nowrap text-green-400 font-semibold">{entry.source}</td>
+                                    <td className="p-2 whitespace-nowrap">{entry.action}</td>
+                                    <td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td>
+                                    <td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td>
+                                    <td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td>
+                                    <td className="p-2 whitespace-nowrap text-right font-mono text-green-300">{healingValue > 0 ? Math.round(healingValue) : ''}</td>
+                                </tr>
+                            );
+                        })
                     )}
                 </tbody>
             </table>

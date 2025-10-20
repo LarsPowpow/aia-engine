@@ -58,16 +58,17 @@ const handler = (context) => {
         applyEffects: [
             {
                 id: 'healing_defense_ii_heal',
-                category: 'HEAL',  // New category: HEAL
+                category: 'HEAL',
                 sourceId: source.id,
                 targetId: source.id,
                 value: 0.025,  // 2.5% of base health
+                valueType: 'baseHealth',  // Add this!
                 duration: 0,  // Instant effect
                 appliedAt: timestamp,
                 expiresAt: timestamp,
                 metadata: {
                     sourceName: 'Healing Defense II',
-                    healType: 'percent',  // Percentage of base health
+                    healType: 'percent',
                 }
             }
         ]
