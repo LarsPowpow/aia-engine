@@ -36,7 +36,7 @@ const handler = (context) => {
                 category: 'MISC_DAMAGE',  // Use MISC_DAMAGE category
                 sourceId: source.id,
                 targetId: source.id,
-                value: 0.20,  // 20% misc damage
+                value: 0.26,  // 26% misc damage
                 duration: 3,
                 appliedAt: timestamp,
                 expiresAt: timestamp + 3,
