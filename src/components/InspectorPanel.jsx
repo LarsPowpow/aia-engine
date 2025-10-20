@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 // Sub-component for the new "Raw State" tab
-const EffectsTable = ({ title, effects }) => (
+const EffectsTable = ({ title, effects, combatantState }) => (
     <div>
         <h4 className="text-lg font-semibold text-slate-300 mb-2 border-b border-slate-600 pb-1">{title}</h4>
         {effects && effects.length > 0 ? (
@@ -15,18 +15,33 @@ const EffectsTable = ({ title, effects }) => (
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
-                    {effects.map((effect, index) => (
-                        <tr key={index} className="font-mono">
-                            <td className="p-1.5 whitespace-nowrap">{effect.sourceName || 'Unknown'}</td>
-                            <td className="p-1.5 whitespace-nowrap text-cyan-400">{effect.statusId || effect.id}</td>
-                            <td className="p-1.5 whitespace-nowrap text-right text-amber-400">{effect.value !== undefined ? `${(effect.value * 100).toFixed(0)}%` : (effect.valueFormula || 'N/A')}</td>
-                            <td className="p-1.5 whitespace-nowrap text-right">{
+                    {effects.map((effect, index) => {
+                        // Special handling for HEAL category
+                        let displayValue;
+                        if (effect.category === 'HEAL' && effect.metadata?.healType === 'percent') {
+                            // Calculate actual HP healed
+                            const baseHealth = combatantState?.baseHealth || combatantState?.maxHealth || 3000;
+                            const healAmount = Math.round(effect.value * baseHealth);
+                            displayValue = `${healAmount} HP`;
+                        } else if (effect.value !== undefined) {
+                            displayValue = `${(effect.value * 100).toFixed(0)}%`;
+                        } else {
+                            displayValue = effect.valueFormula || 'N/A';
+                        }
+
+                        return (
+                            <tr key={index} className="font-mono">
+                                <td className="p-1.5 whitespace-nowrap">{effect.sourceName || 'Unknown'}</td>
+                                <td className="p-1.5 whitespace-nowrap text-cyan-400">{effect.statusId || effect.id}</td>
+                                <td className="p-1.5 whitespace-nowrap text-right text-amber-400">{displayValue}</td>
+                                <td className="p-1.5 whitespace-nowrap text-right">{
     typeof effect.duration === 'number'
         ? (effect.duration === Infinity ? '∞' : effect.duration.toFixed(1))
         : effect.duration || 'N/A'
 }</td>
-                        </tr>
-                    ))}
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         ) : (
@@ -149,18 +164,19 @@ const RawStateTab = ({ combatantState, targetState, logEntry }) => {
         combatantState,
         logEntry?.snapshot?.combatant?.activeEffects,
         combatantState?.miscDmgPercent || logEntry?.snapshot?.combatant?.miscDmgPercent
-    );
+    ).filter(e => e.duration !== 0); // Filter out instant effects
+    
     const targetEffects = getComputedEffects(
         targetState,
         logEntry?.snapshot?.target?.activeEffects,
         targetState?.miscDmgPercent || logEntry?.snapshot?.target?.miscDmgPercent
-    );
+    ).filter(e => e.duration !== 0); // Filter out instant effects
 
     return (
         <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <EffectsTable title="Player Active Effects" effects={playerEffects} />
-                <EffectsTable title="Target Active Effects" effects={targetEffects} />
+                <EffectsTable title="Player Active Effects" effects={playerEffects} combatantState={combatantState} />
+                <EffectsTable title="Target Active Effects" effects={targetEffects} combatantState={targetState} />
             </div>
             
             {/* The JSON "Escape Hatch" */}

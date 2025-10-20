@@ -402,16 +402,31 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // --- GATEKEEPER: consolidate and apply effects with proper anti-stacking rules ---
     const grouped = {};
     for (const eff of effectRequests) {
-        // normalize target: misc/empower to source when applicable
-        const applyToSource = (['MISC_DAMAGE', 'EMPOWER'].includes(eff.category) && source.id === 'Player');
+        // Respect the effect's targetId if present, otherwise use category-based logic
+        const applyToSource = eff.targetId 
+            ? (eff.targetId === source.id)
+            : (['MISC_DAMAGE', 'EMPOWER'].includes(eff.category) && source.id === 'Player');
         const targetKey = applyToSource ? source.id : target.id;
+        
+        // DEBUG: Log heal targeting
+        if (eff.category === 'HEAL') {
+            console.log('[ENGINE] HEAL effect grouping:', {
+                effectId: eff.id,
+                effectTargetId: eff.targetId,
+                sourceId: source.id,
+                targetId: target.id,
+                applyToSource,
+                targetKey
+            });
+        }
+        
         const key = `${targetKey}::${eff.id}`;
-        if (!grouped[key]) grouped[key] = { ...eff, targetId: targetKey };
+        if (!grouped[key]) grouped[key] = { ...eff, targetId: eff.targetId || targetKey };
         else {
             // If duplicate, prefer the later expiresAt
             const existing = grouped[key];
             if ((eff.expiresAt || 0) > (existing.expiresAt || 0)) {
-                grouped[key] = { ...eff, targetId: targetKey };
+                grouped[key] = { ...eff, targetId: eff.targetId || targetKey };
             }
         }
     }

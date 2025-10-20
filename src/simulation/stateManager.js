@@ -57,23 +57,24 @@ const applyEffect = (target, effectData, context) => {
     const now = context.timestamp;
     // --- HEAL effect: apply healing directly ---
     if (effectData.category === 'HEAL') {
-        // Always apply healing to self (source)
-        let healTarget = context.source;
-        let healAmount = effectData.value;
-        if (effectData.valueType === 'baseHealth' && healTarget.baseHealth) {
-            healAmount = effectData.value * healTarget.baseHealth;
-        }
-        if (!healTarget.health) healTarget.health = healTarget.baseHealth || 0;
-        healTarget.health = Math.min(healTarget.health + healAmount, healTarget.baseHealth || healTarget.health);
+        const healAmount = effectData.value;
+        const healTarget = target; // Use 'target' not 'combatant'
+        healTarget.health = Math.min(healTarget.maxHealth, healTarget.health + healAmount);
         console.log('[STATE MANAGER] Applied healing:', healAmount, 'to', healTarget.id, 'new health:', healTarget.health);
-        // Optionally, log the effect as applied
-        const healEffect = {
-            ...effectData,
-            appliedAt: now,
-            expiresAt: now + effectData.duration,
-            sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
-        };
-        healTarget.activeEffects.push(healEffect);
+
+        // Only add heal to activeEffects if it has duration > 0 (HoT effects)
+        if (effectData.duration > 0) {
+            const healEffect = {
+                ...effectData,
+                appliedAt: now,
+                expiresAt: now + effectData.duration,
+                sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
+            };
+            healTarget.activeEffects.push(healEffect);
+            console.log('[STATE MANAGER] Added HoT (Heal over Time) effect to activeEffects:', healEffect.id);
+        } else {
+            console.log('[STATE MANAGER] Instant heal (duration: 0), not adding to activeEffects');
+        }
         return;
     }
 
