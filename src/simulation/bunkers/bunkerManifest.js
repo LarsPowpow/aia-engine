@@ -14,7 +14,8 @@ import punishingMalachiteArmorMisc from './runeglass/punishingMalachite/punishin
 import punishingMalachiteWeaponMisc from './runeglass/punishingMalachite/punishingMalachite_WeaponMisc.js';
 import punishingMalachiteCruelEmpower from './runeglass/punishingMalachite/punishingMalachite_CruelEmpower.js';
 import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringLeapingStrike_Modifiers.js';
-import keenlyJaggedII from './generated/perk_keenly_jagged_ii.js';
+import perk_keenly_jagged_ii from './generated/perk_keenly_jagged_ii';
+import perk_keenly_empowered_ii from './generated/perk_keenly_empowered_ii';
 
 export const modifierBunkers = [empoweringLeapingStrike];
 export const effectBunkers = [
@@ -23,7 +24,8 @@ export const effectBunkers = [
     punishingMalachiteArmorMisc,
     punishingMalachiteWeaponMisc,
     punishingMalachiteCruelEmpower,
-    keenlyJaggedII,
+    perk_keenly_jagged_ii,
+    perk_keenly_empowered_ii,
     ...generatedBunkers
 ];
 
