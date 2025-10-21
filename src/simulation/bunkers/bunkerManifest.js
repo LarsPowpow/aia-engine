@@ -57,6 +57,7 @@ import ability_sword_whirling_blade from './abilities/sword/whirlingBlade.js';
 import ability_sword_shield_rush from './abilities/sword/shieldRush.js';
 import ability_flail_trip from './abilities/flail/trip.js';
 import ability_flail_arcane_vortex from './abilities/flail/arcaneVortex.js';
+import ability_flail_arcane_eruption from './abilities/flail/arcaneEruption.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -83,7 +84,8 @@ export const modifierBunkers = [
     runeglass_empowered_jasper_armor,
     runeglass_punishing_jasper_retaliate_modifier,
     runeglass_punishing_jasper_weapon_misc,
-    runeglass_punishing_jasper_armor
+    runeglass_punishing_jasper_armor,
+    ability_flail_arcane_eruption.MODIFIER  // Duration extension (Stroke 1)
 ];
 
 export const effectBunkers = [
@@ -92,6 +94,7 @@ export const effectBunkers = [
     ability_sword_shield_rush,
     ability_flail_trip,
     ability_flail_arcane_vortex,
+    ability_flail_arcane_eruption.EFFECT,  // Slow + Heal (Stroke 2)
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,

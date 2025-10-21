@@ -1,0 +1,34 @@
+{
+  "id": "ability_flail_arcane_eruption",
+  "name": "Arcane Eruption",
+  "description": "A devastating two-hit flail ability. First hit deals 130% Arcane damage and slows enemies for 3 seconds. Second hit deals 150% Physical damage, extends all status effect durations on target by 30%, and heals self for 35% of max HP.",
+  "type": "ABILITY",
+  "weapon": "Flail",
+  "stroke": "BOTH",
+  "sourceType": "ability",
+  "bucket": "weapon",
+  "tags": ["ability", "flail", "arcane", "slow", "cc", "duration_extension", "heal", "debuff", "buff"],
+  "mechanics": {
+    "hitCount": 2,
+    "duration": 1.5,
+    "hit1": {
+      "damageType": "ARCANE",
+      "damageMultiplier": 1.30,
+      "slow": {
+        "duration": 3
+      }
+    },
+    "hit2": {
+      "damageType": "PHYSICAL",
+      "damageMultiplier": 1.50,
+      "durationExtension": {
+        "value": 0.30,
+        "affectedCategories": ["REND", "WEAKEN", "SLOW"]
+      },
+      "heal": {
+        "value": 0.35,
+        "target": "self"
+      }
+    }
+  }
+}

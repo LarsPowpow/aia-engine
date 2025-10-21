@@ -519,6 +519,9 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             if (mod.category === 'CRIT_DAMAGE') damageTerms.critDamage = (damageTerms.critDamage || 0) + (mod.value || 0);
             if (mod.category === 'EMPOWER_DURATION') damageTerms.empowerDuration = (damageTerms.empowerDuration || 0) + (mod.value || 0);
             if (mod.category === 'FORTIFY_DURATION') damageTerms.fortifyDuration = (damageTerms.fortifyDuration || 0) + (mod.value || 0);
+            if (mod.category === 'REND_DURATION') damageTerms.rendDuration = (damageTerms.rendDuration || 0) + (mod.value || 0);
+            if (mod.category === 'WEAKEN_DURATION') damageTerms.weakenDuration = (damageTerms.weakenDuration || 0) + (mod.value || 0);
+            if (mod.category === 'SLOW_DURATION') damageTerms.slowDuration = (damageTerms.slowDuration || 0) + (mod.value || 0);
             if (mod.category === 'LIFESTEAL_EFFICIENCY') damageTerms.lifestealEfficiency = (damageTerms.lifestealEfficiency || 0) + (mod.value || 0);
             if (mod.category === 'DIVINE_HEALING') damageTerms.divineHealing = (damageTerms.divineHealing || 0) + (mod.value || 0);
         }
@@ -780,6 +783,75 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
                 eff.metadata = eff.metadata || {};
                 eff.metadata.fortifyDurationExtended = true;
                 eff.metadata.durationMultiplier = (1 + fortifyDuration);
+            }
+        }
+    }
+
+    // --- SMART ENGINE: Apply rend duration extension to all REND effects ---
+    const rendDuration = damageTerms.rendDuration || 0;
+    if (rendDuration > 0) {
+        for (const eff of effectRequests) {
+            if (eff.category === 'REND' && eff.duration) {
+                const originalDuration = eff.duration;
+                eff.duration = Math.round(eff.duration * (1 + rendDuration));
+                
+                console.log('[ENGINE] ⏱️ Rend duration extended:', {
+                    effectId: eff.id,
+                    originalDuration: originalDuration,
+                    extendedDuration: eff.duration,
+                    multiplier: (1 + rendDuration).toFixed(3),
+                    source: eff.metadata?.sourceName
+                });
+                
+                eff.metadata = eff.metadata || {};
+                eff.metadata.rendDurationExtended = true;
+                eff.metadata.durationMultiplier = (1 + rendDuration);
+            }
+        }
+    }
+
+    // --- SMART ENGINE: Apply weaken duration extension to all WEAKEN effects ---
+    const weakenDuration = damageTerms.weakenDuration || 0;
+    if (weakenDuration > 0) {
+        for (const eff of effectRequests) {
+            if (eff.category === 'WEAKEN' && eff.duration) {
+                const originalDuration = eff.duration;
+                eff.duration = Math.round(eff.duration * (1 + weakenDuration));
+                
+                console.log('[ENGINE] ⏱️ Weaken duration extended:', {
+                    effectId: eff.id,
+                    originalDuration: originalDuration,
+                    extendedDuration: eff.duration,
+                    multiplier: (1 + weakenDuration).toFixed(3),
+                    source: eff.metadata?.sourceName
+                });
+                
+                eff.metadata = eff.metadata || {};
+                eff.metadata.weakenDurationExtended = true;
+                eff.metadata.durationMultiplier = (1 + weakenDuration);
+            }
+        }
+    }
+
+    // --- SMART ENGINE: Apply slow duration extension to all SLOW effects ---
+    const slowDuration = damageTerms.slowDuration || 0;
+    if (slowDuration > 0) {
+        for (const eff of effectRequests) {
+            if (eff.category === 'SLOW' && eff.duration) {
+                const originalDuration = eff.duration;
+                eff.duration = Math.round(eff.duration * (1 + slowDuration));
+                
+                console.log('[ENGINE] ⏱️ Slow duration extended:', {
+                    effectId: eff.id,
+                    originalDuration: originalDuration,
+                    extendedDuration: eff.duration,
+                    multiplier: (1 + slowDuration).toFixed(3),
+                    source: eff.metadata?.sourceName
+                });
+                
+                eff.metadata = eff.metadata || {};
+                eff.metadata.slowDurationExtended = true;
+                eff.metadata.durationMultiplier = (1 + slowDuration);
             }
         }
     }
