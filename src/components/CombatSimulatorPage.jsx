@@ -83,6 +83,25 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
                                         <td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td>
                                         <td className="p-2 whitespace-nowrap text-right font-mono text-green-300">{healingValue > 0 ? Math.round(healingValue) : ''}</td>
                                     </tr>
+                                    {/* Damage Type Subrows (Physical/Arcane split) */}
+                                    {entry.damageSubrows && entry.damageSubrows.map((subrow, subIdx) => {
+                                        // Color coding by damage type
+                                        const isArcane = subrow.type === 'arcane';
+                                        const bgColor = isArcane ? 'bg-purple-900/10 hover:bg-purple-800/20' : 'bg-blue-900/10 hover:bg-blue-800/20';
+                                        const textColor = isArcane ? 'text-purple-400' : 'text-blue-400';
+                                        const damageColor = isArcane ? 'text-purple-300' : 'text-blue-300';
+                                        
+                                        return (
+                                            <tr key={`${index}-dmgtype-${subIdx}`} className={`${bgColor} cursor-pointer transition-colors duration-150`} onClick={() => onRowClick(index)}>
+                                                <td className="p-2 pl-8 whitespace-nowrap text-slate-500 font-mono text-xs">↳</td>
+                                                <td className={`p-2 whitespace-nowrap ${textColor} font-semibold text-sm`} colSpan="2">Runeglass of Empowered Sapphire</td>
+                                                <td className={`p-2 whitespace-nowrap ${damageColor} text-xs italic uppercase`}>{subrow.type}</td>
+                                                <td className="p-2 whitespace-nowrap text-center text-slate-600">-</td>
+                                                <td className={`p-2 whitespace-nowrap text-right font-bold font-mono ${damageColor}`}>{subrow.damage}</td>
+                                                <td className="p-2 whitespace-nowrap text-right"></td>
+                                            </tr>
+                                        );
+                                    })}
                                     {/* Arcane Damage Subrows */}
                                     {entry.arcaneDamageSubrows && entry.arcaneDamageSubrows.map((subrow, subIdx) => (
                                         <tr key={`${index}-arcane-${subIdx}`} className="bg-purple-900/10 hover:bg-purple-800/20 cursor-pointer transition-colors duration-150" onClick={() => onRowClick(index)}>

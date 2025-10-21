@@ -381,10 +381,14 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
 
     // Collect modifier requests from bunkers
     modifierRequests = [];
+    let damageConversions = [];
     for (const bunker of activeModifierBunkers) {
         const result = bunker.handler({ ...context, timestamp });
         if (result && result.modifyDamage) {
             modifierRequests.push(...result.modifyDamage);
+        }
+        if (result && result.convertDamage) {
+            damageConversions.push(result.convertDamage);
         }
     }
 
@@ -397,14 +401,109 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         }
     }
 
+    let damageSubrows = [];
     if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
-        // --- DAMAGE CALCULATION ---
-        finalDamage = calculateFinalDamage(context, [], damageTerms);
-        if (isCrit) {
-            finalDamage = Math.round(finalDamage * critMultiplier);
+        // --- DAMAGE CALCULATION WITH CONVERSION SUPPORT ---
+        if (damageConversions.length > 0) {
+            // Calculate base weapon damage (no modifiers)
+            const weaponDamage = calculateWeaponDamage(source.weaponType, source.attributes);
+            let abilityBaseDamageMultiplier = event.baseDamageMultiplier;
+            if (abilityBaseDamageMultiplier == null) {
+                try {
+                    const { BASE_ABILITY_MODIFIERS } = require('./formulas');
+                    const weaponMods = BASE_ABILITY_MODIFIERS[source.weaponType] || {};
+                    abilityBaseDamageMultiplier = weaponMods[event.action] || 1.0;
+                } catch (e) {
+                    abilityBaseDamageMultiplier = 1.0;
+                }
+            }
+            const baseDamage = weaponDamage * abilityBaseDamageMultiplier;
+            
+            // Apply conversions to split damage percentages
+            let remainingPhysical = 1.0; // 100% starts as physical
+            const damageByType = { physical: 1.0 };
+            
+            for (const conversion of damageConversions) {
+                const convertPercent = conversion.percent || 0;
+                const toType = conversion.to || 'arcane';
+                
+                // Reduce physical by conversion amount
+                remainingPhysical -= convertPercent;
+                
+                // Add to target type
+                damageByType[toType] = (damageByType[toType] || 0) + convertPercent;
+            }
+            
+            damageByType.physical = remainingPhysical;
+            
+            console.log('[ENGINE] 💎 Damage conversion:', {
+                conversions: damageConversions,
+                split: damageByType,
+                baseDamage
+            });
+            
+            // Calculate final damage for each type WITH type-specific modifiers
+            for (const [damageType, percent] of Object.entries(damageByType)) {
+                if (percent <= 0) continue;
+                
+                // Create type-specific damage terms (start from base universal modifiers)
+                const typeDamageTerms = {
+                    empowerPercent: damageTerms.empowerPercent,
+                    rendPercent: damageTerms.rendPercent,
+                    baseCritDmgPercent: damageTerms.baseCritDmgPercent,
+                    positionalDmgPercent: damageTerms.positionalDmgPercent,
+                    miscDmgPercent: damageTerms.miscDmgPercent
+                };
+                
+                // Run modifier bunkers AGAIN with damageType specified
+                const typeEvent = { ...event, damageType: damageType.toUpperCase() };
+                const typeContext = { ...context, event: typeEvent, damageType: damageType.toUpperCase() };
+                
+                for (const bunker of activeModifierBunkers) {
+                    const result = bunker.handler({ ...typeContext, timestamp });
+                    if (result && result.modifyDamage) {
+                        for (const mod of result.modifyDamage) {
+                            if (mod.category === 'EMPOWER') typeDamageTerms.empowerPercent += mod.value || 0;
+                            if (mod.category === 'REND') typeDamageTerms.rendPercent += mod.value || 0;
+                            if (mod.category === 'MISC_DAMAGE') typeDamageTerms.miscDmgPercent += mod.value || 0;
+                        }
+                    }
+                }
+                
+                // Calculate final damage for this type
+                const typeBaseDamage = baseDamage * percent;
+                let typeDamage = Math.round(typeBaseDamage *
+                    (1 + (typeDamageTerms.empowerPercent || 0) + (typeDamageTerms.rendPercent || 0)) *
+                    (1 + (typeDamageTerms.baseCritDmgPercent || 0)) *
+                    (1 + (typeDamageTerms.positionalDmgPercent || 0)) *
+                    (1 + (typeDamageTerms.miscDmgPercent || 0))
+                );
+                
+                if (isCrit) {
+                    typeDamage = Math.round(typeDamage * critMultiplier);
+                }
+                
+                console.log(`[ENGINE] 💎 ${damageType.toUpperCase()} damage:`, {
+                    percent: (percent * 100).toFixed(0) + '%',
+                    baseDamage: Math.round(typeBaseDamage),
+                    modifiers: typeDamageTerms,
+                    finalDamage: typeDamage
+                });
+                
+                finalDamage += typeDamage;
+                damageSubrows.push({
+                    type: damageType,
+                    damage: typeDamage,
+                    percent: percent
+                });
+            }
+        } else {
+            // No conversion: standard damage calculation
+            finalDamage = calculateFinalDamage(context, [], damageTerms);
+            if (isCrit) {
+                finalDamage = Math.round(finalDamage * critMultiplier);
+            }
         }
-        // [ENGINE] Final Damage (debug, uncomment for troubleshooting)
-        // console.log('[ENGINE] Final Damage:', finalDamage);
     }
     effectRequests = [];
     for (const bunker of activeEffectBunkers) {
@@ -540,6 +639,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         target: target.name,
         isCrit,
         damage: finalDamage,
+        damageSubrows: damageSubrows.length > 0 ? damageSubrows : undefined, // ✅ Add damage type subrows
         arcaneDamageSubrows: arcaneDamageSubrows.length > 0 ? arcaneDamageSubrows : undefined, // ✅ Add subrows
         healing: effectRequests
             .filter(eff => eff.category === 'HEAL')
@@ -677,12 +777,12 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
         );
         
         for (const effect of combatant.activeEffects) {
-            // Only process BLEED category effects
-            if (effect.category !== 'BLEED') {
+            // Process both BLEED and DOT category effects
+            if (effect.category !== 'BLEED' && effect.category !== 'DOT') {
                 continue;
             }
             
-            console.log(`[DOT] Found BLEED effect:`, {
+            console.log(`[DOT] Found ${effect.category} effect:`, {
                 id: effect.id,
                 nextTickAt: effect.nextTickAt?.toFixed(2),
                 currentTime: currentTime.toFixed(2),
@@ -702,6 +802,7 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
                     targetId: effect.targetId,
                     effectId: effect.id,
                     damagePercent: effect.damagePercent,
+                    damageType: effect.damageType, // ✅ Pass through damageType for modifier bunkers
                     metadata: effect.metadata,
                     notes: `Bleed Tick (${effect.metadata?.sourceName || 'Unknown'})`
                 });
