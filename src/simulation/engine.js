@@ -137,6 +137,26 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
                     };
                     combatants['Player'].perks = [...(combatants['Player'].perks || []), forcedCritPerk];
                 }
+                
+                // Apply 3-second slow to target
+                const target = combatants[event.targetId || 'Target Dummy'];
+                if (target) {
+                    const slowEffect = {
+                        id: 'ability_sword_leaping_strike_slow',
+                        category: 'SLOW',
+                        value: 0.3, // 30% slow
+                        duration: 3,
+                        appliedAt: event.timestamp,
+                        expiresAt: event.timestamp + 3,
+                        sourceId: event.sourceId || 'Player',
+                        targetId: event.targetId || 'Target Dummy',
+                        sourceName: 'Leaping Strike'
+                    };
+                    
+                    if (!target.activeEffects) target.activeEffects = [];
+                    target.activeEffects.push(slowEffect);
+                    console.log(`[Leaping Strike] Applied 3s slow to ${event.targetId || 'Target Dummy'}`);
+                }
             }
             
             const { updatedCombatants, eventAnalysis } = twoStrokeProcessEvent(
