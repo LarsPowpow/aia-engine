@@ -1,0 +1,10 @@
+{
+  "id": "perk_vicious_ii",
+  "name": "Vicious II",
+  "description": "+3% critical damage.",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["crit", "damage", "weapon_perk"]
+}

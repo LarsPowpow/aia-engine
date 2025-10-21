@@ -1,0 +1,19 @@
+{
+  "id": "perk_keen_ii",
+  "type": "PERK",
+  "bucket": "weapon",
+  "label": "Keen II",
+  "name": "Keen II",
+  "description": "+4% critical chance.",
+  "event": "PASSIVE",
+  "effects": [
+    {
+      "type": "crit_modifier",
+      "category": "CRIT_CHANCE",
+      "value": 0.04,
+      "trigger": "ALL_ATTACKS"
+    }
+  ],
+  "labels": ["Weapon_Perk_Keen"],
+  "slot": "weapon"
+}

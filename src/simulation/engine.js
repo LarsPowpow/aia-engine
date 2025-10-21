@@ -18,6 +18,12 @@ import { statBunkers, modifierBunkers, effectBunkers } from './bunkers/bunkerMan
 import { stateManager } from './stateManager';
 import { calculateWeaponDamage } from './formulas';
 
+// Weapon critical hit stats
+const WEAPON_CRIT_STATS = {
+    'Flail': { baseCritChance: 0.06, critMultiplier: 1.20 },
+    'Sword': { baseCritChance: 0.07, critMultiplier: 1.30 }
+};
+
 /**
  * The main exportable function that the UI calls.
  */
@@ -65,6 +71,21 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
         selectedIds: Array.from(selectedSourceIds),
         active: { stat: activeStatBunkers.length, modifier: activeModifierBunkers.length, effect: activeEffectBunkers.length }
     });
+    
+    // 🎯 Highlight crit-related modifiers
+    const critModifiers = activeModifierBunkers.filter(b => {
+        const id = b.id || b.METADATA?.id || b.metadata?.id || '';
+        return id.toLowerCase().includes('keen') || id.toLowerCase().includes('crit') || id.toLowerCase().includes('vicious');
+    });
+    if (critModifiers.length > 0) {
+        console.log('\n🎯 CRIT MODIFIERS ACTIVE:');
+        critModifiers.forEach(b => {
+            const id = b.id || b.METADATA?.id || b.metadata?.id;
+            const name = b.name || b.METADATA?.name || id;
+            console.log(`   ✅ ${name} (${id})`);
+        });
+        console.log('');
+    }
 
     const rawLog = [];
     const analysisLog = [];
@@ -198,6 +219,26 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
         }
     }
 
+    // 📊 CRIT SUMMARY (for easy testing/verification)
+    const critEvents = analysisLog.filter(e => e.snapshot?.combatant?.isCrit || e.event?.isCrit);
+    const damageEvents = analysisLog.filter(e => e.damage > 0);
+    const critRate = damageEvents.length > 0 ? (critEvents.length / damageEvents.length * 100) : 0;
+    
+    console.log('\n╔════════════════════════════════════════╗');
+    console.log('║       📊 CRIT SUMMARY                  ║');
+    console.log('╚════════════════════════════════════════╝');
+    console.log(`Total damage events: ${damageEvents.length}`);
+    console.log(`Critical hits: ${critEvents.length}`);
+    console.log(`Crit rate: ${critRate.toFixed(1)}%`);
+    
+    if (critEvents.length > 0) {
+        console.log('\n🎯 Crit Events:');
+        critEvents.forEach((e, i) => {
+            console.log(`  ${i + 1}. [${e.timestamp?.toFixed(2)}s] ${e.action} - Damage: ${e.damage}`);
+        });
+    }
+    console.log('════════════════════════════════════════\n');
+
     addRawLog({ level: 'info', message: 'Simulation complete.' });
     return { rawLog, analysisLog };
 };
@@ -289,10 +330,11 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     let isCrit = false;
     let critMultiplier = 1.0;
     
+    // Keep forced crit for Trip (for testing)
     if (event.action === 'ABILITY' && event.abilityId === 'ability_flail_trip') {
         isCrit = true;
-        critMultiplier = 1.3;
-        console.log('[ENGINE] 🎯 Trip is a guaranteed crit');
+        event.forcedCrit = true;  // Mark as forced
+        console.log('[ENGINE] 🎯 Trip is a guaranteed crit (forced for testing)');
     }
     
     // FOR TESTING: Force first Arcane Vortex hit to crit
@@ -300,13 +342,12 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         event.abilityId === 'ability_arcane_vortex' && 
         event.timestamp < 5.0) {
         isCrit = true;
-        critMultiplier = 1.3;
+        event.forcedCrit = true;  // Mark as forced
         console.log('[ENGINE] 🎯 Forced crit for Arcane Vortex Hit 1 (testing Keenly Jagged)');
     }
     
-    // Store on event for bunkers to access
-    event.isCrit = isCrit;
-    event.critMultiplier = critMultiplier;
+    // Note: critMultiplier and event.isCrit will be set after modifier collection
+    // This allows crit chance modifiers (like Keen II) to be included
 
     // --- DIAGNOSTIC PROBE: Healing Defense ---
     if (event.action && event.action.startsWith('BLOCK')) {
@@ -419,8 +460,49 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             if (mod.category === 'REND') damageTerms.rendPercent += mod.value || 0;
             if (mod.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += mod.value || 0;
             if (mod.category === 'HEALING_EFFICIENCY') damageTerms.healingEfficiency = (damageTerms.healingEfficiency || 0) + (mod.value || 0);
+            if (mod.category === 'CRIT_CHANCE') damageTerms.critChance = (damageTerms.critChance || 0) + (mod.value || 0);
+            if (mod.category === 'CRIT_DAMAGE') damageTerms.critDamage = (damageTerms.critDamage || 0) + (mod.value || 0);
         }
     }
+
+    // ✅ FINALIZE CRIT STATUS (after collecting modifiers)
+    // If not already a forced crit, roll for it based on weapon stats + modifiers
+    if (!event.forcedCrit && !NON_DAMAGE_ACTIONS.includes(event.action)) {
+        const weaponStats = WEAPON_CRIT_STATS[source.weaponType] || { baseCritChance: 0.05, critMultiplier: 1.0 };
+        const totalCritChance = weaponStats.baseCritChance + (damageTerms.critChance || 0);
+        
+        const roll = Math.random();
+        isCrit = roll < totalCritChance;
+        
+        // Apply crit damage modifiers to the base multiplier (additive)
+        critMultiplier = isCrit ? (weaponStats.critMultiplier + (damageTerms.critDamage || 0)) : 1.0;
+        
+        console.log('[ENGINE] 🎲 Crit roll:', {
+            weapon: source.weaponType,
+            baseCritChance: (weaponStats.baseCritChance * 100).toFixed(1) + '%',
+            critModifiers: ((damageTerms.critChance || 0) * 100).toFixed(1) + '%',
+            totalCritChance: (totalCritChance * 100).toFixed(1) + '%',
+            roll: roll.toFixed(3),
+            result: isCrit ? '✅ CRIT!' : '❌ No crit',
+            baseCritMultiplier: weaponStats.critMultiplier.toFixed(2) + 'x',
+            critDamageModifiers: '+' + ((damageTerms.critDamage || 0) * 100).toFixed(1) + '%',
+            finalCritMultiplier: isCrit ? critMultiplier.toFixed(2) + 'x' : 'N/A'
+        });
+    }
+    
+    // For forced crits, use weapon-specific multiplier + modifiers
+    if (event.forcedCrit) {
+        const weaponStats = WEAPON_CRIT_STATS[source.weaponType] || { baseCritChance: 0.05, critMultiplier: 1.0 };
+        critMultiplier = weaponStats.critMultiplier + (damageTerms.critDamage || 0);
+        console.log('[ENGINE] 🎯 Using weapon multiplier for forced crit:', {
+            weapon: source.weaponType,
+            critMultiplier: critMultiplier.toFixed(2)
+        });
+    }
+    
+    // Store on event for bunkers to access
+    event.isCrit = isCrit;
+    event.critMultiplier = critMultiplier;
 
     let damageSubrows = [];
     if (!NON_DAMAGE_ACTIONS.includes(event.action)) {
