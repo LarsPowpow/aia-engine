@@ -9,5 +9,16 @@
     "eventType": "BLOCK_START",
     "category": "EMPOWER",
     "conditions": ["ON_BLOCK"]
+  },
+  {
+    "id": "perk_trenchant_rend_ii",
+    "type": "PERK",
+    "label": "Trenchant Rend II",
+    "description": "Heavy melee attacks inflict Rend for 7s, reducing the target's armor by 20% (7s cooldown).",
+    "defaultValue": 0.2,
+    "defaultDuration": 7,
+    "eventType": "HEAVY_ATTACK",
+    "category": "REND",
+    "conditions": ["ON_HEAVY_ATTACK"]
   }
 ]

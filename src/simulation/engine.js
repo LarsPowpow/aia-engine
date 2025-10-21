@@ -231,7 +231,7 @@ const calculateFinalDamage = (context, modifierRequests, damageTerms) => {
     // Use provided damageTerms (from activeEffects at start of step)
         // Apply misc damage percent after empower/rend, per schema
         const finalDamage = baseDamage *
-            (1 + (damageTerms.empowerPercent || 0) - (damageTerms.rendPercent || 0)) *
+            (1 + (damageTerms.empowerPercent || 0) + (damageTerms.rendPercent || 0)) *
             (1 + (damageTerms.baseCritDmgPercent || 0)) *
             (1 + (damageTerms.positionalDmgPercent || 0)) *
             (1 + (damageTerms.miscDmgPercent || 0));
@@ -355,12 +355,26 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     let finalDamage = 0;
     let effectRequests = [];
 
+    // Read buffs from source (EMPOWER, MISC_DAMAGE)
     if (source.activeEffects) {
         for (const effect of source.activeEffects) {
             if (effect && effect.category && effect.id !== 'computed_misc_damage') {
                 if (effect.category === 'EMPOWER') damageTerms.empowerPercent += effect.value || 0;
-                if (effect.category === 'REND') damageTerms.rendPercent += effect.value || 0;
                 if (effect.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += effect.value || 0;
+            }
+        }
+    }
+
+    // Read debuffs from target (REND)
+    if (target.activeEffects) {
+        for (const effect of target.activeEffects) {
+            if (effect && effect.category === 'REND') {
+                console.log('[ENGINE] 🎯 Found REND on target:', {
+                    effectId: effect.id,
+                    value: effect.value,
+                    sourceId: effect.sourceId
+                });
+                damageTerms.rendPercent += effect.value || 0;
             }
         }
     }

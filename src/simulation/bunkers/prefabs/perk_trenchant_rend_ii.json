@@ -1,0 +1,24 @@
+{
+  "id": "perk_trenchant_rend_ii",
+  "type": "PERK",
+  "bucket": "fixed_perk",
+  "label": "Trenchant Rend II",
+  "name": "Trenchant Rend II",
+  "description": "Heavy melee attacks inflict Rend for 7s, reducing the target's armor by 20% (7s cooldown).",
+  "event": "HEAVY_ATTACK",
+  "condition": {
+    "type": "action",
+    "actionType": "HEAVY_ATTACK"
+  },
+  "cooldown": 7,
+  "effects": [
+    {
+      "type": "rend",
+      "value": 0.20,
+      "duration": 7,
+      "target": "enemy"
+    }
+  ],
+  "labels": ["D_Fixed_SkillCharm_OnHeavyAttack"],
+  "perk_bucket": "fixed_perk"
+}
