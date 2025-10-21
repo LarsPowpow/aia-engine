@@ -703,4 +703,346 @@ UI STATE (React components):
 
 ---
 
-*Last Updated: 2025-10-20*
+## 5. HoT (Heal over Time) Flow - Complete System
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  USER ACTION: Player blocks (triggers Healing Defense)          │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  BUNKER 1: perk_healing_defense_ii.js (Pass 1)                  │
+│  ──────────────────────────────────────────────────────────────  │
+│  return {                                                        │
+│    applyEffects: [{                                              │
+│      category: 'HEAL',                                           │
+│      value: 0.025,  // 2.5% base health                          │
+│      valueType: 'baseHealth',                                    │
+│      targetId: source.id,  // Self-heal                          │
+│      metadata: { healType: 'instant' }                           │
+│    }]                                                            │
+│  };                                                              │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  ENGINE: Pass 1 - Collect Initial Effects                       │
+│  ──────────────────────────────────────────────────────────────  │
+│  const effectRequests = [];                                      │
+│  for (const bunker of effectBunkers) {                           │
+│    const result = bunker.handler(context);  // No effectRequests│
+│    if (result?.applyEffects) {                                   │
+│      effectRequests.push(...result.applyEffects);                │
+│    }                                                             │
+│  }                                                               │
+│  // effectRequests = [HEAL effect from Healing Defense]          │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  BUNKER 2: perk_healing_breeze_ii.js (Pass 2)                   │
+│  ──────────────────────────────────────────────────────────────  │
+│  const { effectRequests } = context;  // Now available!          │
+│                                                                  │
+│  // Check if HOT_TICK (prevent recursion)                        │
+│  if (event.action === 'HOT_TICK') return null;                   │
+│                                                                  │
+│  // Check for HEAL effects from Pass 1                           │
+│  const hasHealEffect = effectRequests?.some(eff =>               │
+│    eff.category === 'HEAL' &&                                    │
+│    eff.metadata?.healType !== 'lifesteal' &&                     │
+│    eff.id !== 'healing_breeze_ii_hot'                            │
+│  );                                                              │
+│                                                                  │
+│  if (!hasHealEffect) return null;                                │
+│                                                                  │
+│  // Check cooldown...                                            │
+│  if (timeSinceLastProc < 10) return null;                        │
+│                                                                  │
+│  // Create HOT effect!                                           │
+│  return {                                                        │
+│    applyEffects: [{                                              │
+│      id: 'healing_breeze_ii_hot',                                │
+│      category: 'HOT',                                            │
+│      sourceId: source.id,                                        │
+│      targetId: source.id,  // ALWAYS self                        │
+│      value: 0.0525,        // 5.25% for UI                       │
+│      healPercent: 0.0525,  // 5.25% for calculation              │
+│      duration: 6,                                                │
+│      tickInterval: 1,                                            │
+│      appliedAt: timestamp,                                       │
+│      nextTickAt: timestamp + 1,                                  │
+│      expiresAt: timestamp + 6,                                   │
+│      metadata: {                                                 │
+│        sourceName: 'Healing Breeze II',                          │
+│        healType: 'hot',                                          │
+│        weaponType: source.weaponType,    // CRITICAL!            │
+│        attributes: { ...source.attributes }  // CRITICAL!        │
+│      }                                                           │
+│    }]                                                            │
+│  };                                                              │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  ENGINE: Pass 2 - Collect Reactive Effects                      │
+│  ──────────────────────────────────────────────────────────────  │
+│  for (const bunker of effectBunkers) {                           │
+│    const result = bunker.handler({                               │
+│      ...context,                                                 │
+│      effectRequests  // ← Pass 1 effects visible!                │
+│    });                                                           │
+│    if (result?.applyEffects) {                                   │
+│      effectRequests.push(...result.applyEffects);                │
+│    }                                                             │
+│  }                                                               │
+│  // effectRequests = [HEAL, HOT]                                 │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  STATE MANAGER: Apply HOT Effect                                 │
+│  ──────────────────────────────────────────────────────────────  │
+│  if (effectData.category === 'HOT') {                            │
+│    // Check for existing HoT with same ID                        │
+│    const existingHoT = target.activeEffects.find(e =>            │
+│      e.category === 'HOT' && e.id === effectData.id             │
+│    );                                                            │
+│                                                                  │
+│    if (existingHoT) {                                            │
+│      console.log('[STATE MANAGER] HoT already active, block');   │
+│      return;  // No stacking, no refresh                         │
+│    }                                                             │
+│                                                                  │
+│    // Add to activeEffects                                       │
+│    const newHoT = {                                              │
+│      ...effectData,                                              │
+│      appliedAt: now,                                             │
+│      expiresAt: now + effectData.duration                        │
+│    };                                                            │
+│    target.activeEffects.push(newHoT);                            │
+│    console.log(`[STATE MANAGER] Applied HOT to ${target.id}`);   │
+│  }                                                               │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  TIME ADVANCES: Simulation continues...                          │
+│  At 1.0s: Pre-scheduled tick time detected                      │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  ENGINE: injectDOTTickEvents() - Check for HoT Ticks            │
+│  ──────────────────────────────────────────────────────────────  │
+│  for (const combatant of combatants) {                           │
+│    for (const effect of combatant.activeEffects) {               │
+│      if (effect.category === 'HOT') {                            │
+│        const isActive = effect.appliedAt <= currentTime &&       │
+│                        effect.expiresAt > currentTime;           │
+│        const shouldTick = Math.abs(effect.nextTickAt -           │
+│                          currentTime) < 0.01;                    │
+│                                                                  │
+│        if (isActive && shouldTick) {                             │
+│          // Generate HOT_TICK event                              │
+│          dotTicks.push({                                         │
+│            timestamp: currentTime,                               │
+│            action: 'HOT_TICK',                                   │
+│            sourceId: effect.sourceId,                            │
+│            targetId: effect.targetId,                            │
+│            effectId: effect.id,                                  │
+│            healPercent: effect.healPercent,                      │
+│            metadata: effect.metadata,                            │
+│            notes: `HoT Tick (${effect.metadata?.sourceName})`   │
+│          });                                                     │
+│                                                                  │
+│          // Update next tick time                                │
+│          effect.nextTickAt = currentTime + effect.tickInterval;  │
+│        }                                                         │
+│      }                                                           │
+│    }                                                             │
+│  }                                                               │
+│  return dotTicks;  // Injected into choreography                 │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  ENGINE: Process HOT_TICK Event                                 │
+│  ──────────────────────────────────────────────────────────────  │
+│  if (event.action === 'HOT_TICK') {                              │
+│    const source = updatedCombatants[event.sourceId];             │
+│    const target = updatedCombatants[event.targetId];             │
+│                                                                  │
+│    // STEP 1: Recalculate weapon damage from stored metadata     │
+│    const weaponDamage = calculateWeaponDamage(                   │
+│      event.metadata.weaponType,                                  │
+│      event.metadata.attributes                                   │
+│    );                                                            │
+│    const baseHealing = Math.round(weaponDamage * event.healPercent);│
+│    // Example: 3800 * 0.0525 = 200 HP                            │
+│                                                                  │
+│    // STEP 2: Collect healing modifiers from active effects      │
+│    let healingTerms = {                                          │
+│      healingEfficiency: 0,                                       │
+│      divineHealing: 0                                            │
+│    };                                                            │
+│                                                                  │
+│    if (source.activeEffects) {                                   │
+│      for (const effect of source.activeEffects) {                │
+│        if (effect.category === 'HEALING_EFFICIENCY') {           │
+│          healingTerms.healingEfficiency += effect.value || 0;    │
+│        }                                                         │
+│        if (effect.category === 'DIVINE_HEALING') {               │
+│          healingTerms.divineHealing += effect.value || 0;        │
+│        }                                                         │
+│      }                                                           │
+│    }                                                             │
+│    // Example: healingEfficiency = 0.065 (Sacred II)             │
+│    //          divineHealing = 0.055 (Divine II)                 │
+│                                                                  │
+│    // STEP 3: Apply modifier bunkers (Sacred, Divine)            │
+│    const modifierSources = [];                                   │
+│    for (const bunker of activeModifierBunkers) {                 │
+│      const result = bunker.handler({                             │
+│        ...context,                                               │
+│        event,                                                    │
+│        eventType: 'HOT_TICK'                                     │
+│      });                                                         │
+│      if (result?.modifyDamage) {                                 │
+│        for (const mod of result.modifyDamage) {                  │
+│          if (mod.category === 'HEALING_EFFICIENCY') {            │
+│            healingTerms.healingEfficiency += mod.value || 0;     │
+│          }                                                       │
+│          if (mod.category === 'DIVINE_HEALING') {                │
+│            healingTerms.divineHealing += mod.value || 0;         │
+│          }                                                       │
+│          modifierSources.push({                                  │
+│            source: bunker.METADATA?.name,                        │
+│            category: mod.category,                               │
+│            value: mod.value                                      │
+│          });                                                     │
+│        }                                                         │
+│      }                                                           │
+│    }                                                             │
+│    // modifierSources = [Sacred II, Divine II]                   │
+│                                                                  │
+│    // STEP 4: Calculate final healing (additive multipliers)     │
+│    const totalMultiplier = 1 +                                   │
+│      (healingTerms.healingEfficiency || 0) +                     │
+│      (healingTerms.divineHealing || 0);                          │
+│    const finalHealing = Math.round(baseHealing * totalMultiplier);│
+│    // Example: 200 * (1 + 0.065 + 0.055) = 200 * 1.12 = 224 HP  │
+│                                                                  │
+│    // STEP 5: Apply healing to target                            │
+│    const newHp = Math.min(target.maxHp, target.currentHp + finalHealing);│
+│    updatedCombatants[target.id] = {                              │
+│      ...target,                                                  │
+│      currentHp: newHp                                            │
+│    };                                                            │
+│                                                                  │
+│    // STEP 6: Create event analysis                              │
+│    const eventAnalysis = {                                       │
+│      timestamp: event.timestamp,                                 │
+│      source: source.name,                                        │
+│      action: 'HoT Tick (Healing Breeze II)',                     │
+│      target: target.name,                                        │
+│      isCrit: false,                                              │
+│      damage: 0,                                                  │
+│      healing: finalHealing,  // As NUMBER!                       │
+│      snapshot: {                                                 │
+│        combatant: JSON.parse(JSON.stringify(source)),            │
+│        target: JSON.parse(JSON.stringify(target)),               │
+│        stroke1_modifiers: modifierSources,                       │
+│        stroke2_effects: [],                                      │
+│        healingTerms                                              │
+│      }                                                           │
+│    };                                                            │
+│                                                                  │
+│    return { updatedCombatants, eventAnalysis };                  │
+│  }                                                               │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  ENGINE: Add to Analysis Log                                     │
+│  ──────────────────────────────────────────────────────────────  │
+│  // Convert healing to array if not already                      │
+│  if (eventAnalysis.healing && !Array.isArray(...)) {             │
+│    eventAnalysis.healing = [eventAnalysis.healing];              │
+│  }                                                               │
+│  // eventAnalysis.healing = [224]                                │
+│                                                                  │
+│  // Calculate totalHealing from array                            │
+│  if (Array.isArray(eventAnalysis.healing)) {                     │
+│    eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {│
+│      if (typeof h === 'number') {  // ← NEW: Plain number        │
+│        return sum + h;              //    Direct addition!       │
+│      }                                                           │
+│      // Existing object logic...                                 │
+│      if (h.valueType === 'baseHealth') { ... }                   │
+│      return sum + (typeof h.value === 'number' ? h.value : 0);  │
+│    }, 0);                                                        │
+│  }                                                               │
+│  // eventAnalysis.totalHealing = 224                             │
+│                                                                  │
+│  analysisLog.push(eventAnalysis);                                │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  UI: Combat Analysis Table                                       │
+│  ──────────────────────────────────────────────────────────────  │
+│  const healingValue = entry.totalHealing ?? (                    │
+│    Array.isArray(entry.healing) ? (                              │
+│      entry.healing.reduce((sum, h) => {                          │
+│        if (typeof h === 'number') {                              │
+│          return sum + h;  // Handle plain numbers                │
+│        }                                                         │
+│        // Handle objects...                                      │
+│        if (h.valueType === 'baseHealth') { ... }                 │
+│        return sum + (h.value || 0);                              │
+│      }, 0)                                                       │
+│    ) : (typeof entry.healing === 'number' ? entry.healing : 0)  │
+│  );                                                              │
+│  // healingValue = 224                                           │
+│                                                                  │
+│  <td className="healing-column">                                 │
+│    {healingValue > 0 ? Math.round(healingValue) : ''}           │
+│  </td>                                                           │
+│  // Displays: "224" in Healing column                            │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  UI: Inspector Modal                                             │
+│  ──────────────────────────────────────────────────────────────  │
+│  Raw State Tab shows:                                            │
+│                                                                  │
+│  Player Active Effects:                                          │
+│    - healing_breeze_ii_hot (HOT)                                 │
+│      Value: 5% (or 5.25% depending on rounding)                  │
+│      Duration: 6.0s                                              │
+│      Source: Player                                              │
+│                                                                  │
+│  (Effect visible because duration > 0)                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Flow Points**:
+
+1. **Two-Pass Execution**: 
+   - Pass 1: Healing Defense creates HEAL effect
+   - Pass 2: Healing Breeze sees HEAL, creates HOT
+
+2. **State Manager**: HOT added to activeEffects (anti-stack by ID)
+
+3. **Tick Injection**: Engine checks activeEffects for HOT category, generates HOT_TICK events
+
+4. **Dynamic Calculation**: 
+   - Recalculate weapon damage from metadata
+   - Apply current healing modifiers
+   - Healing varies as state changes!
+
+5. **Data Types**:
+   - HOT effect stores: `healPercent` (percentage) + `metadata` (weapon/attributes)
+   - HOT_TICK returns: `healing` as NUMBER (not object)
+   - Engine converts to array for consistency
+   - totalHealing calculation handles plain numbers
+
+6. **UI Display**:
+   - Modal shows `value: 0.0525` as "5%" or "5.3%"
+   - Table shows `totalHealing: 224` as "224"
+
+---
+
+*Last Updated: 2025-10-21*

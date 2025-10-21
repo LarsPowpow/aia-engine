@@ -1168,4 +1168,490 @@ ls -1 /workspaces/aia-engine/src/simulation/bunkers/prefabs/runeglass_*
 
 ---
 
+## Where to Look: Adding HoT (Heal over Time) Effects 💚
+
+### Overview
+
+HoT system mirrors DoT architecture. If you understand DoTs, you understand HoTs!
+
+**Step-by-step**:
+
+### 1. Create Reactive Bunker (Triggers HoT)
+
+**Pattern**: Bunker that triggers on HEAL effects from OTHER bunkers.
+
+```bash
+# Create bunker file
+cat > src/simulation/bunkers/generated/perk_healing_breeze_ii.js <<'EOF'
+/**
+ * Healing Breeze II
+ * When applying a healing effect to yourself, Heal yourself for 5.25% weapon damage for 6s.
+ * (10s cooldown per target)
+ */
+
+const METADATA = {
+  id: 'perk_healing_breeze_ii',
+  name: 'Healing Breeze II',
+  type: 'effect',
+  sourceType: 'perk',
+  bucket: 'weapon',
+  tags: ['healing', 'hot', 'healing_trigger'],
+  description: 'When applying a healing effect to yourself, Heal yourself for 5.25% weapon damage for 6s. (10s cooldown per target)',
+};
+
+const handler = (context) => {
+  const { event, source, target, timestamp, effectRequests } = context;
+  
+  // CRITICAL: Don't trigger on HOT_TICK (infinite loop prevention)
+  if (event.action === 'HOT_TICK') {
+    return null;
+  }
+  
+  // CRITICAL: Skip Pass 1 (no effectRequests yet)
+  if (!effectRequests || effectRequests.length === 0) {
+    return null;
+  }
+  
+  // Check if any non-lifesteal, non-HoT HEAL effects were created
+  const hasHealEffect = effectRequests?.some(eff => 
+    eff.category === 'HEAL' && 
+    eff.metadata?.healType !== 'lifesteal' &&
+    eff.id !== 'healing_breeze_ii_hot'
+  );
+  
+  if (!hasHealEffect) {
+    return null;
+  }
+  
+  // Check per-target cooldown
+  const cooldownKey = `perk_healing_breeze_ii_${target.id}`;
+  if (!source.cooldowns) source.cooldowns = {};
+  const lastProc = source.cooldowns[cooldownKey] || -999;
+  const timeSinceLastProc = timestamp - lastProc;
+  
+  if (timeSinceLastProc < 10) {
+    return null;  // On cooldown
+  }
+  
+  // Update cooldown
+  source.cooldowns[cooldownKey] = timestamp;
+  
+  // Create HOT effect
+  const potency = 0.0525;  // 5.25% weapon damage per tick
+  
+  return {
+    applyEffects: [
+      {
+        id: 'healing_breeze_ii_hot',
+        category: 'HOT',
+        sourceId: source.id,
+        targetId: source.id,  // ALWAYS heal self
+        value: potency,       // For UI display (percentage)
+        healPercent: potency, // For calculation (percentage)
+        duration: 6,
+        tickInterval: 1,
+        appliedAt: timestamp,
+        nextTickAt: timestamp + 1,
+        expiresAt: timestamp + 6,
+        metadata: {
+          sourceName: 'Healing Breeze II',
+          healType: 'hot',
+          weaponType: source.weaponType,      // CRITICAL!
+          attributes: { ...source.attributes } // CRITICAL!
+        }
+      }
+    ]
+  };
+};
+
+export default { METADATA, handler };
+EOF
+```
+
+**Critical Points**:
+- **Infinite Loop Prevention**: Check `event.action === 'HOT_TICK'` early
+- **Pass 2 Only**: Check `effectRequests` exists before processing
+- **Metadata**: MUST include `weaponType` and `attributes` for dynamic calculation
+- **Self-Targeting**: Most HoTs target self (`targetId: source.id`)
+
+---
+
+### 2. Update State Manager (Recognize HOT Category)
+
+**File**: `/src/simulation/stateManager.js`
+
+**Add after DOT handling** (around line 104):
+
+```javascript
+// --- HOT effect: Anti-stack by effect ID ---
+if (effectData.category === 'HOT') {
+    const existingHoT = target.activeEffects.find(e => 
+        e.category === 'HOT' && e.id === effectData.id
+    );
+    
+    if (existingHoT) {
+        console.log(`[STATE MANAGER] HoT ${effectData.id} already active on ${target.id}, blocking reapplication (no stacking, no refresh)`);
+        return;
+    }
+    
+    // Apply new HoT
+    const newHoT = {
+        ...effectData,
+        appliedAt: now,
+        expiresAt: now + effectData.duration,
+        sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
+    };
+    target.activeEffects.push(newHoT);
+    console.log(`[STATE MANAGER] Applied new HOT ${effectData.id} to ${target.id}, expires at ${newHoT.expiresAt.toFixed(2)}s`);
+    return;
+}
+```
+
+**Pattern**: Exactly like DOT handling (anti-stack by effect ID, no refresh).
+
+---
+
+### 3. Update Engine Tick Injection
+
+**File**: `/src/simulation/engine.js`
+
+**Function**: `injectDOTTickEvents()` (around line 1125)
+
+**Modify to handle HOT category**:
+
+```javascript
+// Check all combatants for active DOT/HOT effects
+for (const combatantId in combatants) {
+    const combatant = combatants[combatantId];
+    
+    if (!combatant.activeEffects) continue;
+    
+    for (const effect of combatant.activeEffects) {
+        // Check for DOT, BLEED, or HOT effects
+        if (!['DOT', 'BLEED', 'HOT'].includes(effect.category)) continue;
+        
+        const isActive = effect.appliedAt <= currentTime && 
+                        effect.expiresAt > currentTime;
+        const shouldTick = effect.nextTickAt && 
+                          Math.abs(effect.nextTickAt - currentTime) < 0.01;
+        
+        if (isActive && shouldTick) {
+            const isHOT = effect.category === 'HOT';
+            
+            dotTicks.push({
+                timestamp: currentTime,
+                action: isHOT ? 'HOT_TICK' : 'DOT_TICK',
+                type: isHOT ? 'HOT_TICK' : 'BLEED_TICK',
+                sourceId: effect.sourceId,
+                targetId: effect.targetId,
+                effectId: effect.id,
+                damagePercent: effect.damagePercent,  // For DOTs
+                healPercent: effect.healPercent,      // For HOTs
+                damageType: effect.damageType,
+                metadata: effect.metadata,
+                notes: isHOT 
+                    ? `HoT Tick (${effect.metadata?.sourceName || 'Unknown'})`
+                    : `Bleed Tick (${effect.metadata?.sourceName || 'Unknown'})`
+            });
+            
+            // Update next tick time
+            if (currentTime + effect.tickInterval <= effect.expiresAt) {
+                effect.nextTickAt = currentTime + (effect.tickInterval || 1);
+            }
+        }
+    }
+}
+
+return dotTicks;
+```
+
+**Key Changes**:
+- Check for `'HOT'` in addition to `'DOT'` and `'BLEED'`
+- Set `action: 'HOT_TICK'` for HoT ticks
+- Copy `healPercent` from effect to event
+
+---
+
+### 4. Add HOT_TICK Handler to Engine
+
+**File**: `/src/simulation/engine.js`
+
+**Add BEFORE the DOT_TICK handler** (around line 1016):
+
+```javascript
+// Handle HOT tick events specially
+if (event.action === 'HOT_TICK') {
+    const source = updatedCombatants[event.sourceId];
+    const target = updatedCombatants[event.targetId];
+    
+    if (!source || !target) {
+        addRawLog({ level: 'warn', message: 'HOT tick skipped: source or target not found', event });
+        return { updatedCombatants: currentCombatants, eventAnalysis: null };
+    }
+    
+    // Calculate base HOT healing from stored metadata
+    const weaponDamage = calculateWeaponDamage(
+        event.metadata.weaponType,
+        event.metadata.attributes
+    );
+    const baseHealing = Math.round(weaponDamage * event.healPercent);
+    
+    console.log('[HOT_TICK] 💚 Processing HoT tick:', {
+        effectId: event.effectId,
+        sourceName: event.metadata?.sourceName,
+        weaponDamage,
+        healPercent: (event.healPercent * 100).toFixed(1) + '%',
+        baseHealing
+    });
+    
+    // Apply healing efficiency modifiers from active effects
+    let healingTerms = {
+        healingEfficiency: 0,
+        divineHealing: 0,
+    };
+    
+    // Read healing buffs from source's activeEffects (Sacred, Divine, etc.)
+    if (source.activeEffects) {
+        for (const effect of source.activeEffects) {
+            if (effect.category === 'HEALING_EFFICIENCY') {
+                healingTerms.healingEfficiency += effect.value || 0;
+            }
+            if (effect.category === 'DIVINE_HEALING') {
+                healingTerms.divineHealing += effect.value || 0;
+            }
+        }
+    }
+    
+    // Apply modifier bunkers to HOT ticks (just like DOT ticks)
+    const modifierSources = [];
+    const hotContext = { ...event, source, target, allSources, timestamp, event, eventType: 'HOT_TICK' };
+    for (const bunker of activeModifierBunkers) {
+        const result = bunker.handler({ ...hotContext, timestamp });
+        if (result && result.modifyDamage) {
+            for (const mod of result.modifyDamage) {
+                if (mod.category === 'HEALING_EFFICIENCY') {
+                    healingTerms.healingEfficiency += mod.value || 0;
+                }
+                if (mod.category === 'DIVINE_HEALING') {
+                    healingTerms.divineHealing += mod.value || 0;
+                }
+                
+                // Track the source
+                const bunkerName = bunker.METADATA?.name || bunker.metadata?.name || bunker.id || 'Unknown';
+                modifierSources.push({
+                    source: bunkerName,
+                    category: mod.category,
+                    value: mod.value
+                });
+            }
+        }
+    }
+    
+    // Calculate final healing with modifiers
+    // Formula: baseHealing * (1 + healingEfficiency + divineHealing)
+    // This matches how regular HEAL effects are processed (additive multipliers)
+    const totalMultiplier = 1 + (healingTerms.healingEfficiency || 0) + (healingTerms.divineHealing || 0);
+    const finalHealing = Math.round(baseHealing * totalMultiplier);
+    
+    // Apply healing to target
+    const newHp = Math.min(target.maxHp, target.currentHp + finalHealing);
+    updatedCombatants[target.id] = {
+        ...target,
+        currentHp: newHp
+    };
+    
+    addRawLog({ 
+        level: 'info', 
+        message: `HOT Tick: ${finalHealing} healing to ${target.name}`, 
+        event,
+        baseHealing,
+        finalHealing,
+        modifiers: healingTerms
+    });
+    
+    const eventAnalysis = {
+        timestamp: event.timestamp,
+        source: source.name,
+        action: event.notes || 'HoT Tick',
+        target: target.name,
+        isCrit: false,
+        damage: 0,
+        healing: finalHealing,  // As NUMBER (not object)
+        snapshot: {
+            combatant: JSON.parse(JSON.stringify(source)),
+            target: JSON.parse(JSON.stringify(target)),
+            stroke1_modifiers: modifierSources,
+            stroke2_effects: [],
+            healingTerms
+        }
+    };
+    
+    return { updatedCombatants, eventAnalysis };
+}
+```
+
+**Critical Formula**:
+```javascript
+// CORRECT (matches regular HEAL processing):
+const totalMultiplier = 1 + healingEfficiency + divineHealing;
+const finalHealing = baseHealing * totalMultiplier;
+
+// WRONG (Divine as flat addition):
+const finalHealing = baseHealing * (1 + healingEfficiency) + divineHealing;
+```
+
+---
+
+### 5. Update Engine totalHealing Calculation
+
+**File**: `/src/simulation/engine.js` (around line 202-217)
+
+**Problem**: Engine wraps `healing: 200` into `[200]`, but totalHealing calculation expects objects.
+
+**Fix**:
+
+```javascript
+// Convert healing to array if not already
+if (eventAnalysis.healing && !Array.isArray(eventAnalysis.healing)) {
+    eventAnalysis.healing = [eventAnalysis.healing];
+}
+
+// Calculate totalHealing from array
+if (Array.isArray(eventAnalysis.healing)) {
+    eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {
+        // NEW: Handle plain numbers (HOT_TICK, etc.)
+        if (typeof h === 'number') {
+            return sum + h;  // Direct addition!
+        }
+        // Existing: Handle healing objects
+        if (h.valueType === 'baseHealth') {
+            const target = h.targetId === 'Player' 
+                ? eventAnalysis.snapshot?.combatant 
+                : eventAnalysis.snapshot?.target;
+            const baseHealth = target && (target.baseHealth || target.maxHealth || 0);
+            return sum + (typeof h.value === 'number' ? h.value * baseHealth : 0);
+        }
+        return sum + (typeof h.value === 'number' ? h.value : 0);
+    }, 0);
+}
+```
+
+**Key Change**: Check `typeof h === 'number'` FIRST before assuming it's an object.
+
+---
+
+### 6. Update UI Combat Analysis Table
+
+**File**: `/src/components/CombatSimulatorPage.jsx` (around line 56-86)
+
+**Problem**: Table healing calculation doesn't handle plain numbers.
+
+**Fix**:
+
+```javascript
+const healingValue = entry.totalHealing ?? (
+    Array.isArray(entry.healing) ? (
+        entry.healing.reduce((sum, h) => {
+            // NEW: Handle plain numbers (HOT_TICK)
+            if (typeof h === 'number') {
+                return sum + h;
+            }
+            // Existing: Handle healing objects
+            if (h.valueType === 'baseHealth') {
+                const target = h.targetId === 'Player' 
+                    ? entry.snapshot?.combatant 
+                    : entry.snapshot?.target;
+                const baseHealth = target?.baseHealth || target?.maxHealth || 0;
+                return sum + (h.value * baseHealth);
+            }
+            return sum + (h.value || 0);
+        }, 0)
+    ) : (typeof entry.healing === 'number' ? entry.healing : 0)
+);
+```
+
+**Pattern**: Check for plain numbers at THREE levels:
+1. In engine's totalHealing calculation
+2. In table's healingValue calculation
+3. Fallback to `typeof entry.healing === 'number'`
+
+---
+
+### 7. Testing Checklist
+
+After implementing HoT:
+
+**1. State Manager**:
+- [ ] HOT appears in activeEffects (check Inspector → Raw State)
+- [ ] HOT shows correct value (5.25% or similar)
+- [ ] HOT has correct duration (6s or similar)
+- [ ] Can't stack same HoT (try triggering twice quickly)
+
+**2. Tick Generation**:
+- [ ] HOT_TICK events appear in Live Combat Log
+- [ ] Ticks occur at correct intervals (1.0s, 2.0s, 3.0s...)
+- [ ] Ticks stop after duration expires
+
+**3. Healing Calculation**:
+- [ ] Base healing is correct (weapon damage × healPercent)
+- [ ] Sacred II boosts healing (+6.5%)
+- [ ] Divine II boosts healing (+5.5%)
+- [ ] Both together = +12% total
+- [ ] Healing shows in Combat Analysis table (not blank)
+
+**4. UI Display**:
+- [ ] Modal shows HoT percentage (5.25% or 5.3%)
+- [ ] Combat Analysis shows healing per tick (200, 224, etc.)
+- [ ] Live Combat Log shows tick messages
+- [ ] Inspector Raw State shows HOT in activeEffects
+
+**5. Edge Cases**:
+- [ ] HoT doesn't trigger itself (infinite loop prevention)
+- [ ] HoT respects cooldowns
+- [ ] HoT works with different weapon types (Flail, Sword, etc.)
+- [ ] HoT scales with attribute changes mid-duration
+
+---
+
+### Common Mistakes
+
+**❌ Forgetting metadata.weaponType and metadata.attributes**:
+```javascript
+// WRONG: No metadata
+{ category: 'HOT', healPercent: 0.05 }
+// Result: 0 healing (no weapon damage base)
+
+// RIGHT: Full metadata
+{
+  category: 'HOT',
+  healPercent: 0.05,
+  metadata: {
+    weaponType: source.weaponType,
+    attributes: { ...source.attributes }
+  }
+}
+```
+
+**❌ Divine as flat addition instead of multiplier**:
+```javascript
+// WRONG
+const finalHealing = baseHealing * (1 + healingEfficiency) + divineHealing;
+
+// RIGHT
+const totalMultiplier = 1 + healingEfficiency + divineHealing;
+const finalHealing = baseHealing * totalMultiplier;
+```
+
+**❌ Not handling plain numbers in totalHealing calculation**:
+```javascript
+// WRONG
+return sum + (h.value || 0);  // Expects object
+
+// RIGHT
+if (typeof h === 'number') return sum + h;  // Handle number
+return sum + (h.value || 0);  // Then handle object
+```
+
+---
+
 *Last Updated: 2025-10-21*

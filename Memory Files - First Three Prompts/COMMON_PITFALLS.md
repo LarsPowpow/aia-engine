@@ -1218,4 +1218,325 @@ Only then: Start next runeglass!
 
 ---
 
+## HoT (Heal over Time) Implementation Pitfalls 💚
+
+**Problem**: HoT healing for 0, showing N/A in UI, or not appearing in Combat Analysis table.
+
+### Pitfall 1: Missing Metadata in HOT Effect
+
+**Symptom**: HoT ticks show 0 healing, console shows NaN or undefined weapon damage.
+
+**Root Cause**: HOT effect created without `weaponType` and `attributes` in metadata.
+
+**Why It Breaks**: 
+- HOT_TICK handler recalculates weapon damage from stored metadata
+- Without `weaponType` + `attributes`, weapon damage = 0 or NaN
+- `baseHealing = weaponDamage * healPercent = 0 * 0.0525 = 0`
+
+**Fix**:
+```javascript
+// ❌ WRONG: Missing metadata
+{
+  category: 'HOT',
+  healPercent: 0.0525,
+  duration: 6,
+  // Missing weaponType and attributes!
+}
+
+// ✅ RIGHT: Complete metadata
+{
+  category: 'HOT',
+  healPercent: 0.0525,
+  duration: 6,
+  metadata: {
+    sourceName: 'Healing Breeze II',
+    healType: 'hot',
+    weaponType: source.weaponType,        // ← Required!
+    attributes: { ...source.attributes }   // ← Required!
+  }
+}
+```
+
+**Pattern to Copy**: See `perk_healing_breeze_ii.js` lines 85-102
+
+---
+
+### Pitfall 2: HOT Category Not in State Manager
+
+**Symptom**: Console warning "Unknown effect category: HOT, applying without special logic"
+
+**Root Cause**: State manager doesn't recognize HOT category, treats it as unknown.
+
+**Fix**:
+```javascript
+// In stateManager.js, add HOT handling:
+
+// After DOT handling:
+if (effectData.category === 'HOT') {
+  const existingHoT = target.activeEffects.find(e => 
+    e.category === 'HOT' && e.id === effectData.id
+  );
+  
+  if (existingHoT) {
+    console.log(`[STATE MANAGER] HoT already active, blocking`);
+    return;
+  }
+  
+  const newHoT = {
+    ...effectData,
+    appliedAt: now,
+    expiresAt: now + effectData.duration,
+    sourceName: context.source?.name || 'Unknown'
+  };
+  target.activeEffects.push(newHoT);
+  return;
+}
+```
+
+**Code Location**: `/src/simulation/stateManager.js` (lines ~104-127)
+
+---
+
+### Pitfall 3: HOT_TICK Not Applying Healing Modifiers
+
+**Symptom**: Sacred II boosts HoT healing, but Divine II doesn't.
+
+**Root Cause**: HOT_TICK handler formula incorrect (Divine added flat instead of multiplied).
+
+**Wrong Formula**:
+```javascript
+// ❌ WRONG: Divine is flat addition
+const finalHealing = Math.round(
+  baseHealing * (1 + healingEfficiency) + divineHealing
+);
+// Example: 200 * 1.065 + 0.055 = 213.055 (Divine does almost nothing!)
+```
+
+**Right Formula**:
+```javascript
+// ✅ RIGHT: Divine is additive multiplier (same as Sacred)
+const totalMultiplier = 1 + healingEfficiency + divineHealing;
+const finalHealing = Math.round(baseHealing * totalMultiplier);
+// Example: 200 * (1 + 0.065 + 0.055) = 200 * 1.12 = 224
+```
+
+**Why**: Regular HEAL effects use additive multipliers:
+```javascript
+// From engine.js, regular heal processing:
+let totalMultiplier = 1 + healingEfficiency;
+if (!isLifesteal && !isConsumable && divineHealing > 0) {
+  totalMultiplier += divineHealing;  // ← Additive!
+}
+eff.value = eff.value * totalMultiplier;
+```
+
+**Code Location**: `/src/simulation/engine.js` (lines ~1082-1087)
+
+---
+
+### Pitfall 4: Healing Showing in Live Combat Log but Not in Combat Analysis Table
+
+**Symptom**: 
+- Live Combat Log: "HOT Tick: 200 healing to Player" ✓
+- Combat Analysis table: Healing column is BLANK ✗
+
+**Root Cause**: Engine wraps `healing: 200` into array `[200]`, but totalHealing calculation expects objects with `.value` property.
+
+**Debug Steps**:
+```javascript
+// Add to CombatSimulatorPage.jsx:
+console.log('[CA TABLE DEBUG] HoT Tick entry:', {
+  healing: entry.healing,           // Array(1)
+  healingType: typeof entry.healing, // "object"
+  totalHealing: entry.totalHealing   // 0 (broken!)
+});
+```
+
+**The Problem**:
+```javascript
+// Engine converts: healing: 200 → healing: [200]
+if (eventAnalysis.healing && !Array.isArray(eventAnalysis.healing)) {
+  eventAnalysis.healing = [eventAnalysis.healing];
+}
+
+// Then tries to calculate totalHealing:
+eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {
+  // h = 200 (plain number)
+  // h.value = undefined (no .value property!)
+  return sum + (typeof h.value === 'number' ? h.value : 0);
+}, 0);
+// Result: totalHealing = 0
+```
+
+**Fix**:
+```javascript
+// In engine.js, totalHealing calculation:
+eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {
+  // NEW: Handle plain numbers (HOT_TICK, etc.)
+  if (typeof h === 'number') {
+    return sum + h;  // ← Direct addition!
+  }
+  // Existing: Handle healing objects
+  if (h.valueType === 'baseHealth') {
+    const baseHealth = target?.baseHealth || target?.maxHealth || 0;
+    return sum + (h.value * baseHealth);
+  }
+  return sum + (typeof h.value === 'number' ? h.value : 0);
+}, 0);
+```
+
+**Code Location**: `/src/simulation/engine.js` (lines ~202-217)
+
+---
+
+### Pitfall 5: Two-Pass Effect Bunkers Not Seeing effectRequests
+
+**Symptom**: Healing Breeze II never triggers even when heals are happening.
+
+**Root Cause**: Reactive bunker running in Pass 1 (before effectRequests collected).
+
+**Debug**:
+```javascript
+// In bunker handler:
+console.log('[Healing Breeze II] Handler called:', {
+  effectRequestsCount: effectRequests?.length || 0,
+  effectRequests: effectRequests
+});
+
+// If you see:
+// effectRequestsCount: 0
+// effectRequests: undefined
+// → You're in Pass 1, need to skip!
+```
+
+**Fix**:
+```javascript
+// Add early return for Pass 1:
+function handler(context) {
+  const { effectRequests } = context;
+  
+  // Don't trigger on HOT_TICK (infinite loop prevention)
+  if (event.action === 'HOT_TICK') return null;
+  
+  // NEW: Skip Pass 1 (effectRequests not available yet)
+  if (!effectRequests || effectRequests.length === 0) {
+    return null;
+  }
+  
+  // Now check for HEAL effects...
+  const hasHealEffect = effectRequests.some(eff => 
+    eff.category === 'HEAL' && 
+    eff.metadata?.healType !== 'lifesteal'
+  );
+  
+  if (hasHealEffect) {
+    // Trigger!
+  }
+}
+```
+
+**Pattern**: All reactive bunkers must check `if (!effectRequests) return null;`
+
+---
+
+### Pitfall 6: HoT Triggering on Itself (Infinite Loop)
+
+**Symptom**: Healing Breeze creates HoT → HoT ticks → triggers Healing Breeze again → infinite HoTs!
+
+**Root Cause**: HoT ticks create HEAL effects, which trigger Healing Breeze again.
+
+**Prevention**:
+```javascript
+// 1. Mark HoT ticks with special healType:
+{
+  category: 'HEAL',
+  value: finalHealing,
+  metadata: {
+    healType: 'hot'  // ← Mark as HoT
+  }
+}
+
+// 2. Exclude HoT heals from triggering Healing Breeze:
+const hasHealEffect = effectRequests.some(eff => 
+  eff.category === 'HEAL' && 
+  eff.metadata?.healType !== 'lifesteal' &&
+  eff.metadata?.healType !== 'hot'  // ← Exclude HoTs!
+);
+
+// 3. Also check event action:
+if (event.action === 'HOT_TICK') {
+  return null;  // Don't trigger on HoT ticks
+}
+```
+
+**Three-Layer Defense**:
+1. Check `event.action === 'HOT_TICK'` → skip
+2. Mark HoT ticks with `healType: 'hot'`
+3. Exclude `healType === 'hot'` from trigger checks
+
+---
+
+### Pitfall 7: Modal Showing Wrong HoT Value
+
+**Symptom**: Modal shows "20000%" or "N/A" for HoT effect value.
+
+**Root Cause**: 
+- **20000%**: `value: 200` (absolute healing) interpreted as percentage, multiplied by 100 → 20000%
+- **N/A**: No `value` property at all
+
+**Fix**: Store `value` as percentage (matching healPercent):
+```javascript
+// ✅ CORRECT: value as percentage
+{
+  category: 'HOT',
+  value: 0.0525,         // 5.25% (for UI display)
+  healPercent: 0.0525,   // 5.25% (for healing calculation)
+  duration: 6,
+  // ...
+}
+
+// Modal will show: 5.25% or 5.3% (rounded)
+```
+
+**Pattern**: DOT/BLEED effects also store `value` as percentage, not absolute damage.
+
+---
+
+## HoT Quick Reference
+
+**Complete HOT Effect Template**:
+```javascript
+{
+  id: 'healing_breeze_ii_hot',
+  category: 'HOT',
+  sourceId: source.id,
+  targetId: source.id,  // Typically self
+  value: 0.0525,        // For UI (percentage)
+  healPercent: 0.0525,  // For calculation (percentage)
+  duration: 6,
+  tickInterval: 1,
+  appliedAt: timestamp,
+  nextTickAt: timestamp + 1,
+  expiresAt: timestamp + 6,
+  metadata: {
+    sourceName: 'Healing Breeze II',
+    healType: 'hot',
+    weaponType: source.weaponType,      // REQUIRED
+    attributes: { ...source.attributes } // REQUIRED
+  }
+}
+```
+
+**HOT_TICK Handler Checklist**:
+- ✅ Recalculate weapon damage from metadata
+- ✅ Multiply by healPercent for base healing
+- ✅ Collect healing modifiers from active effects
+- ✅ Run modifier bunkers (Sacred, Divine)
+- ✅ Calculate `totalMultiplier = 1 + healingEfficiency + divineHealing`
+- ✅ Apply `finalHealing = baseHealing * totalMultiplier`
+- ✅ Mutate target HP
+- ✅ Return eventAnalysis with `healing: finalHealing` (as number)
+
+---
+
 *Last Updated: 2025-10-21*
