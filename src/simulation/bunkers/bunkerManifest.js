@@ -2,6 +2,13 @@
 const generatedBunkerModules = import.meta.glob('./generated/*.js', { eager: true });
 const generatedBunkers = Object.values(generatedBunkerModules).map(mod => mod.default).filter(Boolean);
 
+console.log('[BUNKER MANIFEST] Generated bunkers loaded:', {
+    moduleCount: Object.keys(generatedBunkerModules).length,
+    moduleKeys: Object.keys(generatedBunkerModules),
+    bunkerCount: generatedBunkers.length,
+    bunkerIds: generatedBunkers.map(b => b.METADATA?.id || b.metadata?.id || b.id || 'UNKNOWN')
+});
+
 export const statBunkers = [
     { id: 'perkid_slottable_common_empower', handler: () => {} },
     { id: 'runeglass_gem_malachite_melee', handler: () => {} }
@@ -16,9 +23,11 @@ import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringL
 import perk_keenly_jagged_ii from './generated/perk_keenly_jagged_ii';
 import perk_keenly_empowered_ii from './generated/perk_keenly_empowered_ii';
 import perk_disdained_infliction_ii from './generated/perk_disdained_infliction_ii';
+import runeglass_empowered_sapphire_armor from './modifiers/runeglass_empowered_sapphire_armor.js';
 
 export const modifierBunkers = [
-    perk_disdained_infliction_ii
+    perk_disdained_infliction_ii,
+    runeglass_empowered_sapphire_armor
 ];
 
 export const effectBunkers = [

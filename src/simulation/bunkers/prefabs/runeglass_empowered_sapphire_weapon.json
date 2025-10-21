@@ -1,0 +1,33 @@
+{
+  "id": "runeglass_empowered_sapphire_weapon",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Runeglass of Empowered Sapphire (Weapon)",
+  "name": "Runeglass of Empowered Sapphire",
+  "description": "50% of damage dealt is converted to Arcane. Arcane hits inflict Hex, dealing 20 Arcane damage over 10 seconds.",
+  "event": "ON_HIT",
+  "condition": {
+    "type": "action",
+    "actionType": "HIT"
+  },
+  "effects": [
+    {
+      "type": "arcane_damage",
+      "damagePercent": 0.5,
+      "damageType": "ARCANE",
+      "target": "enemy"
+    },
+    {
+      "type": "dot",
+      "subtype": "HEX",
+      "totalDamage": 20,
+      "duration": 10,
+      "tickInterval": 1,
+      "damageType": "ARCANE",
+      "stackable": false,
+      "target": "enemy"
+    }
+  ],
+  "labels": ["Runeglass_Weapon_Sapphire"],
+  "slot": "weapon_runeglass"
+}

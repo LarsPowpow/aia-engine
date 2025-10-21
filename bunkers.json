@@ -73,5 +73,25 @@
     "eventType": "ON_HIT",
     "category": "ARCANE_DAMAGE",
     "conditions": ["ON_HIT"]
+  },
+  {
+    "id": "runeglass_empowered_sapphire_weapon",
+    "type": "RUNEGLASS",
+    "label": "Runeglass of Empowered Sapphire (Weapon)",
+    "description": "50% of damage dealt is converted to Arcane. Arcane hits inflict Hex, dealing 20 Arcane damage over 10 seconds.",
+    "defaultValue": 0.5,
+    "eventType": "ON_HIT",
+    "category": "DAMAGE_CONVERSION",
+    "conditions": ["ON_HIT"]
+  },
+  {
+    "id": "runeglass_empowered_sapphire_armor",
+    "type": "RUNEGLASS",
+    "label": "Runeglass of Empowered Sapphire (Armor)",
+    "description": "+2% Arcane Damage",
+    "defaultValue": 0.02,
+    "eventType": "PASSIVE",
+    "category": "ARCANE_BOOST",
+    "conditions": ["PASSIVE"]
   }
 ]

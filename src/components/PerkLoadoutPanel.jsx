@@ -42,7 +42,12 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, perkOptions }) => {
         <thead className="bg-black/20 sticky top-0 backdrop-blur-sm z-10">
           <tr>
             <th className="p-2 font-semibold text-slate-300 w-1/6">Use</th>
-            <th className="p-2 font-semibold text-slate-300">
+            <th className="p-2 font-semibold text-slate-300">Name</th>
+            <th className="p-2 font-semibold text-slate-300">Bucket</th>
+          </tr>
+          <tr>
+            <th className="p-2"></th>
+            <th className="p-2">
               <input
                 type="text"
                 placeholder="Search Name..."
@@ -51,7 +56,7 @@ const PerkLoadoutPanel = ({ equippedPerks, setEquippedPerks, perkOptions }) => {
                 className="w-full bg-slate-800/50 border border-slate-600 rounded-md px-2 py-1 text-xs text-white focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
               />
             </th>
-            <th className="p-2 font-semibold text-slate-300">
+            <th className="p-2">
               <select
                 value={bucketFilter}
                 onChange={(e) => setBucketFilter(e.target.value)}

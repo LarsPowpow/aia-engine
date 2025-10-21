@@ -1,0 +1,23 @@
+{
+  "id": "runeglass_empowered_sapphire_armor",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_armor",
+  "label": "Runeglass of Empowered Sapphire (Armor)",
+  "name": "Runeglass of Empowered Sapphire",
+  "description": "+2% Arcane Damage",
+  "event": "PASSIVE",
+  "condition": {
+    "type": "damage_type",
+    "damageType": "ARCANE"
+  },
+  "effects": [
+    {
+      "type": "damage_modifier",
+      "category": "ARCANE_BOOST",
+      "value": 0.02,
+      "damageType": "ARCANE"
+    }
+  ],
+  "labels": ["Runeglass_Armor_Sapphire"],
+  "slot": "armor_runeglass"
+}

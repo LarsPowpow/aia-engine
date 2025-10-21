@@ -34,7 +34,11 @@ const MasteryLoadoutPanel = ({ equippedMasteries, setEquippedMasteries, masteryO
         <thead className="bg-black/20 sticky top-0 backdrop-blur-sm z-10">
           <tr>
             <th className="p-2 font-semibold text-slate-300 w-1/6">Use</th>
-            <th className="p-2 font-semibold text-slate-300">
+            <th className="p-2 font-semibold text-slate-300">Name</th>
+          </tr>
+          <tr>
+            <th className="p-2"></th>
+            <th className="p-2">
               <input
                 type="text"
                 placeholder="Search Name..."
@@ -73,7 +77,7 @@ const MasteryLoadoutPanel = ({ equippedMasteries, setEquippedMasteries, masteryO
         </svg>
         Mastery Loadout
       </h2>
-      <div className="flex-grow overflow-auto custom-scrollbar pr-1" style={{maxHeight: '200px'}}>
+      <div className="flex-grow overflow-auto custom-scrollbar pr-1 h-48">
         {renderContent()}
       </div>
     </div>
