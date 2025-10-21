@@ -50,6 +50,7 @@ import perk_fortified_ii from './generated/perk_fortified_ii.js';
 import perk_anointed_lifesteal_ii from './generated/perk_anointed_lifesteal_ii.js';
 import perk_divine_ii from './generated/perk_divine_ii.js';
 import perk_end_ii from './generated/perk_end_ii.js';
+import perk_arcane_damage_ii from './generated/perk_arcane_damage_ii.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -63,6 +64,7 @@ export const modifierBunkers = [
     perk_anointed_lifesteal_ii,
     perk_divine_ii,
     perk_end_ii,
+    perk_arcane_damage_ii,
     runeglass_empowered_sapphire_weapon,
     runeglass_empowered_sapphire_armor,
     runeglass_punishing_sapphire_weapon,

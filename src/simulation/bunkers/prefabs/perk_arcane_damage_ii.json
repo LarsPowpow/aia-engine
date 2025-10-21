@@ -1,0 +1,10 @@
+{
+  "id": "perk_arcane_damage_ii",
+  "name": "Arcane Damage II",
+  "description": "+8.0% Arcane Damage",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["damage", "arcane", "damage_type", "weapon_perk"]
+}
