@@ -418,6 +418,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             if (mod.category === 'EMPOWER') damageTerms.empowerPercent += mod.value || 0;
             if (mod.category === 'REND') damageTerms.rendPercent += mod.value || 0;
             if (mod.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += mod.value || 0;
+            if (mod.category === 'HEALING_EFFICIENCY') damageTerms.healingEfficiency = (damageTerms.healingEfficiency || 0) + (mod.value || 0);
         }
     }
 
@@ -533,6 +534,32 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             effectRequests.push(...result.applyEffects);
         }
     }
+    
+    // --- SMART ENGINE: Apply healing efficiency to all HEAL effects ---
+    const healingEfficiency = damageTerms.healingEfficiency || 0;
+    if (healingEfficiency > 0) {
+        for (const eff of effectRequests) {
+            if (eff.category === 'HEAL') {
+                const originalValue = eff.value;
+                eff.value = eff.value * (1 + healingEfficiency);
+                
+                // Debug logging
+                console.log('[ENGINE] 🩺 Healing efficiency applied:', {
+                    effectId: eff.id,
+                    original: originalValue.toFixed(2),
+                    modified: eff.value.toFixed(2),
+                    multiplier: (1 + healingEfficiency).toFixed(3),
+                    source: eff.metadata?.sourceName
+                });
+                
+                // Mark in metadata for debugging
+                eff.metadata = eff.metadata || {};
+                eff.metadata.healingEfficiencyApplied = true;
+                eff.metadata.healingMultiplier = (1 + healingEfficiency);
+            }
+        }
+    }
+    
     // --- GATEKEEPER: consolidate and apply effects with proper anti-stacking rules ---
     const grouped = {};
     for (const eff of effectRequests) {

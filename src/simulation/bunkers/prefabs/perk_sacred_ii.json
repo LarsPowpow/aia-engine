@@ -1,0 +1,19 @@
+{
+  "id": "perk_sacred_ii",
+  "type": "PERK",
+  "bucket": "weapon",
+  "label": "Sacred II",
+  "name": "Sacred II",
+  "description": "+6.5% outgoing healing efficiency.",
+  "event": "PASSIVE",
+  "effects": [
+    {
+      "type": "healing_modifier",
+      "category": "HEALING_EFFICIENCY",
+      "value": 0.065,
+      "trigger": "ALL_HEALING"
+    }
+  ],
+  "labels": ["Weapon_Perk_Sacred"],
+  "slot": "weapon"
+}
