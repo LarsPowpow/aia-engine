@@ -53,5 +53,15 @@
     "eventType": "ON_DAMAGE_DEALT",
     "category": "HEAL",
     "conditions": ["ON_DAMAGE_DEALT"]
+  },
+  {
+    "id": "perk_leeching_ii",
+    "type": "PERK",
+    "label": "Leeching II",
+    "description": "Heal for 4% of the damage you deal (Does not trigger off persistent damage or DoT effects).",
+    "defaultValue": 0.04,
+    "eventType": "ON_DAMAGE_DEALT",
+    "category": "HEAL",
+    "conditions": ["ON_DAMAGE_DEALT"]
   }
 ]
