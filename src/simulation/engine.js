@@ -204,6 +204,11 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
                 }
                 if (Array.isArray(eventAnalysis.healing)) {
                     eventAnalysis.totalHealing = eventAnalysis.healing.reduce((sum, h) => {
+                        // Handle plain numbers (HOT_TICK, etc.)
+                        if (typeof h === 'number') {
+                            return sum + h;
+                        }
+                        // Handle healing objects with valueType
                         if (h.valueType === 'baseHealth') {
                             const target = h.targetId === 'Player' ? eventAnalysis.snapshot?.combatant : h.targetId === 'Target Dummy' ? eventAnalysis.snapshot?.target : null;
                             const baseHealth = target && (target.baseHealth || target.maxHealth || 0);
@@ -670,6 +675,15 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         }
     }
     
+    // --- SECOND PASS: Run effect bunkers again with effectRequests for reactive effects ---
+    // This allows bunkers like Healing Breeze to react to healing effects created by other bunkers
+    for (const bunker of activeEffectBunkers) {
+        const result = bunker.handler({ ...context, timestamp, finalDamage, effectRequests });
+        if (result && result.applyEffects) {
+            effectRequests.push(...result.applyEffects);
+        }
+    }
+    
     // --- SMART ENGINE: Apply healing efficiency to all HEAL effects ---
     const healingEfficiency = damageTerms.healingEfficiency || 0;
     const lifestealEfficiency = damageTerms.lifestealEfficiency || 0;
@@ -1004,18 +1018,120 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         return { updatedCombatants, eventAnalysis };
     }
 
+    // Handle HOT tick events specially
+    if (event.action === 'HOT_TICK') {
+        const source = updatedCombatants[event.sourceId];
+        const target = updatedCombatants[event.targetId];
+        
+        if (!source || !target) {
+            addRawLog({ level: 'warn', message: 'HOT tick skipped: source or target not found', event });
+            return { updatedCombatants: currentCombatants, eventAnalysis: null };
+        }
+        
+        // Calculate base HOT healing from stored metadata
+        const weaponDamage = calculateWeaponDamage(
+            event.metadata.weaponType,
+            event.metadata.attributes
+        );
+        const baseHealing = Math.round(weaponDamage * event.healPercent);
+        
+        console.log('[HOT_TICK] 💚 Processing HoT tick:', {
+            effectId: event.effectId,
+            sourceName: event.metadata?.sourceName,
+            weaponDamage,
+            healPercent: (event.healPercent * 100).toFixed(1) + '%',
+            baseHealing
+        });
+        
+        // Apply healing efficiency modifiers from active effects
+        let healingTerms = {
+            healingEfficiency: 0,
+            divineHealing: 0,
+        };
+        
+        // Read healing buffs from source's activeEffects (Sacred, Divine, etc.)
+        if (source.activeEffects) {
+            for (const effect of source.activeEffects) {
+                if (effect.category === 'HEALING_EFFICIENCY') healingTerms.healingEfficiency += effect.value || 0;
+                if (effect.category === 'DIVINE_HEALING') healingTerms.divineHealing += effect.value || 0;
+            }
+        }
+        
+        // Apply modifier bunkers to HOT ticks (just like DOT ticks)
+        const modifierSources = [];
+        const hotContext = { ...event, source, target, allSources, timestamp, event, eventType: 'HOT_TICK' };
+        for (const bunker of activeModifierBunkers) {
+            const result = bunker.handler({ ...hotContext, timestamp });
+            if (result && result.modifyDamage) {
+                for (const mod of result.modifyDamage) {
+                    if (mod.category === 'HEALING_EFFICIENCY') healingTerms.healingEfficiency += mod.value || 0;
+                    if (mod.category === 'DIVINE_HEALING') healingTerms.divineHealing += mod.value || 0;
+                    
+                    // Track the source
+                    const bunkerName = bunker.METADATA?.name || bunker.metadata?.name || bunker.id || 'Unknown';
+                    modifierSources.push({
+                        source: bunkerName,
+                        category: mod.category,
+                        value: mod.value
+                    });
+                }
+            }
+        }
+        
+        // Calculate final healing with modifiers
+        // Formula: baseHealing * (1 + healingEfficiency + divineHealing)
+        // This matches how regular HEAL effects are processed (additive multipliers)
+        const totalMultiplier = 1 + (healingTerms.healingEfficiency || 0) + (healingTerms.divineHealing || 0);
+        const finalHealing = Math.round(baseHealing * totalMultiplier);
+        
+        // Apply healing to target
+        const newHp = Math.min(target.maxHp, target.currentHp + finalHealing);
+        updatedCombatants[target.id] = {
+            ...target,
+            currentHp: newHp
+        };
+        
+        addRawLog({ 
+            level: 'info', 
+            message: `HOT Tick: ${finalHealing} healing to ${target.name}`, 
+            event,
+            baseHealing,
+            finalHealing,
+            modifiers: healingTerms
+        });
+        
+        const eventAnalysis = {
+            timestamp: event.timestamp,
+            source: source.name,
+            action: event.notes || 'HoT Tick',
+            target: target.name,
+            isCrit: false,
+            damage: 0,
+            healing: finalHealing,
+            snapshot: {
+                combatant: JSON.parse(JSON.stringify(source)),
+                target: JSON.parse(JSON.stringify(target)),
+                stroke1_modifiers: modifierSources,
+                stroke2_effects: [],
+                healingTerms
+            }
+        };
+        
+        return { updatedCombatants, eventAnalysis };
+    }
+
     return { updatedCombatants, eventAnalysis };
 };
 
 /**
- * Injects DOT tick events into the choreography based on active BLEED/DOT effects
+ * Injects DOT/HOT tick events into the choreography based on active BLEED/DOT/HOT effects
  */
 const injectDOTTickEvents = (choreography, combatants, currentTime) => {
     const dotTicks = [];
     
-    console.log(`[DOT] Checking for ticks at ${currentTime.toFixed(2)}s`);
+    console.log(`[DOT/HOT] Checking for ticks at ${currentTime.toFixed(2)}s`);
     
-    // Check all combatants for active DOT effects
+    // Check all combatants for active DOT/HOT effects
     for (const combatantId in combatants) {
         const combatant = combatants[combatantId];
         
@@ -1023,7 +1139,7 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
             continue;
         }
         
-        console.log(`[DOT] ${combatantId} has ${combatant.activeEffects.length} active effects:`, 
+        console.log(`[DOT/HOT] ${combatantId} has ${combatant.activeEffects.length} active effects:`, 
             combatant.activeEffects.map(e => ({ 
                 id: e.id, 
                 category: e.category, 
@@ -1033,12 +1149,12 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
         );
         
         for (const effect of combatant.activeEffects) {
-            // Process both BLEED and DOT category effects
-            if (effect.category !== 'BLEED' && effect.category !== 'DOT') {
+            // Process BLEED, DOT, and HOT category effects
+            if (effect.category !== 'BLEED' && effect.category !== 'DOT' && effect.category !== 'HOT') {
                 continue;
             }
             
-            console.log(`[DOT] Found ${effect.category} effect:`, {
+            console.log(`[DOT/HOT] Found ${effect.category} effect:`, {
                 id: effect.id,
                 nextTickAt: effect.nextTickAt?.toFixed(2),
                 currentTime: currentTime.toFixed(2),
@@ -1048,35 +1164,37 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
             
             // Check if a tick should happen at this time
             if (effect.nextTickAt && Math.abs(effect.nextTickAt - currentTime) < 0.01) {
-                console.log(`[DOT] ✅ Injecting tick for ${effect.id} at ${currentTime.toFixed(2)}s`);
+                const isHOT = effect.category === 'HOT';
+                console.log(`[DOT/HOT] ✅ Injecting ${isHOT ? 'HOT' : 'DOT'} tick for ${effect.id} at ${currentTime.toFixed(2)}s`);
                 
                 dotTicks.push({
                     timestamp: currentTime,
-                    action: 'DOT_TICK',
-                    type: 'BLEED_TICK',
+                    action: isHOT ? 'HOT_TICK' : 'DOT_TICK',
+                    type: isHOT ? 'HOT_TICK' : 'BLEED_TICK',
                     sourceId: effect.sourceId,
                     targetId: effect.targetId,
                     effectId: effect.id,
-                    damagePercent: effect.damagePercent,
+                    damagePercent: effect.damagePercent,  // For DOTs
+                    healPercent: effect.healPercent,      // For HOTs
                     damageType: effect.damageType, // ✅ Pass through damageType for modifier bunkers
                     metadata: effect.metadata,
-                    notes: `Bleed Tick (${effect.metadata?.sourceName || 'Unknown'})`
+                    notes: isHOT ? `HoT Tick (${effect.metadata?.sourceName || 'Unknown'})` : `Bleed Tick (${effect.metadata?.sourceName || 'Unknown'})`
                 });
                 
                 // Update next tick time (if not expired)
                 if (currentTime + effect.tickInterval <= effect.expiresAt) {
                     effect.nextTickAt = currentTime + (effect.tickInterval || 1);
-                    console.log(`[DOT] Updated nextTickAt to ${effect.nextTickAt.toFixed(2)}s`);
+                    console.log(`[DOT/HOT] Updated nextTickAt to ${effect.nextTickAt.toFixed(2)}s`);
                 } else {
                     effect.nextTickAt = null;
-                    console.log(`[DOT] Bleed expired, no more ticks`);
+                    console.log(`[DOT/HOT] ${isHOT ? 'HoT' : 'Bleed'} expired, no more ticks`);
                 }
             }
         }
     }
     
     if (dotTicks.length > 0) {
-        console.log(`[DOT] 🩸 Injected ${dotTicks.length} DOT tick(s)`);
+        console.log(`[DOT/HOT] 🩸 Injected ${dotTicks.length} DOT/HOT tick(s)`);
     }
     
     return dotTicks;

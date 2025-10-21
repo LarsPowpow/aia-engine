@@ -79,18 +79,18 @@ const applyEffect = (target, effectData, context) => {
         return;
     }
 
-    // --- DOT effect: Anti-stack by effect ID ---
-    if (effectData.category === 'DOT') {
+    // --- DOT/BLEED effect: Anti-stack by effect ID ---
+    if (effectData.category === 'DOT' || effectData.category === 'BLEED') {
         const existingDoT = target.activeEffects.find(e => 
-            e.category === 'DOT' && e.id === effectData.id
+            (e.category === 'DOT' || e.category === 'BLEED') && e.id === effectData.id
         );
         
         if (existingDoT) {
-            console.log(`[STATE MANAGER] DoT ${effectData.id} already active on ${target.id}, blocking reapplication (no stacking, no refresh)`);
+            console.log(`[STATE MANAGER] ${effectData.category} ${effectData.id} already active on ${target.id}, blocking reapplication (no stacking, no refresh)`);
             return;
         }
         
-        // Apply new DoT
+        // Apply new DoT/Bleed
         const newDoT = {
             ...effectData,
             appliedAt: now,
@@ -98,7 +98,30 @@ const applyEffect = (target, effectData, context) => {
             sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
         };
         target.activeEffects.push(newDoT);
-        console.log(`[STATE MANAGER] Applied new DoT ${effectData.id} to ${target.id}, expires at ${newDoT.expiresAt.toFixed(2)}s`);
+        console.log(`[STATE MANAGER] Applied new ${effectData.category} ${effectData.id} to ${target.id}, expires at ${newDoT.expiresAt.toFixed(2)}s`);
+        return;
+    }
+
+    // --- HOT effect: Anti-stack by effect ID ---
+    if (effectData.category === 'HOT') {
+        const existingHoT = target.activeEffects.find(e => 
+            e.category === 'HOT' && e.id === effectData.id
+        );
+        
+        if (existingHoT) {
+            console.log(`[STATE MANAGER] HoT ${effectData.id} already active on ${target.id}, blocking reapplication (no stacking, no refresh)`);
+            return;
+        }
+        
+        // Apply new HoT
+        const newHoT = {
+            ...effectData,
+            appliedAt: now,
+            expiresAt: now + effectData.duration,
+            sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
+        };
+        target.activeEffects.push(newHoT);
+        console.log(`[STATE MANAGER] Applied new HOT ${effectData.id} to ${target.id}, expires at ${newHoT.expiresAt.toFixed(2)}s`);
         return;
     }
 

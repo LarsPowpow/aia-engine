@@ -57,20 +57,37 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
                     ) : (
                         combatLog.map((entry, index) => {
                             // Calculate healing value
-                            const healingValue = entry.totalHealing ?? (
-                                Array.isArray(entry.healing)
-                                    ? entry.healing.reduce((sum, h) => {
-                                        if (h.valueType === 'baseHealth') {
-                                            const target = h.targetId === 'Player' 
-                                                ? entry.snapshot?.combatant 
-                                                : entry.snapshot?.target;
-                                            const baseHealth = target?.baseHealth || target?.maxHealth || 0;
-                                            return sum + (h.value * baseHealth);
-                                        }
-                                        return sum + (h.value || 0);
-                                    }, 0)
-                                    : 0
-                            );
+                            // Support multiple formats: totalHealing, healing array, or direct healing number
+                            let healingValue = 0;
+                            
+                            if (entry.totalHealing !== undefined) {
+                                healingValue = entry.totalHealing;
+                            } else if (Array.isArray(entry.healing)) {
+                                healingValue = entry.healing.reduce((sum, h) => {
+                                    if (h.valueType === 'baseHealth') {
+                                        const target = h.targetId === 'Player' 
+                                            ? entry.snapshot?.combatant 
+                                            : entry.snapshot?.target;
+                                        const baseHealth = target?.baseHealth || target?.maxHealth || 0;
+                                        return sum + (h.value * baseHealth);
+                                    }
+                                    return sum + (h.value || 0);
+                                }, 0);
+                            } else if (typeof entry.healing === 'number') {
+                                // Direct healing number (HOT_TICK, DOT_TICK, etc.)
+                                healingValue = entry.healing;
+                            }
+                            
+                            // Debug HOT_TICK entries
+                            if (entry.action && entry.action.includes('HoT Tick')) {
+                                console.log('[CA TABLE DEBUG] HoT Tick entry:', {
+                                    action: entry.action,
+                                    healing: entry.healing,
+                                    healingType: typeof entry.healing,
+                                    totalHealing: entry.totalHealing,
+                                    calculatedHealingValue: healingValue
+                                });
+                            }
 
                             return (
                                 <>

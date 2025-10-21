@@ -1,0 +1,10 @@
+{
+  "id": "perk_healing_breeze_ii",
+  "name": "Healing Breeze II",
+  "description": "When applying a healing effect to yourself, Heal yourself for 5.25% weapon damage for 6s. (10s cooldown per target)",
+  "type": "PERK",
+  "stroke": 2,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["healing", "hot", "weapon_perk"]
+}
