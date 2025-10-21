@@ -1,0 +1,19 @@
+{
+  "id": "ability_sword_whirling_blade",
+  "name": "Whirling Blade",
+  "description": "A whirling 2-hit sword combo. Each hit deals 80% weapon damage and applies 16% Weaken for 5 seconds (stacks up to 10 times).",
+  "type": "ABILITY",
+  "weapon": "Sword",
+  "stroke": 2,
+  "sourceType": "ability",
+  "bucket": "weapon",
+  "tags": ["ability", "sword", "weaken", "multi_hit", "debuff"],
+  "mechanics": {
+    "hitCount": 2,
+    "damagePerHit": 0.80,
+    "weakenPerHit": 0.16,
+    "weakenDuration": 5,
+    "maxStacks": 10,
+    "timeBetweenHits": 0.5
+  }
+}

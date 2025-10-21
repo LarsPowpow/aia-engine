@@ -9,6 +9,7 @@
 // Per The Book of Law, Section 3.2
 const EMPOWER_CAP = 0.50; // 50%
 const REND_CAP = 0.70;    // 70%
+const WEAKEN_CAP = 0.70;  // 70% (same as REND)
 
 /**
  * Applies a list of damage modifiers to the base damage terms.
@@ -125,8 +126,8 @@ const applyEffect = (target, effectData, context) => {
         return;
     }
 
-    // --- EMPOWER, REND, FORTIFY, MISC_DAMAGE: Anti-stack by source, with caps ---
-    if (['EMPOWER', 'REND', 'FORTIFY', 'MISC_DAMAGE'].includes(effectData.category)) {
+    // --- EMPOWER, REND, WEAKEN, FORTIFY, MISC_DAMAGE: Anti-stack by source, with caps ---
+    if (['EMPOWER', 'REND', 'WEAKEN', 'FORTIFY', 'MISC_DAMAGE'].includes(effectData.category)) {
         // --- STACKABLE EFFECTS: Allow multiple independent stacks ---
         if (effectData.stackable) {
             const existingStacks = target.activeEffects.filter(e => e.id === effectData.id);
@@ -173,6 +174,7 @@ const applyEffect = (target, effectData, context) => {
             EMPOWER: 0.50,
             FORTIFY: 0.50,
             REND: 0.70,
+            WEAKEN: 0.70,
             MISC_DAMAGE: Infinity  // Uncapped
         };
         
@@ -202,6 +204,33 @@ const applyEffect = (target, effectData, context) => {
         };
         target.activeEffects.push(newEffect);
         console.log(`[STATE MANAGER] Applied ${effectData.category} from ${effectData.sourceId} to ${target.id}: ${(valueToApply * 100).toFixed(1)}% (total now: ${((currentTotal + valueToApply) * 100).toFixed(1)}%)`);
+        return;
+    }
+
+    // --- CROWD CONTROL (CC): SLOW and similar effects ---
+    // These are binary status effects (on/off), don't stack, just refresh duration
+    if (['SLOW', 'STUN', 'ROOT', 'SILENCE'].includes(effectData.category)) {
+        const existingCC = target.activeEffects.find(e => 
+            e.category === effectData.category && e.id === effectData.id
+        );
+        
+        if (existingCC) {
+            // Refresh duration
+            existingCC.expiresAt = now + effectData.duration;
+            existingCC.appliedAt = now;
+            console.log(`[STATE MANAGER] Refreshed ${effectData.category} ${effectData.id} on ${target.id}, new expiration: ${existingCC.expiresAt.toFixed(2)}s`);
+            return;
+        }
+        
+        // Apply new CC effect
+        const newCC = {
+            ...effectData,
+            appliedAt: now,
+            expiresAt: now + effectData.duration,
+            sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
+        };
+        target.activeEffects.push(newCC);
+        console.log(`[STATE MANAGER] Applied ${effectData.category} ${effectData.id} to ${target.id} for ${effectData.duration}s`);
         return;
     }
 

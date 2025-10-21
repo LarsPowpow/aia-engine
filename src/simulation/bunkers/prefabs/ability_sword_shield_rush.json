@@ -1,0 +1,18 @@
+{
+  "id": "ability_sword_shield_rush",
+  "name": "Shield Rush",
+  "description": "A powerful shield bash. Deals 100% weapon damage, applies 20% Weaken for 10 seconds, and Slows the target for 4 seconds.",
+  "type": "ABILITY",
+  "weapon": "Sword and Shield",
+  "stroke": 2,
+  "sourceType": "ability",
+  "bucket": "weapon",
+  "tags": ["ability", "sword", "shield", "weaken", "slow", "cc", "debuff"],
+  "mechanics": {
+    "hitCount": 1,
+    "damagePerHit": 1.0,
+    "weakenValue": 0.20,
+    "weakenDuration": 10,
+    "slowDuration": 4
+  }
+}

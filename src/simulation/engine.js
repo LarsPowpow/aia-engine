@@ -58,14 +58,15 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
         })
         : [];
     
-    const activeEffectBunkers = hasSelections
-        ? effectBunkers.filter(b => {
-            const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
-            const matched = selectedSourceIds.has(bunkerId);
-            console.log(`[ENGINE] Effect bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}`);
-            return matched;
-        })
-        : [];
+    const activeEffectBunkers = effectBunkers.filter(b => {
+        const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
+        const bunkerType = b.type || b.METADATA?.type || b.metadata?.type;
+        // Abilities are always active (they're in choreography, not equipment)
+        const isAbility = bunkerType === 'ABILITY_BUNKER';
+        const matched = isAbility || (hasSelections && selectedSourceIds.has(bunkerId));
+        console.log(`[ENGINE] Effect bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}${isAbility ? ' (ability - always active)' : ''}`);
+        return matched;
+    });
     
     console.log('[ENGINE] Bunker filtering result:', { 
         selectedIds: Array.from(selectedSourceIds),

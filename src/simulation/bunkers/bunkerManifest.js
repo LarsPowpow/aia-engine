@@ -52,6 +52,10 @@ import perk_divine_ii from './generated/perk_divine_ii.js';
 import perk_end_ii from './generated/perk_end_ii.js';
 import perk_arcane_damage_ii from './generated/perk_arcane_damage_ii.js';
 
+// === ABILITIES ===
+import ability_sword_whirling_blade from './abilities/sword/whirlingBlade.js';
+import ability_sword_shield_rush from './abilities/sword/shieldRush.js';
+
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
     perk_enchanted_ii,
@@ -82,6 +86,8 @@ export const modifierBunkers = [
 
 export const effectBunkers = [
     empoweringLeapingStrike,
+    ability_sword_whirling_blade,
+    ability_sword_shield_rush,
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,
