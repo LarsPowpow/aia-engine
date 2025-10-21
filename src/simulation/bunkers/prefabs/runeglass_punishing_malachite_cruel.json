@@ -1,0 +1,12 @@
+{
+  "id": "runeglass_punishing_malachite_cruel",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Punishing Malachite (Weapon - Cruel)",
+  "name": "Runeglass of Punishing Malachite",
+  "description": "Punishing Cruel: +14% damage against targets affected by Crowd Control effects.",
+  "event": "PASSIVE",
+  "effects": [],
+  "labels": ["Runeglass_Weapon_Malachite_Cruel"],
+  "slot": "weapon_runeglass"
+}

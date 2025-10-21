@@ -23,27 +23,23 @@ import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringL
 import perk_keenly_jagged_ii from './generated/perk_keenly_jagged_ii';
 import perk_keenly_empowered_ii from './generated/perk_keenly_empowered_ii';
 import perk_disdained_infliction_ii from './generated/perk_disdained_infliction_ii';
-import runeglass_empowered_sapphire_weapon from './modifiers/runeglass_empowered_sapphire_weapon.js';
 import runeglass_empowered_sapphire_armor from './modifiers/runeglass_empowered_sapphire_armor.js';
-import runeglass_empowered_sapphire_weapon_hex from './effectBunkers/runeglass_empowered_sapphire_weapon_hex.js';
-import runeglass_punishing_sapphire_weapon from './modifiers/runeglass_punishing_sapphire_weapon.js';
-import runeglass_punishing_sapphire_weapon_empowered from './modifiers/runeglass_punishing_sapphire_weapon_empowered.js';
-import runeglass_punishing_sapphire_armor from './modifiers/runeglass_punishing_sapphire_armor.js';
+import runeglass_punishing_malachite_cruel from './modifiers/runeglass_punishing_malachite_cruel.js';
+import runeglass_punishing_malachite_weapon_misc from './modifiers/runeglass_punishing_malachite_spectral.js';
+import runeglass_punishing_malachite_armor_misc from './modifiers/runeglass_punishing_malachite_armor.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
-    runeglass_empowered_sapphire_weapon,
     runeglass_empowered_sapphire_armor,
-    runeglass_punishing_sapphire_weapon,
-    runeglass_punishing_sapphire_weapon_empowered,
-    runeglass_punishing_sapphire_armor
+    runeglass_punishing_malachite_cruel,
+    runeglass_punishing_malachite_weapon_misc,
+    runeglass_punishing_malachite_armor_misc
 ];
 
 export const effectBunkers = [
     empoweringLeapingStrike,
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
-    runeglass_empowered_sapphire_weapon_hex,
     ...generatedBunkers
 ];
 

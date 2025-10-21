@@ -1,0 +1,12 @@
+{
+  "id": "runeglass_punishing_malachite_weapon_misc",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Punishing Malachite (Weapon - Spectral Ward)",
+  "name": "Runeglass of Punishing Malachite",
+  "description": "Punishing Spectral Ward: Your melee attacks deal +2% damage.",
+  "event": "PASSIVE",
+  "effects": [],
+  "labels": ["Runeglass_Weapon_Malachite_Spectral"],
+  "slot": "weapon_runeglass"
+}
