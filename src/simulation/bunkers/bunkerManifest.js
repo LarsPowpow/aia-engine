@@ -29,6 +29,10 @@ import runeglass_empowered_sapphire_weapon_hex from './effectBunkers/runeglass_e
 import runeglass_punishing_sapphire_weapon from './modifiers/runeglass_punishing_sapphire_weapon.js';
 import runeglass_punishing_sapphire_weapon_empowered from './modifiers/runeglass_punishing_sapphire_weapon_empowered.js';
 import runeglass_punishing_sapphire_armor from './modifiers/runeglass_punishing_sapphire_armor.js';
+import runeglass_empowered_malachite_weapon from './modifiers/runeglass_empowered_malachite_weapon.js';
+import runeglass_empowered_malachite_weapon_misc from './modifiers/runeglass_empowered_malachite_weapon_misc.js';
+import runeglass_empowered_malachite_armor from './modifiers/runeglass_empowered_malachite_armor.js';
+import runeglass_empowered_malachite_weapon_hex from './effectBunkers/runeglass_empowered_malachite_weapon_hex.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -36,7 +40,10 @@ export const modifierBunkers = [
     runeglass_empowered_sapphire_armor,
     runeglass_punishing_sapphire_weapon,
     runeglass_punishing_sapphire_weapon_empowered,
-    runeglass_punishing_sapphire_armor
+    runeglass_punishing_sapphire_armor,
+    runeglass_empowered_malachite_weapon,
+    runeglass_empowered_malachite_weapon_misc,
+    runeglass_empowered_malachite_armor
 ];
 
 export const effectBunkers = [
@@ -44,6 +51,7 @@ export const effectBunkers = [
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,
+    runeglass_empowered_malachite_weapon_hex,
     ...generatedBunkers
 ];
 

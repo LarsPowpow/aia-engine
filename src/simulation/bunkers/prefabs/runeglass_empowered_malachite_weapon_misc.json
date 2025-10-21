@@ -1,0 +1,23 @@
+{
+  "id": "runeglass_empowered_malachite_weapon_misc",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Empowered Malachite (Weapon - Spectral Ward)",
+  "name": "Runeglass of Empowered Malachite",
+  "description": "Empowered Spectral Ward: Your Arcane attacks deal +2% damage.",
+  "event": "PASSIVE",
+  "condition": {
+    "type": "damage_type",
+    "damageType": "ARCANE"
+  },
+  "effects": [
+    {
+      "type": "damage_modifier",
+      "category": "MISC_DAMAGE",
+      "value": 0.02,
+      "damageType": "ARCANE"
+    }
+  ],
+  "labels": ["Runeglass_Weapon_Malachite_Empowered_Spectral"],
+  "slot": "weapon_runeglass"
+}
