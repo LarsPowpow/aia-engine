@@ -1,0 +1,19 @@
+{
+  "id": "perk_enchanted_ii",
+  "type": "PERK",
+  "bucket": "weapon",
+  "label": "Enchanted II",
+  "name": "Enchanted II",
+  "description": "Light and Heavy attacks deal +2.3% damage.",
+  "event": "PASSIVE",
+  "effects": [
+    {
+      "type": "damage_boost",
+      "category": "MISC_DAMAGE",
+      "value": 0.023,
+      "trigger": "LIGHT_ATTACK, HEAVY_ATTACK"
+    }
+  ],
+  "labels": ["Weapon_Perk_Enchanted"],
+  "slot": "weapon"
+}

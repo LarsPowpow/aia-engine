@@ -40,9 +40,11 @@ import runeglass_empowered_jasper_armor from './modifiers/runeglass_empowered_ja
 import runeglass_punishing_jasper_retaliate_modifier from './modifiers/runeglass_punishing_jasper_retaliate_modifier.js';
 import runeglass_punishing_jasper_weapon_misc from './modifiers/runeglass_punishing_jasper_weapon_misc.js';
 import runeglass_punishing_jasper_armor from './modifiers/runeglass_punishing_jasper_armor.js';
+import perk_enchanted_ii from './generated/perk_enchanted_ii.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
+    perk_enchanted_ii,
     runeglass_empowered_sapphire_weapon,
     runeglass_empowered_sapphire_armor,
     runeglass_punishing_sapphire_weapon,
