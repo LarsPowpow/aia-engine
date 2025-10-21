@@ -63,5 +63,15 @@
     "eventType": "ON_DAMAGE_DEALT",
     "category": "HEAL",
     "conditions": ["ON_DAMAGE_DEALT"]
+  },
+  {
+    "id": "perk_arcane_attunement_ii",
+    "type": "PERK",
+    "label": "Arcane Attunement II",
+    "description": "Successful hits deal +14% weapon damage as Arcane (1.5s cooldown).",
+    "defaultValue": 0.14,
+    "eventType": "ON_HIT",
+    "category": "ARCANE_DAMAGE",
+    "conditions": ["ON_HIT"]
   }
 ]

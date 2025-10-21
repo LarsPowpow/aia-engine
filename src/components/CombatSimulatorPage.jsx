@@ -73,15 +73,28 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
                             );
 
                             return (
-                                <tr key={index} className="hover:bg-slate-700/50 cursor-pointer transition-colors duration-150 even:bg-slate-800/20" onClick={() => onRowClick(index)}>
-                                    <td className="p-2 whitespace-nowrap text-slate-400 font-mono">{entry.timestamp.toFixed(1)}s</td>
-                                    <td className="p-2 whitespace-nowrap text-green-400 font-semibold">{entry.source}</td>
-                                    <td className="p-2 whitespace-nowrap">{entry.action}</td>
-                                    <td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td>
-                                    <td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td>
-                                    <td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td>
-                                    <td className="p-2 whitespace-nowrap text-right font-mono text-green-300">{healingValue > 0 ? Math.round(healingValue) : ''}</td>
-                                </tr>
+                                <>
+                                    <tr key={index} className="hover:bg-slate-700/50 cursor-pointer transition-colors duration-150 even:bg-slate-800/20" onClick={() => onRowClick(index)}>
+                                        <td className="p-2 whitespace-nowrap text-slate-400 font-mono">{entry.timestamp.toFixed(1)}s</td>
+                                        <td className="p-2 whitespace-nowrap text-green-400 font-semibold">{entry.source}</td>
+                                        <td className="p-2 whitespace-nowrap">{entry.action}</td>
+                                        <td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td>
+                                        <td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td>
+                                        <td className="p-2 whitespace-nowrap text-right font-bold font-mono text-white">{entry.damage}</td>
+                                        <td className="p-2 whitespace-nowrap text-right font-mono text-green-300">{healingValue > 0 ? Math.round(healingValue) : ''}</td>
+                                    </tr>
+                                    {/* Arcane Damage Subrows */}
+                                    {entry.arcaneDamageSubrows && entry.arcaneDamageSubrows.map((subrow, subIdx) => (
+                                        <tr key={`${index}-arcane-${subIdx}`} className="bg-purple-900/10 hover:bg-purple-800/20 cursor-pointer transition-colors duration-150" onClick={() => onRowClick(index)}>
+                                            <td className="p-2 pl-8 whitespace-nowrap text-slate-500 font-mono text-xs">↳</td>
+                                            <td className="p-2 whitespace-nowrap text-purple-400 font-semibold text-sm" colSpan="2">{subrow.sourceName}</td>
+                                            <td className="p-2 whitespace-nowrap text-purple-300 text-xs italic">{subrow.damageType}</td>
+                                            <td className="p-2 whitespace-nowrap text-center text-slate-600">-</td>
+                                            <td className="p-2 whitespace-nowrap text-right font-bold font-mono text-purple-300">{subrow.damage}</td>
+                                            <td className="p-2 whitespace-nowrap text-right"></td>
+                                        </tr>
+                                    ))}
+                                </>
                             );
                         })
                     )}

@@ -468,6 +468,71 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // Add miscDmgPercent to combatant and target snapshot for InspectorPanel
     const combatantSnapshot = { ...JSON.parse(JSON.stringify(source)), miscDmgPercent: damageTerms.miscDmgPercent };
     const targetSnapshot = { ...JSON.parse(JSON.stringify(target)), miscDmgPercent: damageTerms.miscDmgPercent };
+    
+    // ✅ Process ARCANE_DAMAGE effects as subrows
+    const arcaneDamageSubrows = [];
+    const arcaneEffects = effectRequests.filter(eff => eff.category === 'ARCANE_DAMAGE');
+    
+    for (const arcaneEff of arcaneEffects) {
+        // Calculate arcane damage with current modifiers
+        const arcaneBaseDamage = arcaneEff.baseDamage || 0;
+        
+        // Apply damage modifiers (empower, rend, misc damage) to arcane damage
+        let arcaneDamageTerms = {
+            empowerPercent: 0,
+            rendPercent: 0,
+            miscDmgPercent: 0,
+        };
+        
+        // Read buffs from source
+        if (source.activeEffects) {
+            for (const effect of source.activeEffects) {
+                if (effect.category === 'EMPOWER') arcaneDamageTerms.empowerPercent += effect.value || 0;
+                if (effect.category === 'MISC_DAMAGE') arcaneDamageTerms.miscDmgPercent += effect.value || 0;
+            }
+        }
+        
+        // Read debuffs from target (REND)
+        if (target.activeEffects) {
+            for (const effect of target.activeEffects) {
+                if (effect.category === 'REND') arcaneDamageTerms.rendPercent += effect.value || 0;
+            }
+        }
+        
+        // Apply modifiers from bunkers (arcane-specific modifiers could go here)
+        for (const bunker of activeModifierBunkers) {
+            const modContext = { ...context, timestamp, event: { ...event, damageType: 'ARCANE' } };
+            const result = bunker.handler(modContext);
+            if (result && result.modifyDamage) {
+                for (const mod of result.modifyDamage) {
+                    if (mod.category === 'EMPOWER') arcaneDamageTerms.empowerPercent += mod.value || 0;
+                    if (mod.category === 'REND') arcaneDamageTerms.rendPercent += mod.value || 0;
+                    if (mod.category === 'MISC_DAMAGE') arcaneDamageTerms.miscDmgPercent += mod.value || 0;
+                }
+            }
+        }
+        
+        const finalArcaneDamage = Math.round(arcaneBaseDamage *
+            (1 + (arcaneDamageTerms.empowerPercent || 0) + (arcaneDamageTerms.rendPercent || 0)) *
+            (1 + (arcaneDamageTerms.miscDmgPercent || 0))
+        );
+        
+        arcaneDamageSubrows.push({
+            damageType: arcaneEff.damageType || 'ARCANE',
+            damage: finalArcaneDamage,
+            sourceName: arcaneEff.metadata?.sourceName || arcaneEff.id,
+            sourceId: arcaneEff.sourceId,
+            modifiers: arcaneDamageTerms
+        });
+        
+        console.log('[ENGINE] 🔮 Arcane damage subrow:', {
+            sourceName: arcaneEff.metadata?.sourceName,
+            baseDamage: arcaneBaseDamage,
+            finalDamage: finalArcaneDamage,
+            modifiers: arcaneDamageTerms
+        });
+    }
+    
     const eventAnalysis = {
         timestamp: timestamp,
         source: source.name,
@@ -475,6 +540,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         target: target.name,
         isCrit,
         damage: finalDamage,
+        arcaneDamageSubrows: arcaneDamageSubrows.length > 0 ? arcaneDamageSubrows : undefined, // ✅ Add subrows
         healing: effectRequests
             .filter(eff => eff.category === 'HEAL')
             .map(eff => ({ value: eff.value, valueType: eff.valueType, targetId: eff.targetId })),

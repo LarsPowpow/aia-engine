@@ -1,0 +1,24 @@
+{
+  "id": "perk_arcane_attunement_ii",
+  "type": "PERK",
+  "bucket": "fixed_perk",
+  "label": "Arcane Attunement II",
+  "name": "Arcane Attunement II",
+  "description": "Successful hits deal +14% weapon damage as Arcane (1.5s cooldown).",
+  "event": "ON_HIT",
+  "condition": {
+    "type": "action",
+    "actionType": "HIT"
+  },
+  "cooldown": 1.5,
+  "effects": [
+    {
+      "type": "arcane_damage",
+      "damagePercent": 0.14,
+      "damageType": "ARCANE",
+      "target": "enemy"
+    }
+  ],
+  "labels": ["D_Fixed_SkillCharm_OnHit"],
+  "perk_bucket": "fixed_perk"
+}
