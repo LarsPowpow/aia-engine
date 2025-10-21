@@ -1,0 +1,20 @@
+{
+  "id": "ability_flail_trip",
+  "name": "Trip",
+  "description": "A sweeping flail attack that knocks enemies down. Deals 50% weapon damage, applies 15% Rend and Knocked Down (2s) to target, grants 15% Fortify to self for 5 seconds.",
+  "type": "ABILITY",
+  "weapon": "Flail",
+  "stroke": 2,
+  "sourceType": "ability",
+  "bucket": "weapon",
+  "tags": ["ability", "flail", "rend", "fortify", "cc", "knocked_down", "debuff", "buff"],
+  "mechanics": {
+    "hitCount": 1,
+    "damagePerHit": 0.50,
+    "rendValue": 0.15,
+    "rendDuration": 5,
+    "fortifyValue": 0.15,
+    "fortifyDuration": 5,
+    "knockedDownDuration": 2
+  }
+}

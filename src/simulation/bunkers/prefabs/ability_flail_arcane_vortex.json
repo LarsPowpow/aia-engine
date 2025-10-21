@@ -1,0 +1,19 @@
+{
+  "id": "ability_flail_arcane_vortex",
+  "name": "Arcane Vortex",
+  "description": "A whirling arcane assault. 4 hits over 3 seconds, each dealing 75% Arcane damage. Grants 10% Empower to self for 5 seconds.",
+  "type": "ABILITY",
+  "weapon": "Flail",
+  "stroke": 2,
+  "sourceType": "ability",
+  "bucket": "weapon",
+  "tags": ["ability", "flail", "arcane", "empower", "multi_hit", "buff"],
+  "mechanics": {
+    "hitCount": 4,
+    "damagePerHit": 0.75,
+    "damageType": "ARCANE",
+    "comboDuration": 3.0,
+    "empowerValue": 0.10,
+    "empowerDuration": 5
+  }
+}

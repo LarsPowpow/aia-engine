@@ -910,6 +910,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         target: target.name,
         isCrit,
         damage: finalDamage,
+        damageType: event.damageType || 'PHYSICAL',  // ✅ Add damageType for color coding
         damageSubrows: damageSubrows.length > 0 ? damageSubrows : undefined, // ✅ Add damage type subrows
         arcaneDamageSubrows: arcaneDamageSubrows.length > 0 ? arcaneDamageSubrows : undefined, // ✅ Add subrows
         healing: effectRequests
