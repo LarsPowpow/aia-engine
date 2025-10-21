@@ -1060,4 +1060,284 @@ function handler(context) {
 
 ---
 
+## ADR-014: Why ABILITY_BUNKER Type Always Active?
+
+**Date**: 2025-10-21  
+**Status**: Implemented
+
+**Context**: Abilities are part of choreography, not equipment. But bunker system requires registration and filtering.
+
+**Decision**: Create ABILITY_BUNKER type that always passes loadout filtering (no selection required).
+
+**Reasoning**:
+- **Abilities are in choreography**: Not optional equipment, they're part of the combat sequence
+- **Bunker pattern consistency**: Keep using bunker system for abilities (standardized, debuggable)
+- **Smart Engine, Dumb Bunkers**: Abilities follow same philosophy as perks/runeglass
+- **No UI selection**: Abilities shouldn't appear in loadout selector (confusing UX)
+
+**Implementation**:
+```javascript
+// Engine filtering (lines 61-69)
+const activeEffectBunkers = effectBunkers.filter(bunker => {
+    const isAbility = bunker.METADATA?.type === 'ABILITY_BUNKER';
+    const bunkerId = bunker.METADATA?.id;
+    const selectedSourceIds = new Set(allSources.map(s => s.id));
+    
+    return isAbility || (hasSelections && selectedSourceIds.has(bunkerId));
+    // ↑ Always include ABILITY_BUNKER types!
+});
+
+// Bunker METADATA
+const METADATA = {
+  id: 'ability_sword_whirling_blade',
+  name: 'Whirling Blade',
+  type: 'ABILITY_BUNKER',  // ← Special type!
+  weapon: 'Sword',
+  stroke: 2
+};
+```
+
+**Multi-hit Pattern**:
+```javascript
+// Choreography: Multiple ABILITY_HIT events
+{ timestamp: 9.55, action: 'ABILITY_HIT', abilityId: 'ability_sword_whirling_blade', baseDamageMultiplier: 0.80, hitCount: 1 }
+{ timestamp: 10.05, action: 'ABILITY_HIT', abilityId: 'ability_sword_whirling_blade', baseDamageMultiplier: 0.80, hitCount: 2 }
+
+// Bunker: Triggers on each hit
+if (event.abilityId !== 'ability_sword_whirling_blade') return null;
+if (event.action !== 'ABILITY_HIT') return null;
+// hitCount available for conditional logic (e.g., only on first hit)
+```
+
+**Self-buff Pattern**:
+```javascript
+// Apply effect to source (self) instead of target
+{
+  id: 'ability_flail_trip_fortify',
+  category: 'FORTIFY',
+  value: 0.15,
+  duration: 5,
+  sourceId: source.id,
+  targetId: source.id,  // ← Apply to self!
+}
+```
+
+**Dual Bunker Pattern** (for complex abilities):
+```javascript
+// Arcane Eruption: MODIFIER (Stroke 1) + EFFECT (Stroke 2)
+export default {
+  MODIFIER: { METADATA: {...}, handler: modifierHandler },  // Duration extension
+  EFFECT: { METADATA: {...}, handler: effectHandler }       // Slow + Heal
+};
+
+// Registration in manifest:
+modifierBunkers: [
+  ability_flail_arcane_eruption.MODIFIER  // Stroke 1
+],
+effectBunkers: [
+  ability_flail_arcane_eruption.EFFECT    // Stroke 2
+]
+```
+
+**Consequences**:
+- Abilities always active (intended behavior)
+- No loadout selection UI needed for abilities
+- Choreography drives which abilities fire
+- Can have multiple abilities with same ID (different hits)
+- Self-buffs and multi-hit combos work seamlessly
+
+**Abilities Implemented**:
+- Whirling Blade (Sword): 2 hits × 80%, 16% Weaken per hit
+- Shield Rush (Sword): 100%, 20% Weaken + Slow
+- Trip (Flail): 50%, 15% Rend + Knocked Down + 15% Fortify (self)
+- Arcane Vortex (Flail): 4 hits × 75% Arcane, 10% Empower (self)
+- Arcane Eruption (Flail): 130% Arcane + Slow, 150% + Extend + Heal
+
+**Code Location**: 
+- Engine filtering: `/src/simulation/engine.js` (lines 61-69)
+- Bunkers: `/src/simulation/bunkers/abilities/`
+
+---
+
+## ADR-015: Why Duration Extension as Modifier Category?
+
+**Date**: 2025-10-21  
+**Status**: Implemented
+
+**Context**: Arcane Eruption needs to extend all active status effect durations by 30%. Could be handled in state manager or as modifier.
+
+**Decision**: Use modifier categories (REND_DURATION, WEAKEN_DURATION, SLOW_DURATION) that engine applies to effects in Stroke 2.
+
+**Reasoning**:
+- **Mirrors existing pattern**: EMPOWER_DURATION and FORTIFY_DURATION already work this way
+- **Smart Engine**: Engine knows how to apply duration extensions, bunkers just request them
+- **Multiplicative**: `duration * (1 + extensionValue)` - clean math
+- **Per-category**: Different extensions for different effect types
+- **Bunker stays dumb**: Just returns `{ category: 'REND_DURATION', value: 0.30 }`
+
+**Implementation**:
+
+```javascript
+// MODIFIER BUNKER (Stroke 1) - Arcane Eruption
+function modifierHandler({ event }) {
+  if (event.hitCount !== 2) return null;  // Only on second hit
+  
+  return {
+    modifyDamage: [
+      { id: 'arcane_eruption_rend_duration', category: 'REND_DURATION', value: 0.30 },
+      { id: 'arcane_eruption_weaken_duration', category: 'WEAKEN_DURATION', value: 0.30 },
+      { id: 'arcane_eruption_slow_duration', category: 'SLOW_DURATION', value: 0.30 }
+    ]
+  };
+}
+
+// ENGINE (Stroke 1) - Accumulate modifiers
+if (mod.category === 'REND_DURATION') damageTerms.rendDuration = (damageTerms.rendDuration || 0) + (mod.value || 0);
+if (mod.category === 'WEAKEN_DURATION') damageTerms.weakenDuration = (damageTerms.weakenDuration || 0) + (mod.value || 0);
+if (mod.category === 'SLOW_DURATION') damageTerms.slowDuration = (damageTerms.slowDuration || 0) + (mod.value || 0);
+
+// ENGINE (Stroke 2) - Apply to effects
+const rendDuration = damageTerms.rendDuration || 0;
+if (rendDuration > 0) {
+  for (const eff of effectRequests) {
+    if (eff.category === 'REND' && eff.duration) {
+      eff.duration = Math.round(eff.duration * (1 + rendDuration));  // 5s → 6.5s (30% extension)
+    }
+  }
+}
+```
+
+**Stacking Behavior**:
+- Multiple extensions ADD: 30% + 20% = 50% total extension
+- Example: Fortified II (10%) + Arcane Eruption (30%) = 40% Fortify extension
+
+**Consequences**:
+- Engine handles all duration math
+- Bunkers just declare "extend by X%"
+- Extensions apply to effects created in same stroke (same event)
+- Multiple sources of extension stack additively
+- Clean logs: `[ENGINE] ⏱️ Rend duration extended: 5s → 6.5s (1.300x)`
+
+**Code Location**: 
+- Modifier accumulation: `/src/simulation/engine.js` (lines 520-525)
+- Duration application: `/src/simulation/engine.js` (lines 787-850)
+
+---
+
+## ADR-016: Why Arcane Damage Gets Purple Color?
+
+**Date**: 2025-10-21  
+**Status**: Implemented
+
+**Context**: User quote: "Arcane damage is the only way I can tell. There's a color we used for Runeglass of Empowered Sapphire - that's the one."
+
+**Decision**: Add `damageType` to eventAnalysis and conditionally color damage cells based on type.
+
+**Reasoning**:
+- **Visual distinction**: User needs to quickly identify Arcane vs Physical damage
+- **Consistency**: Subrows already use purple for Arcane (`text-purple-400`, `text-purple-300`)
+- **UX clarity**: Color coding is instant visual feedback (no need to read labels)
+
+**Implementation**:
+
+```javascript
+// ENGINE: Add damageType to eventAnalysis
+const eventAnalysis = {
+  timestamp: timestamp,
+  source: source.name,
+  action: event.notes || event.abilityId || event.type,
+  target: target.name,
+  isCrit,
+  damage: finalDamage,
+  damageType: event.damageType || 'PHYSICAL',  // ← Added!
+  // ... other fields
+};
+
+// UI: Conditional styling
+<td className="p-2 whitespace-nowrap text-right font-bold font-mono">
+  <span className={entry.damageType === 'ARCANE' ? 'text-purple-400' : 'text-white'}>
+    {entry.damage}
+  </span>
+</td>
+```
+
+**Color Scheme**:
+- **Physical**: `text-white` (default)
+- **Arcane**: `text-purple-400` (main), `text-purple-300` (subrows)
+- Background: `bg-purple-900/10` for Arcane subrows
+
+**Consequences**:
+- All Arcane damage visually distinct (from any source: abilities, conversions, etc.)
+- Easy to spot Arcane damage scaling in combat log
+- Matches existing subrow color scheme
+- Future: Can add other colors for Lightning, Fire, etc.
+
+**Code Location**: 
+- Engine: `/src/simulation/engine.js` (line 912)
+- UI: `/src/components/CombatSimulatorPage.jsx` (line 99)
+
+---
+
+## ADR-017: Why Weapon Swapping in Choreography?
+
+**Date**: 2025-10-21  
+**Status**: Implemented
+
+**Context**: User wanted weapon swapping mid-combat, but UI had weapon selector dropdown.
+
+**Problem**: UI weapon selector overrode choreography, couldn't test weapon swap abilities.
+
+**Decision**: Remove UI weapon selector, make weapon determined by choreography events.
+
+**Reasoning**:
+- **Choreography is source of truth**: Combat sequence defines when weapon changes
+- **UI selector was wrong pattern**: Shouldn't manually override combat flow
+- **Weapon-specific abilities**: Flail abilities → swap to Sword → Sword abilities
+- **Realistic combat**: Matches actual gameplay (swap weapons during rotation)
+
+**Implementation**:
+
+```javascript
+// CHOREOGRAPHY: Starting weapon from first event
+const startingWeapon = midComboBlockChoreography.find(e => e.weapon)?.weapon || 'Flail';
+
+// CHOREOGRAPHY: WEAPON_SWAP event
+{ 
+  timestamp: 7.92, 
+  action: 'WEAPON_SWAP', 
+  targetWeapon: 'Sword', 
+  sourceId: 'Player', 
+  targetId: 'Target Dummy' 
+}
+
+// ENGINE: Update source.weaponType
+if (event.action === 'WEAPON_SWAP') {
+    source.weaponType = event.targetWeapon;
+    console.log(`[ENGINE] 🔄 Weapon swapped to ${event.targetWeapon}`);
+    continue;  // Don't process as damage event
+}
+
+// UI: Removed weapon selector dropdown
+// const [weaponType, setWeaponType] = useState('Flail');  // ❌ DELETED
+```
+
+**Weapon Field on Events**:
+```javascript
+// All events specify weapon
+{ timestamp: 1.5, action: 'ABILITY_HIT', weapon: 'Flail', ... }
+{ timestamp: 8.02, action: 'ABILITY_HIT', weapon: 'Sword', ... }
+```
+
+**Consequences**:
+- Choreography fully controls weapon state
+- Can test weapon swap abilities properly
+- UI simpler (no manual weapon selection)
+- Weapon-specific damage scaling works correctly (Flail → Sword → different base damage)
+
+**Code Location**: 
+- Engine swap handler: `/src/simulation/engine.js` (line 445)
+- UI removed: `/src/components/CombatSimulatorPage.jsx` (lines 145, 250, 254)
+
+---
+
 *Last Updated: 2025-10-21*
