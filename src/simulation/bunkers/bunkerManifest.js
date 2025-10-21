@@ -26,11 +26,17 @@ import perk_disdained_infliction_ii from './generated/perk_disdained_infliction_
 import runeglass_empowered_sapphire_weapon from './modifiers/runeglass_empowered_sapphire_weapon.js';
 import runeglass_empowered_sapphire_armor from './modifiers/runeglass_empowered_sapphire_armor.js';
 import runeglass_empowered_sapphire_weapon_hex from './effectBunkers/runeglass_empowered_sapphire_weapon_hex.js';
+import runeglass_punishing_sapphire_weapon from './modifiers/runeglass_punishing_sapphire_weapon.js';
+import runeglass_punishing_sapphire_weapon_empowered from './modifiers/runeglass_punishing_sapphire_weapon_empowered.js';
+import runeglass_punishing_sapphire_armor from './modifiers/runeglass_punishing_sapphire_armor.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
     runeglass_empowered_sapphire_weapon,
-    runeglass_empowered_sapphire_armor
+    runeglass_empowered_sapphire_armor,
+    runeglass_punishing_sapphire_weapon,
+    runeglass_punishing_sapphire_weapon_empowered,
+    runeglass_punishing_sapphire_armor
 ];
 
 export const effectBunkers = [

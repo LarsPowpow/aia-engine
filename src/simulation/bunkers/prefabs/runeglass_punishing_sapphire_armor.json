@@ -1,0 +1,21 @@
+{
+  "id": "runeglass_punishing_sapphire_armor",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass",
+  "label": "Runeglass of Punishing Sapphire (Armor) - Punishing Arcane Ward",
+  "name": "Runeglass of Punishing Sapphire (Armor) - Punishing Arcane Ward",
+  "description": "Your melee attacks deal +1% damage.",
+  "event": "ON_ATTACK",
+  "condition": {
+    "type": "action",
+    "actionType": "MELEE_ATTACK"
+  },
+  "modifiers": [
+    {
+      "type": "misc_damage",
+      "value": 0.01
+    }
+  ],
+  "labels": ["D_Runeglass_Armor_Melee"],
+  "runeglass_bucket": "armor"
+}

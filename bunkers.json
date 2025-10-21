@@ -93,5 +93,25 @@
     "eventType": "PASSIVE",
     "category": "ARCANE_BOOST",
     "conditions": ["PASSIVE"]
+  },
+  {
+    "id": "runeglass_punishing_sapphire_weapon",
+    "type": "RUNEGLASS",
+    "label": "Runeglass of Punishing Sapphire (Weapon)",
+    "description": "Convert 50% of damage dealt to Arcane. Your melee attacks deal +2% damage.",
+    "defaultValue": 0.5,
+    "eventType": "ON_ATTACK",
+    "category": "DAMAGE_CONVERSION",
+    "conditions": ["ON_ATTACK"]
+  },
+  {
+    "id": "runeglass_punishing_sapphire_armor",
+    "type": "RUNEGLASS",
+    "label": "Runeglass of Punishing Sapphire (Armor)",
+    "description": "Your melee attacks deal +1% damage.",
+    "defaultValue": 0.01,
+    "eventType": "ON_ATTACK",
+    "category": "MELEE_BOOST",
+    "conditions": ["ON_MELEE_ATTACK"]
   }
 ]

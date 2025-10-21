@@ -1,0 +1,19 @@
+{
+  "id": "runeglass_punishing_sapphire_weapon",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass",
+  "label": "Runeglass of Punishing Sapphire (Weapon) - Conversion",
+  "name": "Runeglass of Punishing Sapphire (Weapon)",
+  "description": "Convert 50% of damage dealt to Arcane.",
+  "event": "ON_ATTACK",
+  "modifiers": [
+    {
+      "type": "damage_conversion",
+      "from": "physical",
+      "to": "arcane",
+      "percent": 0.50
+    }
+  ],
+  "labels": ["D_Runeglass_Weapon_Conversion"],
+  "runeglass_bucket": "weapon"
+}

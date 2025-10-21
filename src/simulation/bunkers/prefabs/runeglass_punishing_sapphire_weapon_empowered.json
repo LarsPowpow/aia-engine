@@ -1,0 +1,21 @@
+{
+  "id": "runeglass_punishing_sapphire_weapon_empowered",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass",
+  "label": "Runeglass of Punishing Sapphire (Weapon) - Punishing Empowered",
+  "name": "Runeglass of Punishing Sapphire (Weapon) - Punishing Empowered",
+  "description": "Your melee attacks deal +2% damage.",
+  "event": "ON_ATTACK",
+  "condition": {
+    "type": "action",
+    "actionType": "MELEE_ATTACK"
+  },
+  "modifiers": [
+    {
+      "type": "misc_damage",
+      "value": 0.02
+    }
+  ],
+  "labels": ["D_Runeglass_Weapon_Melee"],
+  "runeglass_bucket": "weapon"
+}
