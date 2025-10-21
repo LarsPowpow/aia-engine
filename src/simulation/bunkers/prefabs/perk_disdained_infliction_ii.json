@@ -1,0 +1,23 @@
+{
+  "id": "perk_disdained_infliction_ii",
+  "type": "PERK",
+  "bucket": "fixed_perk",
+  "label": "Disdained Infliction II",
+  "name": "Disdained Infliction II",
+  "description": "Potency of outgoing DoTs are increased by 20%.",
+  "event": "ON_DOT_TICK",
+  "condition": {
+    "type": "action",
+    "actionType": "DOT_TICK"
+  },
+  "effects": [
+    {
+      "type": "misc_damage",
+      "value": 0.20,
+      "target": "self"
+    }
+  ],
+  "labels": ["D_Fixed_SkillCharm_OnDotTick"],
+  "perk_bucket": "fixed_perk",
+  "notes": "Simplified implementation: 20% boost accounts for both base 15% damage increase and average duration extension benefit"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "perk_sundering_stacks_ii",
+  "type": "PERK",
+  "bucket": "fixed_perk",
+  "label": "Sundering Stacks II",
+  "name": "Sundering Stacks II",
+  "description": "Once every 0.5s, attack inflicts a stack of 4% Rend, each stack lasting 6s. (Max 5 stacks)",
+  "event": "ON_ATTACK",
+  "condition": {
+    "type": "action",
+    "actionType": "ATTACK"
+  },
+  "cooldown": 0.5,
+  "effects": [
+    {
+      "type": "rend",
+      "value": 0.04,
+      "duration": 6,
+      "stackable": true,
+      "maxStacks": 5,
+      "target": "enemy"
+    }
+  ],
+  "labels": ["D_Fixed_SkillCharm_OnAttack"],
+  "perk_bucket": "fixed_perk"
+}

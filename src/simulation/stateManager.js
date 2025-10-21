@@ -104,7 +104,29 @@ const applyEffect = (target, effectData, context) => {
 
     // --- EMPOWER, REND, FORTIFY, MISC_DAMAGE: Anti-stack by source, with caps ---
     if (['EMPOWER', 'REND', 'FORTIFY', 'MISC_DAMAGE'].includes(effectData.category)) {
-        // Check if same source already has this effect active
+        // --- STACKABLE EFFECTS: Allow multiple independent stacks ---
+        if (effectData.stackable) {
+            const existingStacks = target.activeEffects.filter(e => e.id === effectData.id);
+            const maxStacks = effectData.maxStacks || Infinity;
+            
+            if (existingStacks.length >= maxStacks) {
+                console.log(`[STATE MANAGER] 🔒 ${effectData.id} at max stacks (${maxStacks}), blocking new stack`);
+                return;
+            }
+            
+            // Apply new independent stack
+            const newStack = {
+                ...effectData,
+                appliedAt: now,
+                expiresAt: now + effectData.duration,
+                sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
+            };
+            target.activeEffects.push(newStack);
+            console.log(`[STATE MANAGER] 📚 Applied stackable ${effectData.category} stack ${existingStacks.length + 1}/${maxStacks}: ${effectData.id} (${(effectData.value * 100).toFixed(1)}%)`);
+            return;
+        }
+        
+        // --- NON-STACKABLE: Check if same source already has this effect active ---
         const existingFromSameSource = target.activeEffects.find(e => 
             e.category === effectData.category && 
             e.sourceId === effectData.sourceId

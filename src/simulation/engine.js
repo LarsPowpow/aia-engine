@@ -511,16 +511,36 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             miscDmgPercent: 0,
         };
         
+        // Read buffs from source's activeEffects
         if (source.activeEffects) {
             for (const effect of source.activeEffects) {
                 if (effect.category === 'EMPOWER') damageTerms.empowerPercent += effect.value || 0;
-                if (effect.category === 'REND') damageTerms.rendPercent += effect.value || 0;
                 if (effect.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += effect.value || 0;
             }
         }
         
+        // Read debuffs from target's activeEffects (REND)
+        if (target.activeEffects) {
+            for (const effect of target.activeEffects) {
+                if (effect.category === 'REND') damageTerms.rendPercent += effect.value || 0;
+            }
+        }
+        
+        // ✅ NEW: Apply modifier bunkers to DOT ticks!
+        const dotContext = { ...event, source, target, allSources, timestamp, event, eventType: 'DOT_TICK' };
+        for (const bunker of activeModifierBunkers) {
+            const result = bunker.handler({ ...dotContext, timestamp });
+            if (result && result.modifyDamage) {
+                for (const mod of result.modifyDamage) {
+                    if (mod.category === 'EMPOWER') damageTerms.empowerPercent += mod.value || 0;
+                    if (mod.category === 'REND') damageTerms.rendPercent += mod.value || 0;
+                    if (mod.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += mod.value || 0;
+                }
+            }
+        }
+        
         const finalDamage = Math.round(dotDamage *
-            (1 + (damageTerms.empowerPercent || 0) - (damageTerms.rendPercent || 0)) *
+            (1 + (damageTerms.empowerPercent || 0) + (damageTerms.rendPercent || 0)) *
             (1 + (damageTerms.miscDmgPercent || 0))
         );
         

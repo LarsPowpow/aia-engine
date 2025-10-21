@@ -15,8 +15,11 @@ import punishingMalachiteCruelEmpower from './runeglass/punishingMalachite/punis
 import empoweringLeapingStrike from './perks/empoweringLeapingStrike/empoweringLeapingStrike_Modifiers.js';
 import perk_keenly_jagged_ii from './generated/perk_keenly_jagged_ii';
 import perk_keenly_empowered_ii from './generated/perk_keenly_empowered_ii';
+import perk_disdained_infliction_ii from './generated/perk_disdained_infliction_ii';
 
-export const modifierBunkers = [];
+export const modifierBunkers = [
+    perk_disdained_infliction_ii
+];
 
 export const effectBunkers = [
     empoweringLeapingStrike,
