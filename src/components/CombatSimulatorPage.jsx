@@ -13,7 +13,7 @@ import CombatLogPanel from '../components/CombatLogPanel';
 import { implementedBunkerIds } from '../simulation/bunkers/bunkerManifest.js';
 
 // --- Sub-Component: ControlPanel (Re-integrated to fix build error) ---
-const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, calculatedDamage }) => {
+const ControlPanel = ({ attributes, setAttributes, calculatedDamage }) => {
     const handleAttributeChange = (attr, value) => {
         const numValue = value === '' ? '' : parseInt(value, 10);
         if (isNaN(numValue) && value !== '') return;
@@ -22,7 +22,6 @@ const ControlPanel = ({ attributes, setAttributes, weaponType, setWeaponType, ca
     return (
         <div className="bg-slate-800/40 rounded-xl p-4 flex flex-col space-y-4 border border-slate-700 shadow-lg backdrop-blur-sm">
             <h2 className="text-lg font-bold text-slate-100 border-b border-slate-600 pb-2 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" /></svg>Control Console</h2>
-            <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700"><label className="text-sm font-medium text-slate-400 mb-2 block">Weapon</label><select value={weaponType} onChange={(e) => setWeaponType(e.target.value)} className="w-full bg-slate-700 border border-slate-600 text-white rounded-md p-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"><option value="Sword">Sword</option><option value="Flail">Flail</option></select></div>
             <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
                 <h3 className="text-sm font-medium text-slate-400 mb-2">Attributes</h3>
                 <div className="grid grid-cols-2 gap-3">{Object.keys(attributes).map(attr => (<div key={attr} className={attr === 'CON' ? 'col-span-2' : ''}><label className="text-xs font-semibold text-slate-400 uppercase">{attr}</label><input type="number" value={attributes[attr]} onChange={(e) => handleAttributeChange(attr, e.target.value)} className="w-full bg-slate-700/80 border border-slate-600 rounded-md p-2 mt-1 focus:bg-slate-600 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition"/></div>))}</div>
@@ -143,7 +142,6 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
 // --- Main Page Component ---
 const CombatSimulatorPage = ({ addLog }) => {
     // --- FINAL FIX: Default weapon is now 'Flail' ---
-    const [weaponType, setWeaponType] = useState('Flail');
     const [attributes, setAttributes] = useState({ STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105 });
     const [calculatedDamage, setCalculatedDamage] = useState(0);
     const [combatLog, setCombatLog] = useState([]);
@@ -208,13 +206,14 @@ const CombatSimulatorPage = ({ addLog }) => {
 
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
-        if (weaponType && allAttributesValid) {
-            const damage = calculateWeaponDamage(weaponType, attributes);
+        const startingWeapon = midComboBlockChoreography.find(e => e.weapon)?.weapon || 'Flail';
+        if (startingWeapon && allAttributesValid) {
+            const damage = calculateWeaponDamage(startingWeapon, attributes);
             setCalculatedDamage(damage);
         } else {
             setCalculatedDamage(0);
         }
-    }, [weaponType, attributes]);
+    }, [attributes]);
 
     const handleRunSimulation = async () => {
         addLog({ type: 'info', message: 'Simulation initiated...' });
@@ -246,8 +245,13 @@ const CombatSimulatorPage = ({ addLog }) => {
         const masteriesPayload = cowardlyPunishmentMastery
             ? [...(equippedMasteries || []).filter(m => m.id !== 'upgrade_sword_leapingstrike_slow'), cowardlyPunishmentMastery]
             : (equippedMasteries || []);
+        
+        // Determine starting weapon from choreography (first non-consumable event with a weapon)
+        const startingWeapon = midComboBlockChoreography.find(e => e.weapon)?.weapon || 'Flail';
+        console.log('[COMBAT SIM] Starting weapon from choreography:', startingWeapon);
+        
         const combatantPayload = {
-            id: 'Player', name: 'Player', weaponType, attributes,
+            id: 'Player', name: 'Player', weaponType: startingWeapon, attributes,
             perks: allEquippedPerks,
             masteries: masteriesPayload,
             maxHealth,
@@ -323,7 +327,7 @@ const CombatSimulatorPage = ({ addLog }) => {
                         <PerkLoadoutPanel equippedPerks={equippedPerks} setEquippedPerks={setEquippedPerks} perkOptions={perkOptions} />
                         <MasteryLoadoutPanel equippedMasteries={equippedMasteries} setEquippedMasteries={setEquippedMasteries} masteryOptions={masteryOptions} />
                         <RuneglassPanel equippedRuneglass={equippedRuneglass} setEquippedRuneglass={setEquippedRuneglass} runeglassOptions={runeglassOptions} />
-                        <ControlPanel attributes={attributes} setAttributes={setAttributes} weaponType={weaponType} setWeaponType={setWeaponType} calculatedDamage={calculatedDamage} />
+                        <ControlPanel attributes={attributes} setAttributes={setAttributes} calculatedDamage={calculatedDamage} />
                     </div>
 
                     <div className="lg:col-span-2 flex flex-col bg-slate-800/40 border border-slate-700 rounded-xl overflow-hidden">
