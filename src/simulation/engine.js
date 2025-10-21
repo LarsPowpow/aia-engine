@@ -408,7 +408,8 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     }
     effectRequests = [];
     for (const bunker of activeEffectBunkers) {
-        const result = bunker.handler({ ...context, timestamp });
+        // ✅ Pass finalDamage to effect bunkers for reactive effects (lifesteal, etc.)
+        const result = bunker.handler({ ...context, timestamp, finalDamage });
         if (result && result.applyEffects) {
             effectRequests.push(...result.applyEffects);
         }
@@ -527,6 +528,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         }
         
         // ✅ NEW: Apply modifier bunkers to DOT ticks!
+        const modifierSources = []; // Track which bunkers contributed
         const dotContext = { ...event, source, target, allSources, timestamp, event, eventType: 'DOT_TICK' };
         for (const bunker of activeModifierBunkers) {
             const result = bunker.handler({ ...dotContext, timestamp });
@@ -535,6 +537,14 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
                     if (mod.category === 'EMPOWER') damageTerms.empowerPercent += mod.value || 0;
                     if (mod.category === 'REND') damageTerms.rendPercent += mod.value || 0;
                     if (mod.category === 'MISC_DAMAGE') damageTerms.miscDmgPercent += mod.value || 0;
+                    
+                    // Track the source
+                    const bunkerName = bunker.METADATA?.name || bunker.metadata?.name || bunker.id || 'Unknown';
+                    modifierSources.push({
+                        source: bunkerName,
+                        category: mod.category,
+                        value: mod.value
+                    });
                 }
             }
         }
@@ -563,7 +573,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             snapshot: {
                 combatant: JSON.parse(JSON.stringify(source)),
                 target: JSON.parse(JSON.stringify(target)),
-                stroke1_modifiers: [],
+                stroke1_modifiers: modifierSources, // ✅ Track modifier sources
                 stroke2_effects: [],
                 damageTerms
             }

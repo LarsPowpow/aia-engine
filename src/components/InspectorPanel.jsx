@@ -179,6 +179,31 @@ const RawStateTab = ({ combatantState, targetState, logEntry }) => {
                 <EffectsTable title="Target Active Effects" effects={targetEffects} combatantState={targetState} />
             </div>
             
+            {/* Damage Modifiers from Bunkers */}
+            {logEntry?.snapshot?.stroke1_modifiers && logEntry.snapshot.stroke1_modifiers.length > 0 && (
+                <div className="border-t border-slate-600 pt-4">
+                    <h4 className="text-lg font-semibold text-purple-400 mb-2">Damage Modifiers (from Bunkers)</h4>
+                    <table className="min-w-full text-xs text-left">
+                        <thead className="text-slate-400">
+                            <tr>
+                                <th className="p-1.5 font-semibold">Source</th>
+                                <th className="p-1.5 font-semibold">Category</th>
+                                <th className="p-1.5 font-semibold text-right">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700/50">
+                            {logEntry.snapshot.stroke1_modifiers.map((mod, idx) => (
+                                <tr key={idx} className="font-mono">
+                                    <td className="p-1.5 whitespace-nowrap text-purple-300">{mod.source || 'Unknown'}</td>
+                                    <td className="p-1.5 whitespace-nowrap text-cyan-400">{mod.category}</td>
+                                    <td className="p-1.5 whitespace-nowrap text-right text-amber-400">+{(mod.value * 100).toFixed(0)}%</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            
             {/* The JSON "Escape Hatch" */}
             <div>
                 <button 

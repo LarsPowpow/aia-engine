@@ -1,0 +1,22 @@
+{
+  "id": "perk_lifestealing_ii",
+  "type": "PERK",
+  "bucket": "fixed_perk",
+  "label": "Lifestealing II",
+  "name": "Lifestealing II",
+  "description": "Heal for 5.5% of the damage you deal (Does not trigger off persistent damage or DoT effects).",
+  "event": "ON_DAMAGE_DEALT",
+  "condition": {
+    "type": "action",
+    "actionType": "DAMAGE"
+  },
+  "effects": [
+    {
+      "type": "heal",
+      "valuePercent": 0.055,
+      "target": "self"
+    }
+  ],
+  "labels": ["D_Fixed_SkillCharm_OnDamageDealt"],
+  "perk_bucket": "fixed_perk"
+}

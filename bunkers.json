@@ -43,5 +43,15 @@
     "eventType": "ON_DOT_TICK",
     "category": "MISC_DAMAGE",
     "conditions": ["ON_DOT_TICK"]
+  },
+  {
+    "id": "perk_lifestealing_ii",
+    "type": "PERK",
+    "label": "Lifestealing II",
+    "description": "Heal for 5.5% of the damage you deal (Does not trigger off persistent damage or DoT effects).",
+    "defaultValue": 0.055,
+    "eventType": "ON_DAMAGE_DEALT",
+    "category": "HEAL",
+    "conditions": ["ON_DAMAGE_DEALT"]
   }
 ]
