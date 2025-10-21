@@ -349,6 +349,55 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // Note: critMultiplier and event.isCrit will be set after modifier collection
     // This allows crit chance modifiers (like Keen II) to be included
 
+    // ✅ TRACK LIGHT ATTACK CHAINS (for chain-finisher perks like End II)
+    const WEAPON_CHAIN_FINISHERS = {
+        'Flail': 2,
+        'Sword': 3
+    };
+    const NON_BREAKING_ACTIONS = ['DOT_TICK', 'HOT_TICK']; // Passive periodic effects don't break chains
+    
+    // Initialize chain tracking if needed
+    if (!source.lightAttackChain) {
+        source.lightAttackChain = { count: 0, weapon: null };
+    }
+    
+    if (event.action === 'LIGHT_ATTACK') {
+        // Continue or start chain
+        if (source.lightAttackChain.weapon === source.weaponType) {
+            source.lightAttackChain.count++;
+        } else {
+            // Weapon changed or first LA, reset chain
+            source.lightAttackChain.count = 1;
+            source.lightAttackChain.weapon = source.weaponType;
+        }
+        
+        // Check if this is a chain finisher
+        const finisherPosition = WEAPON_CHAIN_FINISHERS[source.weaponType] || 999;
+        event.isChainFinisher = (source.lightAttackChain.count === finisherPosition);
+        event.chainPosition = source.lightAttackChain.count;
+        
+        console.log('[ENGINE] ⚔️ Light attack chain:', {
+            weapon: source.weaponType,
+            chainPosition: event.chainPosition,
+            finisherPosition: finisherPosition,
+            isChainFinisher: event.isChainFinisher
+        });
+        
+    } else if (!NON_BREAKING_ACTIONS.includes(event.action)) {
+        // Any active action (except passive ticks) breaks the chain
+        if (source.lightAttackChain.count > 0) {
+            console.log('[ENGINE] ⚔️ Light attack chain broken by:', event.action);
+        }
+        source.lightAttackChain.count = 0;
+        source.lightAttackChain.weapon = null;
+        event.isChainFinisher = false;
+        event.chainPosition = 0;
+    } else {
+        // Passive action - preserve chain state but don't set flags
+        event.isChainFinisher = false;
+        event.chainPosition = source.lightAttackChain.count;
+    }
+
     // --- DIAGNOSTIC PROBE: Healing Defense ---
     if (event.action && event.action.startsWith('BLOCK')) {
         addRawLog({

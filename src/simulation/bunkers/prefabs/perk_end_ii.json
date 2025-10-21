@@ -1,0 +1,10 @@
+{
+  "id": "perk_end_ii",
+  "name": "End II",
+  "description": "+6% ability base damage and +12% base damage increase to the final attack in a melee light attack chain.",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["damage", "ability", "chain_finisher", "weapon_perk"]
+}
