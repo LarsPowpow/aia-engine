@@ -44,6 +44,11 @@ import perk_enchanted_ii from './generated/perk_enchanted_ii.js';
 import perk_sacred_ii from './generated/perk_sacred_ii.js';
 import perk_keen_ii from './generated/perk_keen_ii.js';
 import perk_vicious_ii from './generated/perk_vicious_ii.js';
+import perk_skilled_enchantment_ii from './generated/perk_skilled_enchantment_ii.js';
+import perk_empowered_ii from './generated/perk_empowered_ii.js';
+import perk_fortified_ii from './generated/perk_fortified_ii.js';
+import perk_anointed_lifesteal_ii from './generated/perk_anointed_lifesteal_ii.js';
+import perk_divine_ii from './generated/perk_divine_ii.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -51,6 +56,11 @@ export const modifierBunkers = [
     perk_sacred_ii,
     perk_keen_ii,
     perk_vicious_ii,
+    perk_skilled_enchantment_ii,
+    perk_empowered_ii,
+    perk_fortified_ii,
+    perk_anointed_lifesteal_ii,
+    perk_divine_ii,
     runeglass_empowered_sapphire_weapon,
     runeglass_empowered_sapphire_armor,
     runeglass_punishing_sapphire_weapon,

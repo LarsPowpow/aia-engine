@@ -462,6 +462,10 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             if (mod.category === 'HEALING_EFFICIENCY') damageTerms.healingEfficiency = (damageTerms.healingEfficiency || 0) + (mod.value || 0);
             if (mod.category === 'CRIT_CHANCE') damageTerms.critChance = (damageTerms.critChance || 0) + (mod.value || 0);
             if (mod.category === 'CRIT_DAMAGE') damageTerms.critDamage = (damageTerms.critDamage || 0) + (mod.value || 0);
+            if (mod.category === 'EMPOWER_DURATION') damageTerms.empowerDuration = (damageTerms.empowerDuration || 0) + (mod.value || 0);
+            if (mod.category === 'FORTIFY_DURATION') damageTerms.fortifyDuration = (damageTerms.fortifyDuration || 0) + (mod.value || 0);
+            if (mod.category === 'LIFESTEAL_EFFICIENCY') damageTerms.lifestealEfficiency = (damageTerms.lifestealEfficiency || 0) + (mod.value || 0);
+            if (mod.category === 'DIVINE_HEALING') damageTerms.divineHealing = (damageTerms.divineHealing || 0) + (mod.value || 0);
         }
     }
 
@@ -619,25 +623,99 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     
     // --- SMART ENGINE: Apply healing efficiency to all HEAL effects ---
     const healingEfficiency = damageTerms.healingEfficiency || 0;
-    if (healingEfficiency > 0) {
+    const lifestealEfficiency = damageTerms.lifestealEfficiency || 0;
+    const divineHealing = damageTerms.divineHealing || 0;
+    
+    if (healingEfficiency > 0 || lifestealEfficiency > 0 || divineHealing > 0) {
         for (const eff of effectRequests) {
             if (eff.category === 'HEAL') {
                 const originalValue = eff.value;
-                eff.value = eff.value * (1 + healingEfficiency);
+                const isLifesteal = eff.metadata?.healType === 'lifesteal';
+                const isConsumable = eff.metadata?.healType === 'consumable';
+                
+                // Apply general healing efficiency to all heals
+                let totalMultiplier = 1 + healingEfficiency;
+                
+                // Apply lifesteal efficiency only to lifesteal heals (stacks additively)
+                if (isLifesteal && lifestealEfficiency > 0) {
+                    totalMultiplier += lifestealEfficiency;
+                }
+                
+                // Apply divine healing only to non-lifesteal, non-consumable heals (stacks additively)
+                if (!isLifesteal && !isConsumable && divineHealing > 0) {
+                    totalMultiplier += divineHealing;
+                }
+                
+                eff.value = eff.value * totalMultiplier;
                 
                 // Debug logging
                 console.log('[ENGINE] 🩺 Healing efficiency applied:', {
                     effectId: eff.id,
                     original: originalValue.toFixed(2),
                     modified: eff.value.toFixed(2),
-                    multiplier: (1 + healingEfficiency).toFixed(3),
-                    source: eff.metadata?.sourceName
+                    healingEfficiency: healingEfficiency > 0 ? `+${(healingEfficiency * 100).toFixed(1)}%` : 'none',
+                    lifestealEfficiency: (isLifesteal && lifestealEfficiency > 0) ? `+${(lifestealEfficiency * 100).toFixed(1)}%` : 'none',
+                    divineHealing: (!isLifesteal && !isConsumable && divineHealing > 0) ? `+${(divineHealing * 100).toFixed(1)}%` : 'none',
+                    totalMultiplier: totalMultiplier.toFixed(3),
+                    source: eff.metadata?.sourceName,
+                    isLifesteal,
+                    isConsumable
                 });
                 
                 // Mark in metadata for debugging
                 eff.metadata = eff.metadata || {};
                 eff.metadata.healingEfficiencyApplied = true;
-                eff.metadata.healingMultiplier = (1 + healingEfficiency);
+                eff.metadata.healingMultiplier = totalMultiplier;
+            }
+        }
+    }
+
+    // --- SMART ENGINE: Apply empower duration extension to all EMPOWER effects ---
+    const empowerDuration = damageTerms.empowerDuration || 0;
+    if (empowerDuration > 0) {
+        for (const eff of effectRequests) {
+            if (eff.category === 'EMPOWER' && eff.duration) {
+                const originalDuration = eff.duration;
+                eff.duration = Math.round(eff.duration * (1 + empowerDuration));
+                
+                // Debug logging
+                console.log('[ENGINE] ⏱️ Empower duration extended:', {
+                    effectId: eff.id,
+                    originalDuration: originalDuration,
+                    extendedDuration: eff.duration,
+                    multiplier: (1 + empowerDuration).toFixed(3),
+                    source: eff.metadata?.sourceName
+                });
+                
+                // Mark in metadata for debugging
+                eff.metadata = eff.metadata || {};
+                eff.metadata.empowerDurationExtended = true;
+                eff.metadata.durationMultiplier = (1 + empowerDuration);
+            }
+        }
+    }
+
+    // --- SMART ENGINE: Apply fortify duration extension to all FORTIFY effects ---
+    const fortifyDuration = damageTerms.fortifyDuration || 0;
+    if (fortifyDuration > 0) {
+        for (const eff of effectRequests) {
+            if (eff.category === 'FORTIFY' && eff.duration) {
+                const originalDuration = eff.duration;
+                eff.duration = Math.round(eff.duration * (1 + fortifyDuration));
+                
+                // Debug logging
+                console.log('[ENGINE] ⏱️ Fortify duration extended:', {
+                    effectId: eff.id,
+                    originalDuration: originalDuration,
+                    extendedDuration: eff.duration,
+                    multiplier: (1 + fortifyDuration).toFixed(3),
+                    source: eff.metadata?.sourceName
+                });
+                
+                // Mark in metadata for debugging
+                eff.metadata = eff.metadata || {};
+                eff.metadata.fortifyDurationExtended = true;
+                eff.metadata.durationMultiplier = (1 + fortifyDuration);
             }
         }
     }

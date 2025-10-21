@@ -1,0 +1,10 @@
+{
+  "id": "perk_fortified_ii",
+  "name": "Fortified II",
+  "description": "Fortify you apply lasts 10% longer.",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["fortify", "duration", "weapon_perk"]
+}

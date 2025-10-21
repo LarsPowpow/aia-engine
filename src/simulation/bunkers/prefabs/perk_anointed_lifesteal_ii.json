@@ -1,0 +1,10 @@
+{
+  "id": "perk_anointed_lifesteal_ii",
+  "name": "Anointed Lifesteal II",
+  "description": "5.5% increased healing from lifesteals.",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["healing", "lifesteal", "weapon_perk"]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "perk_skilled_enchantment_ii",
+  "name": "Skilled Enchantment II",
+  "description": "Abilities deal +1.5% damage.",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["damage", "ability", "weapon_perk"]
+}

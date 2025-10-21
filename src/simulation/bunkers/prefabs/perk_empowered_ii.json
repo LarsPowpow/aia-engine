@@ -1,0 +1,10 @@
+{
+  "id": "perk_empowered_ii",
+  "name": "Empowered II",
+  "description": "Empower you apply lasts 12% longer.",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["empower", "duration", "weapon_perk"]
+}

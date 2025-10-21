@@ -1,0 +1,10 @@
+{
+  "id": "perk_divine_ii",
+  "name": "Divine II",
+  "description": "+5.5% Health from non-consumable or lifesteal healing sources.",
+  "type": "PERK",
+  "stroke": 1,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["healing", "divine", "weapon_perk"]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "perk_keenly_fortified_ii",
+  "name": "Keenly Fortified II",
+  "description": "Gain 19% Fortify for 5s on critical hit (7s cooldown).",
+  "type": "PERK",
+  "stroke": 2,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["defense", "fortify", "crit", "weapon_perk"]
+}
