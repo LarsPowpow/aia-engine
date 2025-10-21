@@ -1,0 +1,19 @@
+{
+  "id": "runeglass_punishing_jasper_retaliate_modifier",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Punishing Jasper (Weapon - Retaliate Modifier)",
+  "name": "Runeglass of Punishing Jasper",
+  "description": "Apply damage bonus based on retaliate stacks (8% per stack).",
+  "event": "PASSIVE",
+  "effects": [
+    {
+      "type": "damage_modifier",
+      "category": "MISC_DAMAGE",
+      "valuePerStack": 0.08,
+      "readsStacks": true
+    }
+  ],
+  "labels": ["Runeglass_Weapon_Jasper_Punishing_Retaliate_Mod"],
+  "slot": "weapon_runeglass"
+}

@@ -33,6 +33,13 @@ import runeglass_empowered_malachite_weapon from './modifiers/runeglass_empowere
 import runeglass_empowered_malachite_weapon_misc from './modifiers/runeglass_empowered_malachite_weapon_misc.js';
 import runeglass_empowered_malachite_armor from './modifiers/runeglass_empowered_malachite_armor.js';
 import runeglass_empowered_malachite_weapon_hex from './effectBunkers/runeglass_empowered_malachite_weapon_hex.js';
+import runeglass_empowered_jasper_retaliate_stack from './effectBunkers/runeglass_empowered_jasper_retaliate_stack.js';
+import runeglass_empowered_jasper_weapon_hex from './effectBunkers/runeglass_empowered_jasper_hex.js';
+import runeglass_empowered_jasper_retaliate_modifier from './modifiers/runeglass_empowered_jasper_retaliate_modifier.js';
+import runeglass_empowered_jasper_armor from './modifiers/runeglass_empowered_jasper_armor.js';
+import runeglass_punishing_jasper_retaliate_modifier from './modifiers/runeglass_punishing_jasper_retaliate_modifier.js';
+import runeglass_punishing_jasper_weapon_misc from './modifiers/runeglass_punishing_jasper_weapon_misc.js';
+import runeglass_punishing_jasper_armor from './modifiers/runeglass_punishing_jasper_armor.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -44,6 +51,11 @@ export const modifierBunkers = [
     runeglass_empowered_malachite_weapon,
     runeglass_empowered_malachite_weapon_misc,
     runeglass_empowered_malachite_armor
+    ,runeglass_empowered_jasper_retaliate_modifier,
+    runeglass_empowered_jasper_armor,
+    runeglass_punishing_jasper_retaliate_modifier,
+    runeglass_punishing_jasper_weapon_misc,
+    runeglass_punishing_jasper_armor
 ];
 
 export const effectBunkers = [
@@ -52,8 +64,18 @@ export const effectBunkers = [
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,
     runeglass_empowered_malachite_weapon_hex,
+    runeglass_empowered_jasper_retaliate_stack,
+    runeglass_empowered_jasper_weapon_hex,
     ...generatedBunkers
 ];
+
+console.log('[BUNKER MANIFEST] Effect bunkers loaded:', {
+    count: effectBunkers.length,
+    ids: effectBunkers.map(b => b.METADATA?.id || b.metadata?.id || b.id || 'UNKNOWN'),
+    jasperRetaliate: effectBunkers.find(b => 
+        (b.METADATA?.id || b.metadata?.id || b.id) === 'runeglass_empowered_jasper_retaliate_stack'
+    ) ? '✅ FOUND' : '❌ MISSING'
+});
 
 // Derived list of implemented IDs (keeps consumers from crashing).
 const _extractBunkerId = (b) => {

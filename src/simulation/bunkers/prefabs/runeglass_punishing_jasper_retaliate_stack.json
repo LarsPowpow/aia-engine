@@ -1,0 +1,25 @@
+{
+  "id": "runeglass_punishing_jasper_retaliate_stack",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Punishing Jasper (Weapon - Retaliate Stack)",
+  "name": "Runeglass of Punishing Jasper",
+  "description": "Gain a stack of +8% damage for 5s after blocking or taking a hit. Max 3 stacks.",
+  "event": "PASSIVE",
+  "condition": {
+    "type": "action_in",
+    "actions": ["BLOCK_START", "BLOCK_HIT", "BLOCK_END", "HIT_TAKEN", "ABILITY_HIT"]
+  },
+  "effects": [
+    {
+      "type": "buff",
+      "category": "EMPOWER",
+      "value": 0.08,
+      "duration": 5,
+      "stackable": true,
+      "maxStacks": 3
+    }
+  ],
+  "labels": ["Runeglass_Weapon_Jasper_Punishing_Retaliate"],
+  "slot": "weapon_runeglass"
+}

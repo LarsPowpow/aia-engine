@@ -1,0 +1,18 @@
+{
+  "id": "runeglass_punishing_jasper_weapon_misc",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Punishing Jasper (Weapon - Misc)",
+  "name": "Runeglass of Punishing Jasper",
+  "description": "Your melee attacks deal +2% damage.",
+  "event": "PASSIVE",
+  "effects": [
+    {
+      "type": "damage_modifier",
+      "category": "MISC_DAMAGE",
+      "value": 0.02
+    }
+  ],
+  "labels": ["Runeglass_Weapon_Jasper_Punishing_Misc"],
+  "slot": "weapon_runeglass"
+}

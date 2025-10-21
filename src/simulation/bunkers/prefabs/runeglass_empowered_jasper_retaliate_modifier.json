@@ -1,0 +1,19 @@
+{
+  "id": "runeglass_empowered_jasper_retaliate_modifier",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Empowered Jasper (Weapon - Retaliate Modifier)",
+  "name": "Runeglass of Empowered Jasper",
+  "description": "Apply damage bonus based on retaliate stacks (8% per stack).",
+  "event": "PASSIVE",
+  "effects": [
+    {
+      "type": "damage_modifier",
+      "category": "MISC_DAMAGE",
+      "valuePerStack": 0.08,
+      "readsStacks": true
+    }
+  ],
+  "labels": ["Runeglass_Weapon_Jasper_Retaliate_Mod"],
+  "slot": "weapon_runeglass"
+}

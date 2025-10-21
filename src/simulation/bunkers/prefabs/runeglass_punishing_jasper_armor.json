@@ -1,0 +1,18 @@
+{
+  "id": "runeglass_punishing_jasper_armor",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_armor",
+  "label": "Punishing Jasper (Armor - Strike Ward)",
+  "name": "Runeglass of Punishing Jasper",
+  "description": "Your melee attacks deal +1% damage.",
+  "event": "PASSIVE",
+  "effects": [
+    {
+      "type": "damage_modifier",
+      "category": "MISC_DAMAGE",
+      "value": 0.01
+    }
+  ],
+  "labels": ["Runeglass_Armor_Jasper_Punishing_StrikeWard"],
+  "slot": "armor_runeglass"
+}

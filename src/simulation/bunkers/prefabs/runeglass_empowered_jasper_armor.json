@@ -1,0 +1,23 @@
+{
+  "id": "runeglass_empowered_jasper_armor",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_armor",
+  "label": "Empowered Jasper (Armor - Strike Ward)",
+  "name": "Runeglass of Empowered Jasper",
+  "description": "Your Arcane attacks deal +2% damage.",
+  "event": "PASSIVE",
+  "condition": {
+    "type": "damage_type",
+    "damageType": "ARCANE"
+  },
+  "effects": [
+    {
+      "type": "damage_modifier",
+      "category": "MISC_DAMAGE",
+      "value": 0.02,
+      "damageType": "ARCANE"
+    }
+  ],
+  "labels": ["Runeglass_Armor_Jasper_StrikeWard"],
+  "slot": "armor_runeglass"
+}

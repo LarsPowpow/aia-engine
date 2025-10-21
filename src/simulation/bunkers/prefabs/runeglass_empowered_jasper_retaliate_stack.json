@@ -1,0 +1,25 @@
+{
+  "id": "runeglass_empowered_jasper_retaliate_stack",
+  "type": "RUNEGLASS",
+  "bucket": "runeglass_weapon",
+  "label": "Empowered Jasper (Weapon - Retaliate Stack)",
+  "name": "Runeglass of Empowered Jasper",
+  "description": "Gain a stack of +8% damage for 5s after blocking. Max 3 stacks.",
+  "event": "PASSIVE",
+  "condition": {
+    "type": "action_in",
+    "actions": ["BLOCK_START", "BLOCK_HIT", "BLOCK_END"]
+  },
+  "effects": [
+    {
+      "type": "buff",
+      "category": "EMPOWER",
+      "value": 0.08,
+      "duration": 5,
+      "stackable": true,
+      "maxStacks": 3
+    }
+  ],
+  "labels": ["Runeglass_Weapon_Jasper_Empowered_Retaliate"],
+  "slot": "weapon_runeglass"
+}
