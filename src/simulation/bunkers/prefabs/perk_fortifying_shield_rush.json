@@ -1,0 +1,10 @@
+{
+  "id": "perk_fortifying_shield_rush",
+  "name": "Fortifying Shield Rush",
+  "description": "When hitting a target with Shield Rush, player gains 31% Fortify for 6s",
+  "type": "PERK",
+  "stroke": 2,
+  "sourceType": "perk",
+  "bucket": "weapon",
+  "tags": ["perk", "sword", "shield_rush", "fortify", "weapon_perk"]
+}
