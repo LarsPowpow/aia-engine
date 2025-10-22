@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_int_50",
+  "name": "INT 50 - Damage to DoT Targets",
+  "description": "Damage vs DoT-affected targets +5%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "int",
+  "threshold": 50,
+  "tags": ["ability_bonus", "int", "dot_targets"]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_dex_350",
+  "name": "DEX 350 - Conditional Crit Chance",
+  "description": "Crit chance +15% vs targets below 50% health",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "dex",
+  "threshold": 350,
+  "tags": ["ability_bonus", "dex", "crit_chance", "conditional"]
+}

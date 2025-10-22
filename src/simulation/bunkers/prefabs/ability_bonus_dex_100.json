@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_dex_100",
+  "name": "DEX 100 - Base Damage",
+  "description": "Base damage +5%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "dex",
+  "threshold": 100,
+  "tags": ["ability_bonus", "dex", "base_damage"]
+}

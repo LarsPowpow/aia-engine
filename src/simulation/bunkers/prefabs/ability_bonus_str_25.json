@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_str_25",
+  "name": "STR 25 - Light Attack Damage",
+  "description": "Light Attack damage +3%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "str",
+  "threshold": 25,
+  "tags": ["ability_bonus", "str", "light_attack"]
+}

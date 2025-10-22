@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_int_150",
+  "name": "INT 150 - Arcane Damage",
+  "description": "Arcane damage +15%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "int",
+  "threshold": 150,
+  "tags": ["ability_bonus", "int", "arcane_damage"]
+}

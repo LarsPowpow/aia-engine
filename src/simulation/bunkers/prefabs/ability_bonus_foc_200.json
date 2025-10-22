@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_foc_200",
+  "name": "FOC 200 - Buff Duration & HoT Healing",
+  "description": "Buff duration +10% (Empower, Fortify, Misc Damage), HoT healing +10%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "foc",
+  "threshold": 200,
+  "tags": ["ability_bonus", "foc", "buff_duration", "healing"]
+}

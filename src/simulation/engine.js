@@ -49,22 +49,24 @@ export const runSimulation = (playerPayload, targetPayload, choreography, allSou
         })
         : [];
     
-    const activeModifierBunkers = hasSelections
-        ? modifierBunkers.filter(b => {
-            const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
-            const matched = selectedSourceIds.has(bunkerId);
-            console.log(`[ENGINE] Modifier bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}`);
-            return matched;
-        })
-        : [];
+    const activeModifierBunkers = modifierBunkers.filter(b => {
+        const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
+        const bunkerType = b.type || b.METADATA?.type || b.metadata?.type;
+        // Ability bonuses are always active
+        const isAbilityBonus = bunkerType === 'ABILITY_BONUS_BUNKER';
+        const matched = isAbilityBonus || (hasSelections && selectedSourceIds.has(bunkerId));
+        console.log(`[ENGINE] Modifier bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}${isAbilityBonus ? ' (ability bonus - always active)' : ''}`);
+        return matched;
+    });
     
     const activeEffectBunkers = effectBunkers.filter(b => {
         const bunkerId = b.id || b.METADATA?.id || b.metadata?.id;
         const bunkerType = b.type || b.METADATA?.type || b.metadata?.type;
-        // Abilities are always active (they're in choreography, not equipment)
+        // Abilities and ability bonuses are always active
         const isAbility = bunkerType === 'ABILITY_BUNKER';
-        const matched = isAbility || (hasSelections && selectedSourceIds.has(bunkerId));
-        console.log(`[ENGINE] Effect bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}${isAbility ? ' (ability - always active)' : ''}`);
+        const isAbilityBonus = bunkerType === 'ABILITY_BONUS_BUNKER';
+        const matched = isAbility || isAbilityBonus || (hasSelections && selectedSourceIds.has(bunkerId));
+        console.log(`[ENGINE] Effect bunker ${bunkerId}: ${matched ? 'MATCHED' : 'not matched'}${isAbility ? ' (ability - always active)' : ''}${isAbilityBonus ? ' (ability bonus - always active)' : ''}`);
         return matched;
     });
     
@@ -465,7 +467,11 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // Set eventType for condition matching (e.g., ON_ABILITY_HIT)
     let eventType = event.action;
     if (event.action === 'ABILITY_HIT') eventType = 'ABILITY_HIT';
-    const context = { ...event, source, target, allSources, timestamp, event, eventType };
+    
+    // Set damageType - defaults to PHYSICAL for all non-ARCANE damage
+    const damageType = (event.damageType === 'ARCANE') ? 'ARCANE' : 'PHYSICAL';
+    
+    const context = { ...event, source, target, allSources, timestamp, event, eventType, damageType };
     addRawLog({ level: 'info', message: `Processing event: ${event.type}`, event });
 
     let finalDamage = 0;
@@ -498,7 +504,13 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
     // Collect modifier requests from bunkers
     modifierRequests = [];
     let damageConversions = [];
+    console.log(`[ENGINE] 🎯 Calling ${activeModifierBunkers.length} modifier bunkers for action: ${event.action}`);
+    console.log(`[ENGINE] 🔍 context.damageType before calling bunkers:`, context.damageType);
     for (const bunker of activeModifierBunkers) {
+        const bunkerId = bunker.id || bunker.METADATA?.id || bunker.metadata?.id;
+        if (bunkerId && bunkerId.startsWith('ability_bonus_')) {
+            console.log(`[ENGINE] 🔍 Calling ability bonus: ${bunkerId}, has handler: ${!!bunker.handler}`);
+        }
         const result = bunker.handler({ ...context, timestamp });
         if (result && result.modifyDamage) {
             modifierRequests.push(...result.modifyDamage);
@@ -519,6 +531,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             if (mod.category === 'CRIT_DAMAGE') damageTerms.critDamage = (damageTerms.critDamage || 0) + (mod.value || 0);
             if (mod.category === 'EMPOWER_DURATION') damageTerms.empowerDuration = (damageTerms.empowerDuration || 0) + (mod.value || 0);
             if (mod.category === 'FORTIFY_DURATION') damageTerms.fortifyDuration = (damageTerms.fortifyDuration || 0) + (mod.value || 0);
+            if (mod.category === 'MISC_DAMAGE_DURATION') damageTerms.miscDamageDuration = (damageTerms.miscDamageDuration || 0) + (mod.value || 0);
             if (mod.category === 'REND_DURATION') damageTerms.rendDuration = (damageTerms.rendDuration || 0) + (mod.value || 0);
             if (mod.category === 'WEAKEN_DURATION') damageTerms.weakenDuration = (damageTerms.weakenDuration || 0) + (mod.value || 0);
             if (mod.category === 'SLOW_DURATION') damageTerms.slowDuration = (damageTerms.slowDuration || 0) + (mod.value || 0);
@@ -783,6 +796,29 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
                 eff.metadata = eff.metadata || {};
                 eff.metadata.fortifyDurationExtended = true;
                 eff.metadata.durationMultiplier = (1 + fortifyDuration);
+            }
+        }
+    }
+
+    // --- SMART ENGINE: Apply misc damage duration extension to all MISC_DAMAGE effects ---
+    const miscDamageDuration = damageTerms.miscDamageDuration || 0;
+    if (miscDamageDuration > 0) {
+        for (const eff of effectRequests) {
+            if (eff.category === 'MISC_DAMAGE' && eff.duration) {
+                const originalDuration = eff.duration;
+                eff.duration = Math.round(eff.duration * (1 + miscDamageDuration));
+                
+                console.log('[ENGINE] ⏱️ Misc Damage buff duration extended:', {
+                    effectId: eff.id,
+                    originalDuration: originalDuration,
+                    extendedDuration: eff.duration,
+                    multiplier: (1 + miscDamageDuration).toFixed(3),
+                    source: eff.metadata?.sourceName
+                });
+                
+                eff.metadata = eff.metadata || {};
+                eff.metadata.miscDamageDurationExtended = true;
+                eff.metadata.durationMultiplier = (1 + miscDamageDuration);
             }
         }
     }

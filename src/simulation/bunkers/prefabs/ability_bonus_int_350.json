@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_int_350",
+  "name": "INT 350 - Ability Damage",
+  "description": "Ability damage +15%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "int",
+  "threshold": 350,
+  "tags": ["ability_bonus", "int", "ability_damage"]
+}

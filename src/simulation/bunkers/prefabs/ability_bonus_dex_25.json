@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_dex_25",
+  "name": "DEX 25 - Critical Hit Chance",
+  "description": "Critical hit chance +3%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "dex",
+  "threshold": 25,
+  "tags": ["ability_bonus", "dex", "crit_chance"]
+}

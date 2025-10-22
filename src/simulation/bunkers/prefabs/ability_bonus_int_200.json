@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_int_200",
+  "name": "INT 200 - DoT Damage",
+  "description": "DoT damage +10%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "int",
+  "threshold": 200,
+  "tags": ["ability_bonus", "int", "dot_damage"]
+}

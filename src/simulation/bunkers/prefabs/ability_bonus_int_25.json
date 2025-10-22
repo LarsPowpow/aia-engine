@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_int_25",
+  "name": "INT 25 - Critical Damage",
+  "description": "Critical damage +5%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "int",
+  "threshold": 25,
+  "tags": ["ability_bonus", "int", "crit_damage"]
+}

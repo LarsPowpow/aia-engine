@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_str_350",
+  "name": "STR 350 - Ability & Finisher Damage",
+  "description": "Ability damage +15%, Finisher damage +15%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "str",
+  "threshold": 350,
+  "tags": ["ability_bonus", "str", "ability_damage", "finisher"]
+}

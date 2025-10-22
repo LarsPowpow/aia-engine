@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_str_100",
+  "name": "STR 100 - Physical Damage",
+  "description": "Physical damage +5%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "str",
+  "threshold": 100,
+  "tags": ["ability_bonus", "str", "physical_damage"]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_str_300",
+  "name": "STR 300 - Base Damage",
+  "description": "Base damage +5%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "str",
+  "threshold": 300,
+  "tags": ["ability_bonus", "str", "base_damage"]
+}

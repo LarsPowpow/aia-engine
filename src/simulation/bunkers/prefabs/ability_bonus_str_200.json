@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_str_200",
+  "name": "STR 200 - Damage to CC'd Targets",
+  "description": "Damage to crowd-controlled targets +10%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "str",
+  "threshold": 200,
+  "tags": ["ability_bonus", "str", "crowd_control"]
+}

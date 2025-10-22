@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_foc_50",
+  "name": "FOC 50 - Incoming Healing",
+  "description": "Incoming healing +10%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "foc",
+  "threshold": 50,
+  "tags": ["ability_bonus", "foc", "healing"]
+}

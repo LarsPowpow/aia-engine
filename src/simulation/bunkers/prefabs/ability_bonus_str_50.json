@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_str_50",
+  "name": "STR 50 - Heavy Attack Damage",
+  "description": "Heavy Attack damage +5%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "str",
+  "threshold": 50,
+  "tags": ["ability_bonus", "str", "heavy_attack"]
+}

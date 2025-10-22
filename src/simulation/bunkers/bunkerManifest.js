@@ -9,6 +9,16 @@ console.log('[BUNKER MANIFEST] Generated bunkers loaded:', {
     bunkerIds: generatedBunkers.map(b => b.METADATA?.id || b.metadata?.id || b.id || 'UNKNOWN')
 });
 
+// --- AUTO-IMPORT all ability bonus bunkers ---
+const abilityBonusBunkerModules = import.meta.glob('./abilityBonuses/*.js', { eager: true });
+const abilityBonusBunkers = Object.values(abilityBonusBunkerModules).map(mod => mod.default).filter(Boolean);
+
+console.log('[BUNKER MANIFEST] Ability bonus bunkers loaded:', {
+    moduleCount: Object.keys(abilityBonusBunkerModules).length,
+    bunkerCount: abilityBonusBunkers.length,
+    bunkerIds: abilityBonusBunkers.map(b => b.METADATA?.id || b.metadata?.id || b.id || 'UNKNOWN')
+});
+
 export const statBunkers = [
     { id: 'perkid_slottable_common_empower', handler: () => {} },
     { id: 'runeglass_gem_malachite_melee', handler: () => {} }
@@ -100,7 +110,8 @@ export const modifierBunkers = [
     runeglass_punishing_jasper_retaliate_modifier,
     runeglass_punishing_jasper_weapon_misc,
     runeglass_punishing_jasper_armor,
-    ability_flail_arcane_eruption.MODIFIER  // Duration extension (Stroke 1)
+    ability_flail_arcane_eruption.MODIFIER,  // Duration extension (Stroke 1)
+    ...abilityBonusBunkers  // Auto-imported ability bonuses (STR, DEX, INT, FOC)
 ];
 
 export const effectBunkers = [

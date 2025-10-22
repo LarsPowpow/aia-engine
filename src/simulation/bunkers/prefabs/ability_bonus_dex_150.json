@@ -1,0 +1,11 @@
+{
+  "id": "ability_bonus_dex_150",
+  "name": "DEX 150 - DoT Damage",
+  "description": "DoT damage +10%",
+  "type": "ABILITY_BONUS_BUNKER",
+  "stroke": 1,
+  "sourceType": "ability_bonus",
+  "attribute": "dex",
+  "threshold": 150,
+  "tags": ["ability_bonus", "dex", "dot_damage"]
+}
