@@ -1,0 +1,8 @@
+{
+  "id": "mastery_sword_achilles_heel",
+  "type": "WEAPON_MASTERY",
+  "name": "Achilles Heel",
+  "description": "Light Attack Finisher (3rd consecutive light attack) adds 15% Rend for 2s",
+  "weapon": "Sword",
+  "bucket": "weapon_mastery"
+}

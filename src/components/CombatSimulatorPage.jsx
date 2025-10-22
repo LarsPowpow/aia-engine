@@ -208,6 +208,14 @@ const CombatSimulatorPage = ({ addLog }) => {
         }
     }, [allSources, perkOptions]);
 
+    // Auto-select all masteries by default
+    useEffect(() => {
+        if (masteryOptions.length > 0 && equippedMasteries.length === 0) {
+            setEquippedMasteries(masteryOptions);
+            addLog({ type: 'info', message: `Auto-selected ${masteryOptions.length} masteries by default.` });
+        }
+    }, [masteryOptions]);
+
     useEffect(() => {
         const allAttributesValid = Object.values(attributes).every(val => val !== '' && !isNaN(val));
         const startingWeapon = midComboBlockChoreography.find(e => e.weapon)?.weapon || 'Flail';

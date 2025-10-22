@@ -1,0 +1,8 @@
+{
+  "id": "mastery_sword_empowered_stab",
+  "type": "WEAPON_MASTERY",
+  "name": "Empowered Stab",
+  "description": "Heavy Attack grants 30% Empower for 5s",
+  "weapon": "Sword",
+  "bucket": "weapon_mastery"
+}

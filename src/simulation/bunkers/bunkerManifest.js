@@ -59,6 +59,10 @@ import ability_flail_trip from './abilities/flail/trip.js';
 import ability_flail_arcane_vortex from './abilities/flail/arcaneVortex.js';
 import ability_flail_arcane_eruption from './abilities/flail/arcaneEruption.js';
 
+// === MASTERIES ===
+import mastery_sword_empowered_stab from './masteries/sword/mastery_sword_empowered_stab.js';
+import mastery_sword_achilles_heel from './masteries/sword/mastery_sword_achilles_heel.js';
+
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
     perk_enchanted_ii,
@@ -95,6 +99,8 @@ export const effectBunkers = [
     ability_flail_trip,
     ability_flail_arcane_vortex,
     ability_flail_arcane_eruption.EFFECT,  // Slow + Heal (Stroke 2)
+    mastery_sword_empowered_stab,  // Sword mastery: HA grants 30% Empower
+    mastery_sword_achilles_heel,  // Sword mastery: LA finisher adds 15% Rend for 2s
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,
