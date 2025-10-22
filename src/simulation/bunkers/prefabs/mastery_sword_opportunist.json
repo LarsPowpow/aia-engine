@@ -1,0 +1,8 @@
+{
+  "id": "mastery_sword_opportunist",
+  "type": "WEAPON_MASTERY",
+  "name": "Opportunist",
+  "description": "Abilities do +10% damage to enemies affected by Slow",
+  "weapon": "Sword",
+  "bucket": "weapon_mastery"
+}

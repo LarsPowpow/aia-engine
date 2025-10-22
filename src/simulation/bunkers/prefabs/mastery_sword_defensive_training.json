@@ -1,0 +1,8 @@
+{
+  "id": "mastery_sword_defensive_training",
+  "type": "WEAPON_MASTERY",
+  "name": "Defensive Training",
+  "description": "On Block: 20% Fortify for 5s",
+  "weapon": "Sword",
+  "bucket": "weapon_mastery"
+}

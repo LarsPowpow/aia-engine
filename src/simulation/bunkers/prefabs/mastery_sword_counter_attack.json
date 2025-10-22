@@ -1,0 +1,8 @@
+{
+  "id": "mastery_sword_counter_attack",
+  "type": "WEAPON_MASTERY",
+  "name": "Counter Attack",
+  "description": "On Block: Gain 3% Empower for 5s. Stacks 5 times.",
+  "weapon": "Sword",
+  "bucket": "weapon_mastery"
+}

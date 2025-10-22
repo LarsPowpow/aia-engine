@@ -62,6 +62,10 @@ import ability_flail_arcane_eruption from './abilities/flail/arcaneEruption.js';
 // === MASTERIES ===
 import mastery_sword_empowered_stab from './masteries/sword/mastery_sword_empowered_stab.js';
 import mastery_sword_achilles_heel from './masteries/sword/mastery_sword_achilles_heel.js';
+import mastery_sword_counter_attack from './masteries/sword/mastery_sword_counter_attack.js';
+import mastery_sword_opportunist from './masteries/sword/mastery_sword_opportunist.js';
+import mastery_sword_leadership from './masteries/sword/mastery_sword_leadership.js';
+import mastery_sword_defensive_training from './masteries/sword/mastery_sword_defensive_training.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -76,6 +80,8 @@ export const modifierBunkers = [
     perk_divine_ii,
     perk_end_ii,
     perk_arcane_damage_ii,
+    mastery_sword_opportunist,  // Sword mastery: Abilities +10% vs Slowed enemies
+    mastery_sword_leadership,  // Sword mastery: Always-on 10% Empower
     runeglass_empowered_sapphire_weapon,
     runeglass_empowered_sapphire_armor,
     runeglass_punishing_sapphire_weapon,
@@ -101,6 +107,8 @@ export const effectBunkers = [
     ability_flail_arcane_eruption.EFFECT,  // Slow + Heal (Stroke 2)
     mastery_sword_empowered_stab,  // Sword mastery: HA grants 30% Empower
     mastery_sword_achilles_heel,  // Sword mastery: LA finisher adds 15% Rend for 2s
+    mastery_sword_counter_attack,  // Sword mastery: On Block, 3% Empower (stacks 5x)
+    mastery_sword_defensive_training,  // Sword mastery: On Block, 20% Fortify for 5s
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,

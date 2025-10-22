@@ -1,0 +1,8 @@
+{
+  "id": "mastery_sword_leadership",
+  "type": "WEAPON_MASTERY",
+  "name": "Leadership",
+  "description": "Always-on 10% Empower (only when Sword is active weapon)",
+  "weapon": "Sword",
+  "bucket": "weapon_mastery"
+}
