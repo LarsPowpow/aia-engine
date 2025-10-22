@@ -23,7 +23,7 @@ function handler({ event, source, target, timestamp }) {
     applyEffects: [{
       id: 'mastery_sword_defensive_training_fortify',
       category: 'FORTIFY',
-      sourceId: source.id,
+      sourceId: 'mastery_sword_defensive_training', // Changed from source.id to mastery ID
       targetId: source.id,  // Self-buff
       value: 0.20,  // 20% Fortify
       duration: 5,

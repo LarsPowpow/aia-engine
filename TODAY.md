@@ -1,6 +1,80 @@
-00# Roadmap — Today (October 22, 2025)
+# Roadmap — Today (October 22, 2025)
 
-## ✅ Completed: 9 Weapon Masteries Implementation
+## ✅ TONIGHT: Complete Attribute Bonus System (17 Bunkers)
+
+### What We Built
+Implemented **all 17 attribute bonus bunkers** from start to finish - JSON prefabs, bug fixes, testing, and UI enhancements.
+
+**Attribute Bonuses Implemented:**
+- **STR (6):** 25 (LA +3%), 50 (HA +5%), 100 (Phys +5%), 200 (CC +5%), 300 (Base +3%), 350 (Ability +5%)
+- **DEX (4):** 25 (Crit +5%), 100 (Base +5%), 150 (DoT +5%), 350 (Crit +10% Empowered)
+- **INT (5):** 25 (CritDmg +3%), 50 (DotTarget +3%), 150 (Arcane +3%), 200 (DoT +5%), 350 (Ability +3%)
+- **FOC (2):** 50 (InHeal +5%), 200 (Buff +10%, HoT +10%)
+
+### Critical Bugs Fixed
+1. **Case Sensitivity Bug**: Attributes stored as uppercase (`STR`, `DEX`, `INT`, `FOC`) but bunkers checking lowercase
+   - Fixed all 17 bunkers: `source.attributes?.str` → `source.attributes?.STR`
+2. **DamageType Not In Context**: STR 100 and INT 150 couldn't access `damageType`
+   - Fixed parameter destructuring: `{ event, source, target, context, timestamp, damageType }`
+   - Added engine defaulting: `const damageType = (event.damageType === 'ARCANE') ? 'ARCANE' : 'PHYSICAL';`
+3. **SourceId Collision**: Fortify effects using `sourceId: 'Player'` prevented stacking
+   - Changed to bunker-specific IDs: `sourceId: 'perk_fortifying_shield_rush'`, `sourceId: 'mastery_sword_defensive_training'`
+
+### New Features
+- **Fortifying Shield Rush Perk**: 31% Fortify for 6s on Shield Rush hit
+- **Inspector Modal Redesign**: 
+  - Removed "Damage Modifiers (from Bunkers)" table
+  - Added "Active Attribute Bonuses" section with 4-column table (STR/DEX/INT/FOC)
+  - Color-coded columns: STR (red), DEX (green), INT (sky-blue), FOC (yellow)
+  - Changed cyan → sky-blue throughout modal for cooler tone
+
+### Files Created (17 JSON Prefabs)
+All in `/src/simulation/bunkers/prefabs/`:
+- `ability_bonus_str_25.json` through `ability_bonus_str_350.json` (6)
+- `ability_bonus_dex_25.json` through `ability_bonus_dex_350.json` (4)
+- `ability_bonus_int_25.json` through `ability_bonus_int_350.json` (5)
+- `ability_bonus_foc_50.json`, `ability_bonus_foc_200.json` (2)
+- `perk_fortifying_shield_rush.json`
+
+### Files Modified
+- **All 17 ability bonus .js files**: Fixed uppercase attribute checking
+- **engine.js**: Added damageType defaulting, FORTIFY debug logging
+- **perk_fortifying_shield_rush.js**: Fixed sourceId, proper applyEffects structure
+- **mastery_sword_defensive_training.js**: Fixed sourceId for stacking
+- **InspectorPanel.jsx**: Complete UI redesign with attribute bonus table, sky-blue color scheme
+
+### Technical Patterns
+```javascript
+// Attribute threshold checking (uppercase!)
+const strValue = source.attributes?.STR || 0;
+if (strValue < 100) return null;
+
+// DamageType parameter access
+export default function ability_bonus_str_100({ event, source, target, context, timestamp, damageType }) {
+  if (damageType !== 'PHYSICAL') return null;
+  
+// Effect sourceId for proper stacking
+applyEffects: [{
+  sourceId: 'perk_fortifying_shield_rush',  // Unique ID, not 'Player'
+  id: 'fortifying_shield_rush_fortify'
+}]
+
+// Attribute bonus UI calculation
+const getEligibleAttributeBonuses = () => {
+  const attributes = combatantState?.attributes || {};
+  return bonuses.filter(b => attributes[attr] >= b.threshold);
+};
+```
+
+### Ready for Production
+- ✅ All 17 JSON prefabs ready for Firestore upsert
+- ✅ All bugs fixed and tested
+- ✅ Inspector Modal showing active bonuses beautifully
+- ✅ Fortifying Shield Rush perk working with proper stacking
+
+---
+
+## ✅ Earlier: 9 Weapon Masteries Implementation
 
 ### Masteries Implemented (9 total)
 

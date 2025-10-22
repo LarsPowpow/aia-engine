@@ -1539,4 +1539,205 @@ if (event.action === 'HOT_TICK') {
 
 ---
 
-*Last Updated: 2025-10-21*
+## Attribute Case Sensitivity 🔠
+
+**Problem**: Attribute bonuses not triggering even though player meets threshold.
+
+**Symptom**:
+```javascript
+// Player has 332 STR
+// Bunker checks: if (strValue < 25) return null;
+// strValue = undefined! (bonus never applies)
+```
+
+**Root Cause**: Attributes stored as **UPPERCASE** (`STR`, `DEX`, `INT`, `FOC`, `CON`), but bunker checking **lowercase** (`str`, `dex`, `int`, `foc`).
+
+**Fix**: Always use UPPERCASE attribute keys:
+```javascript
+// ❌ WRONG: Lowercase
+const strValue = source.attributes?.str || 0;
+const dexValue = source.attributes?.dex || 0;
+const intValue = source.attributes?.int || 0;
+const focValue = source.attributes?.foc || 0;
+
+// ✅ CORRECT: Uppercase
+const strValue = source.attributes?.STR || 0;
+const dexValue = source.attributes?.DEX || 0;
+const intValue = source.attributes?.INT || 0;
+const focValue = source.attributes?.FOC || 0;
+```
+
+**Debugging**:
+```javascript
+// Check what's actually in attributes object:
+console.log('[BUNKER] Player attributes:', source.attributes);
+// Should show: { STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105 }
+
+// Check what you're reading:
+console.log('[BUNKER] STR value:', {
+  lowercase: source.attributes?.str,  // undefined (WRONG!)
+  uppercase: source.attributes?.STR   // 332 (CORRECT!)
+});
+```
+
+**Prevention**: 
+- Check existing bunkers for attribute references
+- Copy attribute reading from working bunkers (e.g., `ability_bonus_str_25.js`)
+- Search for `source.attributes?.` and verify all keys are uppercase
+
+---
+
+## DamageType Parameter Destructuring 🎯
+
+**Problem**: Bunker can't access `damageType` to check physical vs. arcane.
+
+**Symptom**:
+```javascript
+// Bunker tries: if (context.damageType !== 'PHYSICAL') return null;
+// context.damageType = undefined!
+```
+
+**Root Cause**: `damageType` is a **top-level parameter**, not in `context` object.
+
+**Parameter Structure**:
+```javascript
+// Engine calls bunker with these parameters:
+handler({
+  event,         // Combat event (LIGHT_ATTACK, ABILITY, etc.)
+  source,        // Attacker (Player)
+  target,        // Defender (Target Dummy)
+  context,       // Additional metadata
+  timestamp,     // Current simulation time
+  damageType     // ← TOP-LEVEL! Not in context!
+})
+```
+
+**Fix**: Destructure `damageType` at top level, not from context:
+```javascript
+// ❌ WRONG: Looking in context
+export default function handler({ event, source, target, context, timestamp }) {
+  if (context.damageType !== 'PHYSICAL') return null;  // undefined!
+}
+
+// ✅ CORRECT: Top-level parameter
+export default function handler({ event, source, target, context, timestamp, damageType }) {
+  if (damageType !== 'PHYSICAL') return null;  // Works!
+}
+```
+
+**DamageType Values**:
+- `'PHYSICAL'` - Physical damage (default for all non-arcane)
+- `'ARCANE'` - Arcane damage (magic, converted, DOTs)
+
+**Engine Defaulting** (for reference):
+```javascript
+// Engine defaults damageType if not specified:
+const damageType = (event.damageType === 'ARCANE') ? 'ARCANE' : 'PHYSICAL';
+```
+
+**Common Use Cases**:
+```javascript
+// Arcane-only bonus (INT 150):
+if (damageType !== 'ARCANE') return null;
+return { modifyDamage: { multiplier: 1.03 } };  // +3% to arcane only
+
+// Physical-only bonus (STR 100):
+if (damageType !== 'PHYSICAL') return null;
+return { modifyDamage: { multiplier: 1.05 } };  // +5% to physical only
+```
+
+---
+
+## Effect SourceId Collision (Stacking Issues) 🔄
+
+**Problem**: Multiple effects of same type not stacking (e.g., two Fortify sources only showing one).
+
+**Symptom**:
+```javascript
+// Defensive Training: 20% Fortify (sourceId: 'Player')
+// Shield Rush: 31% Fortify (sourceId: 'Player')
+// Inspector shows only ONE Fortify! (should show both)
+```
+
+**Root Cause**: State manager anti-stacking logic checks `sourceId + category`. Same sourceId = **refresh** instead of stack.
+
+**Anti-Stacking Logic**:
+```javascript
+// In stateManager.js:
+const existingEffect = target.activeEffects.find(e => 
+  e.category === effectData.category &&
+  e.sourceId === effectData.sourceId  // ← Same sourceId blocks stacking!
+);
+
+if (existingEffect) {
+  // Refresh existing effect instead of adding new one
+  existingEffect.expiresAt = now + effectData.duration;
+  return;
+}
+```
+
+**Fix**: Use **unique sourceId** for each bunker (perk ID, mastery ID, bunker ID):
+```javascript
+// ❌ WRONG: Generic sourceId
+applyEffects: [{
+  sourceId: 'Player',  // Collides with other effects!
+  id: 'fortify_effect',
+  category: 'FORTIFY'
+}]
+
+// ✅ CORRECT: Bunker-specific sourceId
+applyEffects: [{
+  sourceId: 'perk_fortifying_shield_rush',  // Unique to this perk
+  id: 'fortifying_shield_rush_fortify',
+  category: 'FORTIFY'
+}]
+
+// ✅ ALSO CORRECT: Mastery-specific sourceId
+applyEffects: [{
+  sourceId: 'mastery_sword_defensive_training',  // Unique to this mastery
+  id: 'defensive_training_fortify',
+  category: 'FORTIFY'
+}]
+```
+
+**Pattern to Follow**:
+```javascript
+const METADATA = {
+  id: 'perk_name_or_mastery_name'
+};
+
+function handler({ ... }) {
+  return {
+    applyEffects: [{
+      sourceId: METADATA.id,  // Use bunker's own ID!
+      id: `${METADATA.id}_effect`,
+      category: 'FORTIFY'
+    }]
+  };
+}
+```
+
+**Why This Works**:
+- Each bunker has unique ID → unique sourceId
+- Anti-stacking only blocks same source refreshing itself
+- Different sources (Defensive Training + Shield Rush) can stack
+
+**Debugging**:
+```javascript
+// Check sourceIds in Inspector → Raw State → Active Effects:
+[
+  { sourceId: 'perk_fortifying_shield_rush', category: 'FORTIFY', value: 0.31 },
+  { sourceId: 'mastery_sword_defensive_training', category: 'FORTIFY', value: 0.20 }
+]
+// Two different sourceIds → both stack! ✓
+
+// vs. BROKEN:
+[
+  { sourceId: 'Player', category: 'FORTIFY', value: 0.31 }
+]
+// Only one sourceId → second effect refreshed first instead of stacking! ✗
+```
+
+---
+
+*Last Updated: 2025-10-22*

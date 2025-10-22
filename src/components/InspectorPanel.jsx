@@ -32,7 +32,7 @@ const EffectsTable = ({ title, effects, combatantState }) => (
                         return (
                             <tr key={index} className="font-mono">
                                 <td className="p-1.5 whitespace-nowrap">{effect.sourceName || 'Unknown'}</td>
-                                <td className="p-1.5 whitespace-nowrap text-cyan-400">{effect.statusId || effect.id}</td>
+                                <td className="p-1.5 whitespace-nowrap text-sky-400">{effect.statusId || effect.id}</td>
                                 <td className="p-1.5 whitespace-nowrap text-right text-amber-400">{displayValue}</td>
                                 <td className="p-1.5 whitespace-nowrap text-right">{
     typeof effect.duration === 'number'
@@ -76,7 +76,7 @@ const SummaryTab = ({ logEntry, combatantState, targetState }) => (
                         {logEntry.damageBreakdown.map((src, idx) => (
                             <tr key={idx} className="font-mono">
                                 <td className="p-1.5 whitespace-nowrap">{src.sourceName || src.source || 'Unknown'}</td>
-                                <td className="p-1.5 whitespace-nowrap text-cyan-400">{src.type || src.category || 'Effect'}</td>
+                                <td className="p-1.5 whitespace-nowrap text-sky-400">{src.type || src.category || 'Effect'}</td>
                                 <td className="p-1.5 whitespace-nowrap text-right text-red-400">{src.amount ?? src.value ?? 0}</td>
                             </tr>
                         ))}
@@ -172,12 +172,130 @@ const RawStateTab = ({ combatantState, targetState, logEntry }) => {
         targetState?.miscDmgPercent || logEntry?.snapshot?.target?.miscDmgPercent
     ).filter(e => e.duration !== 0); // Filter out instant effects
 
+    // Calculate eligible attribute bonuses based on player attributes
+    const getEligibleAttributeBonuses = () => {
+        const attributes = combatantState?.attributes || logEntry?.snapshot?.combatant?.attributes || {};
+        
+        // Define all attribute bonuses organized by attribute
+        const bonusesByAttribute = {
+            STR: [
+                { threshold: 25, effect: 'Light Attack +3%' },
+                { threshold: 50, effect: 'Heavy Attack +5%' },
+                { threshold: 100, effect: 'Physical Damage +5%' },
+                { threshold: 200, effect: 'Damage to CC +5%' },
+                { threshold: 300, effect: 'Base Damage +3%' },
+                { threshold: 350, effect: 'Ability & Finisher +5%' }
+            ],
+            DEX: [
+                { threshold: 25, effect: 'Crit Chance +5%' },
+                { threshold: 100, effect: 'Base Damage +5%' },
+                { threshold: 150, effect: 'DoT Damage +5%' },
+                { threshold: 350, effect: 'Crit +10% (Empowered)' }
+            ],
+            INT: [
+                { threshold: 25, effect: 'Crit Damage +3%' },
+                { threshold: 50, effect: 'Dmg to DoT Targets +3%' },
+                { threshold: 150, effect: 'Arcane Damage +3%' },
+                { threshold: 200, effect: 'DoT Damage +5%' },
+                { threshold: 350, effect: 'Ability Damage +3%' }
+            ],
+            FOC: [
+                { threshold: 50, effect: 'Incoming Healing +5%' },
+                { threshold: 200, effect: 'Buff Duration +10%, HoT +10%' }
+            ]
+        };
+        
+        // Filter bonuses based on attribute values
+        const result = {};
+        for (const [attr, bonuses] of Object.entries(bonusesByAttribute)) {
+            const attrValue = attributes[attr] || 0;
+            result[attr] = bonuses.filter(b => attrValue >= b.threshold);
+        }
+        
+        return result;
+    };
+    
+    const eligibleBonuses = getEligibleAttributeBonuses();
+    const hasAnyBonuses = Object.values(eligibleBonuses).some(arr => arr.length > 0);
+
     return (
         <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <EffectsTable title="Player Active Effects" effects={playerEffects} combatantState={combatantState} />
                 <EffectsTable title="Target Active Effects" effects={targetEffects} combatantState={targetState} />
             </div>
+            
+            {/* Active Attribute Bonuses */}
+            {hasAnyBonuses && (
+                <div className="border-t border-slate-600 pt-4">
+                    <h4 className="text-lg font-semibold text-sky-400 mb-3">Active Attribute Bonuses</h4>
+                    <div className="grid grid-cols-4 gap-4">
+                        {/* STR Column */}
+                        <div>
+                            <h5 className="text-sm font-bold text-red-400 mb-2 pb-1 border-b border-red-500/30">STR</h5>
+                            <div className="space-y-1">
+                                {eligibleBonuses.STR.map((bonus, idx) => (
+                                    <div key={idx} className="text-xs">
+                                        <span className="text-slate-400">{bonus.threshold}:</span>
+                                        <span className="text-slate-200 ml-1">{bonus.effect}</span>
+                                    </div>
+                                ))}
+                                {eligibleBonuses.STR.length === 0 && (
+                                    <div className="text-xs text-slate-500 italic">None</div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* DEX Column */}
+                        <div>
+                            <h5 className="text-sm font-bold text-green-400 mb-2 pb-1 border-b border-green-500/30">DEX</h5>
+                            <div className="space-y-1">
+                                {eligibleBonuses.DEX.map((bonus, idx) => (
+                                    <div key={idx} className="text-xs">
+                                        <span className="text-slate-400">{bonus.threshold}:</span>
+                                        <span className="text-slate-200 ml-1">{bonus.effect}</span>
+                                    </div>
+                                ))}
+                                {eligibleBonuses.DEX.length === 0 && (
+                                    <div className="text-xs text-slate-500 italic">None</div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* INT Column */}
+                        <div>
+                            <h5 className="text-sm font-bold text-sky-400 mb-2 pb-1 border-b border-sky-500/30">INT</h5>
+                            <div className="space-y-1">
+                                {eligibleBonuses.INT.map((bonus, idx) => (
+                                    <div key={idx} className="text-xs">
+                                        <span className="text-slate-400">{bonus.threshold}:</span>
+                                        <span className="text-slate-200 ml-1">{bonus.effect}</span>
+                                    </div>
+                                ))}
+                                {eligibleBonuses.INT.length === 0 && (
+                                    <div className="text-xs text-slate-500 italic">None</div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* FOC Column */}
+                        <div>
+                            <h5 className="text-sm font-bold text-purple-400 mb-2 pb-1 border-b border-purple-500/30">FOC</h5>
+                            <div className="space-y-1">
+                                {eligibleBonuses.FOC.map((bonus, idx) => (
+                                    <div key={idx} className="text-xs">
+                                        <span className="text-slate-400">{bonus.threshold}:</span>
+                                        <span className="text-slate-200 ml-1">{bonus.effect}</span>
+                                    </div>
+                                ))}
+                                {eligibleBonuses.FOC.length === 0 && (
+                                    <div className="text-xs text-slate-500 italic">None</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             
             {/* The JSON "Escape Hatch" */}
             <div>

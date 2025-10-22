@@ -937,6 +937,21 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         if (!eff.expiresAt && typeof eff.duration === 'number') {
             eff.expiresAt = now + eff.duration;
         }
+        
+        // Debug logging for FORTIFY effects
+        if (eff.category === 'FORTIFY') {
+            console.log('[ENGINE] 🛡️ Applying FORTIFY effect:', {
+                id: eff.id,
+                value: eff.value,
+                duration: eff.duration,
+                expiresAt: eff.expiresAt,
+                targetId: eff.targetId,
+                applyToSource,
+                targetName: targetCombatant.name,
+                timestamp: now
+            });
+        }
+        
         stateManager.applyEffect(targetCombatant, eff, { ...context, source, timestamp: now });
     }
     // [ENGINE] Stroke 2 (Effects) complete. Requests: ${effectRequests.length}

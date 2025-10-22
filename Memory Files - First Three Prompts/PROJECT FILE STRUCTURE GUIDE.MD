@@ -1654,4 +1654,154 @@ return sum + (h.value || 0);  // Then handle object
 
 ---
 
-*Last Updated: 2025-10-21*
+## Session Notes: 2025-10-22 Attribute Bonus System (17 Bunkers)
+
+**Completed**: Full implementation of attribute bonuses from start to finish - JSON prefabs, critical bug fixes, new perk, UI redesign.
+
+**Attribute Bonuses Implemented**:
+- **STR (6)**: 25 (LA +3%), 50 (HA +5%), 100 (Phys +5%), 200 (CC +5%), 300 (Base +3%), 350 (Ability +5%)
+- **DEX (4)**: 25 (Crit +5%), 100 (Base +5%), 150 (DoT +5%), 350 (Crit +10% Empowered)
+- **INT (5)**: 25 (CritDmg +3%), 50 (DotTarget +3%), 150 (Arcane +3%), 200 (DoT +5%), 350 (Ability +3%)
+- **FOC (2)**: 50 (InHeal +5%), 200 (Buff +10%, HoT +10%)
+
+**Critical Bugs Fixed**:
+
+1. **Attribute Case Sensitivity** (MAJOR):
+   - **Problem**: Attributes stored as `{STR: 332, DEX: 36, INT: 5, FOC: 60, CON: 105}`
+   - **Bug**: Bunkers checking `source.attributes?.str` (lowercase) → undefined!
+   - **Fix**: Changed all 17 bunkers to uppercase: `source.attributes?.STR`
+   - **Impact**: Every attribute bonus was broken, none were triggering
+
+2. **DamageType Parameter Destructuring**:
+   - **Problem**: STR 100 and INT 150 needed damageType to check physical vs. arcane
+   - **Bug**: `damageType` is top-level parameter, not in `context` object
+   - **Fix**: Added parameter destructuring: `{ event, source, target, context, timestamp, damageType }`
+   - **Engine Fix**: Added defaulting logic: `const damageType = (event.damageType === 'ARCANE') ? 'ARCANE' : 'PHYSICAL';`
+
+3. **SourceId Collision (Effect Stacking)**:
+   - **Problem**: Multiple Fortify effects using `sourceId: 'Player'` → only one showing
+   - **Bug**: State manager anti-stacking checks `sourceId + category` → same sourceId = refresh instead of stack
+   - **Fix**: Changed to bunker-specific IDs:
+     - `sourceId: 'perk_fortifying_shield_rush'`
+     - `sourceId: 'mastery_sword_defensive_training'`
+   - **Impact**: Now both Fortify effects stack properly (31% + 20% = 51% total)
+
+**New Features**:
+
+1. **Fortifying Shield Rush Perk**:
+   - 31% Fortify for 6s on Shield Rush hit
+   - Proper effect structure with unique sourceId
+   - Stacks with other Fortify sources
+
+2. **Inspector Modal Redesign**:
+   - **Removed**: "Damage Modifiers (from Bunkers)" table (redundant)
+   - **Added**: "Active Attribute Bonuses" section with 4-column table
+   - **Layout**: STR (red) | DEX (green) | INT (sky-blue) | FOC (yellow)
+   - **Logic**: Calculates eligible bonuses based on player attributes
+   - **Color Scheme**: Changed from bright cyan → cooler sky-blue throughout
+
+**Files Created**:
+- 17 JSON prefabs in `/src/simulation/bunkers/prefabs/`:
+  - `ability_bonus_str_25.json` through `ability_bonus_str_350.json` (6)
+  - `ability_bonus_dex_25.json` through `ability_bonus_dex_350.json` (4)
+  - `ability_bonus_int_25.json` through `ability_bonus_int_350.json` (5)
+  - `ability_bonus_foc_50.json`, `ability_bonus_foc_200.json` (2)
+- `perk_fortifying_shield_rush.json` (new perk prefab)
+
+**Files Modified**:
+- **All 17 ability bonus .js files**: Fixed uppercase attribute checking
+  - Pattern: `source.attributes?.str` → `source.attributes?.STR`
+- **ability_bonus_str_100.js**: Added damageType parameter, physical-only check
+- **ability_bonus_int_150.js**: Added damageType parameter, arcane-only check
+- **engine.js**: 
+  - Added damageType defaulting (line ~473)
+  - Added FORTIFY effect debug logging (line ~945)
+- **perk_fortifying_shield_rush.js**: 
+  - Fixed sourceId from 'Player' to perk ID
+  - Proper applyEffects structure with id/sourceId/appliedAt/expiresAt
+- **mastery_sword_defensive_training.js**: 
+  - Fixed sourceId from source.id to mastery ID
+- **InspectorPanel.jsx**: Complete UI redesign
+  - Added `getEligibleAttributeBonuses()` function
+  - Removed bottom "Damage Modifiers" table
+  - Created 4-column attribute bonus table
+  - Changed color scheme from cyan to sky-blue
+
+**Technical Patterns**:
+
+```javascript
+// 1. Attribute threshold checking (UPPERCASE!)
+const strValue = source.attributes?.STR || 0;
+if (strValue < 100) return null;
+
+// 2. DamageType parameter access (TOP-LEVEL!)
+export default function handler({ event, source, target, context, timestamp, damageType }) {
+  if (damageType !== 'PHYSICAL') return null;  // Physical-only
+  // or
+  if (damageType !== 'ARCANE') return null;    // Arcane-only
+}
+
+// 3. Effect sourceId for proper stacking (UNIQUE!)
+applyEffects: [{
+  sourceId: 'perk_fortifying_shield_rush',  // Not 'Player'!
+  id: 'fortifying_shield_rush_fortify',
+  category: 'FORTIFY',
+  value: 0.31,
+  duration: 6
+}]
+
+// 4. Attribute bonus UI calculation
+const getEligibleAttributeBonuses = () => {
+  const attributes = combatantState?.attributes || {};
+  return bonuses.filter(b => attributes[attr] >= b.threshold);
+};
+```
+
+**Production Ready**:
+- ✅ All 17 JSON prefabs ready for Firestore upsert
+- ✅ All critical bugs fixed and tested
+- ✅ Inspector Modal showing active bonuses beautifully
+- ✅ Fortifying Shield Rush perk working with proper stacking
+- ✅ Color scheme updated to cooler sky-blue
+
+**Key Learnings**:
+1. **Always check attribute case** - JavaScript is case-sensitive!
+2. **damageType is top-level parameter** - not in context object
+3. **Unique sourceIds for stacking** - never use generic 'Player' or source.id
+4. **Inspector Modal UX** - Show calculated data (eligible bonuses) not raw data (all bonuses)
+5. **Color consistency** - Apply theme changes throughout (effects table + bonus table + title)
+
+---
+
+## Session Notes: 2025-10-21 Runeglass Implementation
+
+**Completed**: Full implementation of 5 runeglass types (18 bunkers, 19 JSON prefabs)
+
+**Key Discoveries**:
+1. **3-bunker pattern** for damage conversion (engine handles it)
+2. **4-bunker pattern** for conditional mechanics (fully declarative)
+3. **Shared stack effects** between variants (Empowered/Punishing Jasper)
+4. **Hex DoT metadata requirement**: Must include weaponType and attributes
+5. **Triple-ID rule**: JSON "id" = code METADATA.id = Firestore doc ID
+6. **UI selection requirement**: Must select ALL pieces for runeglass to work
+
+**Common Issues Debugged**:
+- ID mismatches causing bunkers not to match
+- Missing Hex metadata causing 0 damage
+- Incomplete UI selection (2 of 3 pieces selected)
+- Effect bunker vs modifier bunker registration confusion
+
+**Files Modified**:
+- 18 new bunker files (modifiers/ and effectBunkers/)
+- 19 new JSON prefabs (prefabs/)
+- bunkerManifest.js (imports and registrations)
+- Added console.log diagnostics for debugging
+
+**Documentation Updated**:
+- ARCHITECTURE_DECISIONS.md (ADR-009 through ADR-012)
+- COMMON_PITFALLS.md (runeglass-specific sections)
+- PROJECT_STRUCTURE.md (comprehensive runeglass documentation)
+
+---
+
+*Last Updated: 2025-10-22*
