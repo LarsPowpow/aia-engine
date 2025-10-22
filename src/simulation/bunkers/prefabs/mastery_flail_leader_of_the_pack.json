@@ -1,0 +1,8 @@
+{
+  "id": "mastery_flail_leader_of_the_pack",
+  "type": "WEAPON_MASTERY",
+  "name": "Leader of the Pack",
+  "description": "Base Damage +15%",
+  "weapon": "Flail",
+  "bucket": "weapon_mastery"
+}

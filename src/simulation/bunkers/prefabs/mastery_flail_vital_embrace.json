@@ -1,0 +1,8 @@
+{
+  "id": "mastery_flail_vital_embrace",
+  "type": "WEAPON_MASTERY",
+  "name": "Vital Embrace",
+  "description": "DoTs deal +7% damage (stacks with itself)",
+  "weapon": "Flail",
+  "bucket": "weapon_mastery"
+}

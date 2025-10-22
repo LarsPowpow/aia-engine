@@ -1,72 +1,123 @@
-00# Roadmap — Today (October 21, 2025)
+00# Roadmap — Today (October 22, 2025)
 
-## ✅ Completed: Full Ability System Implementation
+## ✅ Completed: 9 Weapon Masteries Implementation
 
-### Abilities Implemented (5 total)
-**Sword:**
-1. ✅ **Whirling Blade** - 2 hits × 80% damage, 16% Weaken per hit (5s duration)
-2. ✅ **Shield Rush** - 1 hit, 100% damage, 20% Weaken (10s) + Slow (4s CC)
+### Masteries Implemented (9 total)
 
-**Flail:**
-3. ✅ **Trip** - 1 hit, 50% damage, 15% Rend + Knocked Down (2s) + 15% Fortify (self, 5s)
-4. ✅ **Arcane Vortex** - 4 hits × 75% Arcane damage (purple!), 10% Empower (self, 5s)
-5. ✅ **Arcane Eruption** - Hit 1: 130% Arcane + Slow (3s), Hit 2: 150% Physical + Extend all status 30% + Heal self 35% weapon damage
+**Sword Masteries (6):**
+1. ✅ **Empowered Stab** - Heavy Attack grants 30% Empower for 5s
+2. ✅ **Achilles Heel** - Light Attack finisher (3rd LA) adds 15% Rend for 2s
+3. ✅ **Counter Attack** - On Block: Gain 3% Empower for 5s (stacks 5x)
+4. ✅ **Opportunist** - Abilities do +10% damage to enemies affected by Slow
+5. ✅ **Leadership** - Always-on 10% Empower (passive)
+6. ✅ **Defensive Training** - On Block: 20% Fortify for 5s
+
+**Flail Masteries (3):**
+7. ✅ **Vital Embrace** - DoTs deal +7% damage (stacks with itself)
+8. ✅ **Leader of the Pack** - Base damage +15% (passive)
+9. ✅ **Spiky Impairment** - BLOCK_HIT applies hybrid debuff (5s cooldown, max 3 stacks):
+   - 10% Weaken for 6s
+   - 10% weapon damage/sec Arcane DoT for 6s
 
 ### Technical Achievements
-- ✅ **Bunker System**: Created ABILITY_BUNKER type (always active, no loadout needed)
-- ✅ **Multi-hit Pattern**: Using hitCount parameter in choreography + conditional bunker logic
-- ✅ **Self-buff Pattern**: `targetId: source.id` for player self-buffs
-- ✅ **Weapon Swapping**: Choreography-driven weapon changes (removed UI selector)
-- ✅ **Duration Extension**: Added REND_DURATION, WEAKEN_DURATION, SLOW_DURATION to engine (30% extension on Arcane Eruption hit 2)
-- ✅ **Arcane Damage Type**: Purple color coding for all Arcane damage in UI
-- ✅ **Heal Calculation**: Weapon damage-based healing (35% of weapon damage)
-- ✅ **New Effect Categories**: WEAKEN (70% cap), SLOW (CC), KNOCKED_DOWN (non-CC)
+- ✅ **Mastery System**: Weapon-specific bunkers (only active when weapon equipped)
+- ✅ **Auto-Select UX**: Masteries auto-selected by default in loadout panel
+- ✅ **Light Attack Chain Integration**: Used existing `event.isChainFinisher` for Achilles Heel
+- ✅ **Block Event Triggers**: BLOCK_START and BLOCK_HIT support for defensive masteries
+- ✅ **Conditional Damage Modifiers**: Target effect checking (Opportunist checks for SLOW)
+- ✅ **Stackable Effects**: Counter Attack uses stackable Empower (max 5 stacks)
+- ✅ **Cooldown System**: 5s internal cooldown for Spiky Impairment
+- ✅ **Hybrid DoT**: Spiky Impairment applies both WEAKEN + Arcane DOT
+- ✅ **DoT Damage Typing**: Added `damageType` support to DOT_TICK events (purple arcane DoTs!)
 
-### Files Created/Modified
-**New Bunker Files:**
-- `/src/simulation/bunkers/abilities/sword/whirlingBlade.js`
-- `/src/simulation/bunkers/abilities/sword/shieldRush.js`
-- `/src/simulation/bunkers/abilities/flail/trip.js`
-- `/src/simulation/bunkers/abilities/flail/arcaneVortex.js`
-- `/src/simulation/bunkers/abilities/flail/arcaneEruption.js` (dual MODIFIER + EFFECT)
+### Files Created
+
+**Sword Mastery Bunkers:**
+- `/src/simulation/bunkers/masteries/sword/mastery_sword_empowered_stab.js`
+- `/src/simulation/bunkers/masteries/sword/mastery_sword_achilles_heel.js`
+- `/src/simulation/bunkers/masteries/sword/mastery_sword_counter_attack.js`
+- `/src/simulation/bunkers/masteries/sword/mastery_sword_opportunist.js`
+- `/src/simulation/bunkers/masteries/sword/mastery_sword_leadership.js`
+- `/src/simulation/bunkers/masteries/sword/mastery_sword_defensive_training.js`
+
+**Flail Mastery Bunkers:**
+- `/src/simulation/bunkers/masteries/flail/mastery_flail_vital_embrace.js`
+- `/src/simulation/bunkers/masteries/flail/mastery_flail_leader_of_the_pack.js`
+- `/src/simulation/bunkers/masteries/flail/mastery_flail_spiky_impairment.js`
 
 **JSON Prefabs (ready for Firestore):**
-- `ability_sword_whirling_blade.json`
-- `ability_sword_shield_rush.json`
-- `ability_flail_trip.json`
-- `ability_flail_arcane_vortex.json`
-- `ability_flail_arcane_eruption.json`
+- `mastery_sword_empowered_stab.json`
+- `mastery_sword_achilles_heel.json`
+- `mastery_sword_counter_attack.json`
+- `mastery_sword_opportunist.json`
+- `mastery_sword_leadership.json`
+- `mastery_sword_defensive_training.json`
+- `mastery_flail_vital_embrace.json`
+- `mastery_flail_leader_of_the_pack.json`
+- `mastery_flail_spiky_impairment.json`
 
-**Modified Files:**
-- `engine.js`: Added duration extension logic for REND/WEAKEN/SLOW, added damageType to eventAnalysis
-- `stateManager.js`: Added WEAKEN, SLOW, KNOCKED_DOWN categories
-- `choreography.js`: Updated with all ability timings, moved block to 7.9s-8.02s (Sword)
-- `bunkerManifest.js`: Registered all 5 abilities
-- `CombatSimulatorPage.jsx`: Purple color for Arcane damage, removed weapon selector
+### Files Modified
+- `bunkerManifest.js`: Registered all 9 masteries (6 in effectBunkers, 3 in modifierBunkers)
+- `CombatSimulatorPage.jsx`: Added auto-select for masteries, fixed damageType color check
+- `choreography.js`: Fixed event ordering (Arcane Eruption consecutive, Block timing)
+- `engine.js`: Added damageType to DOT_TICK eventAnalysis
 
 ### Key Patterns Established
+
 ```javascript
-// Multi-hit ability
-if (event.hitCount === 1) { /* first hit logic */ }
-if (event.hitCount === 2) { /* second hit logic */ }
+// Weapon-specific check (all masteries)
+if (source.weaponType !== 'Sword') return null;
 
-// Self-buff
-{ targetId: source.id, category: 'FORTIFY', value: 0.15 }
+// Chain finisher detection (Achilles Heel)
+if (!event?.isChainFinisher) return null;
 
-// Duration extension (in MODIFIER bunker)
-{ category: 'WEAKEN_DURATION', value: 0.30 }
+// Block triggers
+if (event?.action !== 'BLOCK_START') return null;  // Counter Attack, Defensive Training
+if (event?.action !== 'BLOCK_HIT') return null;    // Spiky Impairment
 
-// Weapon damage-based heal
-const weaponDamage = calculateWeaponDamage(source.weaponType, source.attributes);
-const healAmount = Math.round(weaponDamage * 0.35);
+// Target effect checking (Opportunist)
+const hasSlow = target.activeEffects?.some(eff => eff.category === 'SLOW');
+
+// Stackable effects (Counter Attack)
+{
+  stackable: true,
+  maxStacks: 5,
+  value: 0.03  // 3% per stack
+}
+
+// Cooldown tracking (Spiky Impairment)
+const cooldownKey = 'mastery_flail_spiky_impairment';
+if (!source.cooldowns) source.cooldowns = {};
+const lastProc = source.cooldowns[cooldownKey] || -999;
+if (timestamp - lastProc < 5) return null;
+source.cooldowns[cooldownKey] = timestamp;
+
+// Arcane DoT with full metadata (Spiky Impairment)
+{
+  id: 'spiky_impairment_dot',
+  category: 'DOT',
+  damageType: 'ARCANE',
+  damagePercent: 0.10,
+  metadata: {
+    weaponType: source.weaponType,
+    attributes: { ...source.attributes },
+    damageType: 'ARCANE'  // Also in metadata for tick events
+  }
+}
 ```
 
+### UX Improvements
+- ✅ Masteries auto-selected by default (useEffect in CombatSimulatorPage)
+- ✅ Search bar already functional in MasteryLoadoutPanel
+- ✅ Arcane damage displays in purple (`text-purple-400`) for both direct hits and DoT ticks
+
 ### Next Steps
-- [ ] Upload JSON prefabs to Firestore: `node scripts/upsertPrefabToFirestore.js src/simulation/bunkers/prefabs/[filename].json`
-- [ ] Test full combat sequence with all abilities
-- [ ] Implement remaining weapon abilities as needed
+- [ ] Upload mastery JSON prefabs to Firestore
+- [ ] Test all 9 masteries in combat sequences
+- [ ] Verify stacking behavior (Counter Attack, Vital Embrace)
+- [ ] Verify weapon-specific activation (switch between Sword and Flail)
 
 ---
 
-**Philosophy Maintained:** "Smart Engine, Dumb Bunkers" - All complex logic lives in engine, bunkers are simple trigger-response handlers.
+**Philosophy Maintained:** "Smart Engine, Dumb Bunkers" - Masteries leverage existing engine systems (light attack chains, block events, effect stacking, cooldowns).
 

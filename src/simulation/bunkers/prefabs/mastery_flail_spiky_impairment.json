@@ -1,0 +1,8 @@
+{
+  "id": "mastery_flail_spiky_impairment",
+  "type": "WEAPON_MASTERY",
+  "name": "Spiky Impairment",
+  "description": "For each blocked hit, add 1 stack of Impairment (5s cooldown, max 3 stacks). Impairment: 10% Weaken + 10% weapon damage/sec DoT, both for 6s",
+  "weapon": "Flail",
+  "bucket": "weapon_mastery"
+}

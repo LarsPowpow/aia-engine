@@ -66,6 +66,9 @@ import mastery_sword_counter_attack from './masteries/sword/mastery_sword_counte
 import mastery_sword_opportunist from './masteries/sword/mastery_sword_opportunist.js';
 import mastery_sword_leadership from './masteries/sword/mastery_sword_leadership.js';
 import mastery_sword_defensive_training from './masteries/sword/mastery_sword_defensive_training.js';
+import mastery_flail_vital_embrace from './masteries/flail/mastery_flail_vital_embrace.js';
+import mastery_flail_leader_of_the_pack from './masteries/flail/mastery_flail_leader_of_the_pack.js';
+import mastery_flail_spiky_impairment from './masteries/flail/mastery_flail_spiky_impairment.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -82,6 +85,8 @@ export const modifierBunkers = [
     perk_arcane_damage_ii,
     mastery_sword_opportunist,  // Sword mastery: Abilities +10% vs Slowed enemies
     mastery_sword_leadership,  // Sword mastery: Always-on 10% Empower
+    mastery_flail_vital_embrace,  // Flail mastery: DoTs +7% damage (stacks)
+    mastery_flail_leader_of_the_pack,  // Flail mastery: Base damage +15%
     runeglass_empowered_sapphire_weapon,
     runeglass_empowered_sapphire_armor,
     runeglass_punishing_sapphire_weapon,
@@ -109,6 +114,7 @@ export const effectBunkers = [
     mastery_sword_achilles_heel,  // Sword mastery: LA finisher adds 15% Rend for 2s
     mastery_sword_counter_attack,  // Sword mastery: On Block, 3% Empower (stacks 5x)
     mastery_sword_defensive_training,  // Sword mastery: On Block, 20% Fortify for 5s
+    mastery_flail_spiky_impairment,  // Flail mastery: BLOCK_HIT applies Weaken + DoT (5s CD, 3 stacks)
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,

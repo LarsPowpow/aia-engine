@@ -1080,6 +1080,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
             target: target.name,
             isCrit: false,
             damage: finalDamage,
+            damageType: event.metadata?.damageType || event.damageType || 'PHYSICAL',  // ✅ Add damageType for DOT ticks
             snapshot: {
                 combatant: JSON.parse(JSON.stringify(source)),
                 target: JSON.parse(JSON.stringify(target)),

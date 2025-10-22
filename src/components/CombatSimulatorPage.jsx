@@ -97,7 +97,7 @@ const CombatAnalysisPanel = ({ combatLog, onRowClick }) => {
                                         <td className="p-2 whitespace-nowrap text-red-400 font-semibold">{entry.target}</td>
                                         <td className="p-2 whitespace-nowrap text-center">{entry.isCrit ? <span className="font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 shadow-[0_0_5px_rgba(251,191,36,0.5)]">YES</span> : <span className="text-slate-500">no</span>}</td>
                                         <td className="p-2 whitespace-nowrap text-right font-bold font-mono">
-                  <span className={entry.damageType === 'ARCANE' ? 'text-purple-400' : 'text-white'}>
+                  <span className={entry.damageType?.toUpperCase() === 'ARCANE' ? 'text-purple-400' : 'text-white'}>
                     {entry.damage}
                   </span>
                 </td>

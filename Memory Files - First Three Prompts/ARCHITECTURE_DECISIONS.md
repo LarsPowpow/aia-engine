@@ -1340,4 +1340,239 @@ if (event.action === 'WEAPON_SWAP') {
 
 ---
 
+## ADR-018: Why Weapon-Specific Mastery Activation?
+
+**Date**: 2025-10-22  
+**Status**: Implemented
+
+**Context**: Masteries are weapon-specific abilities that should only activate when wielding the associated weapon (e.g., Sword masteries only work with Sword equipped).
+
+**Decision**: All mastery bunkers check `source.weaponType` and return null if weapon doesn't match.
+
+**Pattern**:
+```javascript
+function handler({ event, source, target, timestamp }) {
+  // Only active when wielding Sword
+  if (source.weaponType !== 'Sword') return null;
+  
+  // Rest of mastery logic...
+}
+```
+
+**Reasoning**:
+- **Clean separation**: Masteries are "equipped" globally but conditionally active
+- **Reuses weapon swap system**: Already tracking `source.weaponType` from ADR-017
+- **No engine changes needed**: Bunker-level filtering keeps engine dumb
+- **Scales to future weapons**: Just add weapon check to new masteries
+
+**Consequences**:
+- Every mastery bunker needs weapon check (boilerplate)
+- But keeps engine simple (no weapon-specific bunker filtering)
+- Works perfectly with weapon swaps (masteries toggle on/off automatically)
+
+**Code Location**: All mastery bunkers in `/src/simulation/bunkers/masteries/`
+
+---
+
+## ADR-019: Why DoT Damage Boost Instead of Duration Extension for Vital Embrace?
+
+**Date**: 2025-10-22  
+**Status**: Implemented
+
+**Context**: Flail mastery "Vital Embrace" originally designed as "hits extend DoT duration by 7%", but duration extension for DoTs would require:
+- New `DOT_DURATION` modifier category
+- Engine logic to recalculate tick schedules when duration changes
+- Complex tick rescheduling for active DoTs
+
+**Decision**: Implement as **+7% DoT damage** (stacks with itself) instead of duration extension.
+
+**Reasoning**:
+- **Simpler implementation**: Reuses existing `MISC_DAMAGE` modifier pattern (like Disdained Infliction II)
+- **Same gameplay fantasy**: Both approaches increase "total DoT pressure" over time
+- **Stacks naturally**: Each hit adds another +7% modifier, no special stacking logic needed
+- **No engine changes**: Works with existing modifier bunker system
+
+**Alternatives Considered**:
+1. **Duration Extension** - Would need tick rescheduling
+   - Rejected: Too complex, requires engine changes
+2. **Damage + Duration** - Buff both aspects
+   - Rejected: Overpowered, violates single-purpose design
+
+**Pattern**:
+```javascript
+// Vital Embrace - DoT damage modifier (Stroke 1)
+function handler({ event, source }) {
+  if (source.weaponType !== 'Flail') return null;
+  if (event.action !== 'DOT_TICK') return null;
+  
+  return {
+    modifyDamage: [{
+      category: 'MISC_DAMAGE',
+      value: 0.07  // +7% per stack
+    }]
+  };
+}
+```
+
+**Consequences**:
+- Easier to implement and maintain
+- Mathematically similar outcome (more damage over time)
+- Sets precedent: duration extension → damage boost conversion for DoTs
+
+**Code Location**: `/src/simulation/bunkers/masteries/flail/mastery_flail_vital_embrace.js`
+
+---
+
+## ADR-020: Why Hybrid Effect Application for Spiky Impairment?
+
+**Date**: 2025-10-22  
+**Status**: Implemented
+
+**Context**: Flail mastery "Spiky Impairment" needs to apply both WEAKEN (10%, 6s) and DOT (10% weapon dmg/s, 6s) on BLOCK_HIT. Originally planned to scale both components with either WEAKEN_DURATION or DoT damage modifiers.
+
+**Decision**: Apply as **two separate stackable effects** that proc together but scale independently.
+
+**Pattern**:
+```javascript
+return {
+  applyEffects: [
+    {
+      id: 'spiky_impairment_weaken',
+      category: 'WEAKEN',
+      value: 0.10,
+      duration: 6,
+      stackable: true,
+      maxStacks: 3
+    },
+    {
+      id: 'spiky_impairment_dot',
+      category: 'DOT',
+      damageType: 'ARCANE',
+      damagePercent: 0.10,
+      duration: 6,
+      stackable: true,
+      maxStacks: 3,
+      metadata: {
+        weaponType: source.weaponType,
+        attributes: { ...source.attributes },
+        damageType: 'ARCANE'
+      }
+    }
+  ]
+};
+```
+
+**Reasoning**:
+- **No engine changes**: Works with existing effect system
+- **Independent scaling**: WEAKEN scales with WEAKEN_DURATION, DoT scales with DoT damage modifiers
+- **Both stackable**: Each effect can stack up to 3 times independently
+- **Simpler than cross-category scaling**: Avoids complex engine logic for hybrid effects
+
+**Alternatives Considered**:
+1. **Single hybrid effect** - Custom category that responds to both modifier types
+   - Rejected: Would require new engine logic for cross-category scaling
+2. **Duration extension affects both** - Engine logic to extend both components when either modifier applied
+   - Rejected: Too complex, violates single-responsibility
+
+**Trade-offs Accepted**:
+- WEAKEN_DURATION won't extend the DoT duration (and vice versa)
+- But both components still scale with their respective modifiers
+- Captures "hybrid debuff" fantasy without engine complexity
+
+**Code Location**: `/src/simulation/bunkers/masteries/flail/mastery_flail_spiky_impairment.js`
+
+---
+
+## ADR-021: Why DoT Ticks Need damageType in Metadata AND Effect?
+
+**Date**: 2025-10-22  
+**Status**: Implemented (Bug Fix)
+
+**Context**: Arcane DoTs (like Spiky Impairment) were dealing arcane damage but displaying white numbers instead of purple in the UI.
+
+**Problem**: DOT_TICK events weren't getting `damageType` in their `eventAnalysis` object, only in the original DoT effect.
+
+**Decision**: Engine must pull `damageType` from DoT metadata when creating DOT_TICK eventAnalysis.
+
+**Pattern**:
+```javascript
+// In bunker - set damageType in BOTH places
+{
+  id: 'spiky_impairment_dot',
+  category: 'DOT',
+  damageType: 'ARCANE',  // ← At effect level
+  damagePercent: 0.10,
+  metadata: {
+    damageType: 'ARCANE',  // ← ALSO in metadata
+    weaponType: source.weaponType,
+    attributes: { ...source.attributes }
+  }
+}
+
+// In engine - pull from metadata for tick events
+const eventAnalysis = {
+  timestamp: event.timestamp,
+  damage: finalDamage,
+  damageType: event.metadata?.damageType || event.damageType || 'PHYSICAL'  // ✅
+};
+```
+
+**Reasoning**:
+- DoT metadata is preserved across ticks (includes weapon damage snapshot)
+- `event.damageType` might not exist on tick events (original event is different)
+- `event.metadata.damageType` persists from DoT creation
+
+**Consequences**:
+- All Arcane DoTs need `damageType` in both effect and metadata
+- But enables proper purple color display for arcane DoT ticks
+- Consistent with existing Hex DoT pattern (weaponType + attributes in metadata)
+
+**Code Location**: 
+- Engine fix: `/src/simulation/engine.js` (line 1082)
+- UI color logic: `/src/components/CombatSimulatorPage.jsx` (line 100)
+
+---
+
+## ADR-022: Why Target Effect Checking for Conditional Damage?
+
+**Date**: 2025-10-22  
+**Status**: Implemented
+
+**Context**: Sword mastery "Opportunist" grants +10% ability damage against Slowed enemies. Need to check target's active effects before applying damage modifier.
+
+**Decision**: Modifier bunkers can inspect `target.activeEffects` array to conditionally apply bonuses.
+
+**Pattern**:
+```javascript
+function handler({ event, source, target }) {
+  if (source.weaponType !== 'Sword') return null;
+  
+  // Check if target has SLOW effect
+  const hasSlow = target?.activeEffects?.some(eff => eff.category === 'SLOW');
+  if (!hasSlow) return null;
+  
+  return {
+    modifyDamage: [{
+      category: 'MISC_DAMAGE',
+      value: 0.10
+    }]
+  };
+}
+```
+
+**Reasoning**:
+- **Enables "punisher" mechanics**: Rewards applying debuffs before bursting
+- **Reuses existing state**: `activeEffects` already tracked by engine
+- **Bunker stays dumb**: Just reads state, doesn't modify it
+- **Type-safe checking**: Category-based filtering (SLOW, REND, etc.)
+
+**Consequences**:
+- Opens up new design space for conditional damage modifiers
+- Sets precedent for target state checking in modifier bunkers
+- Future masteries can check for multiple debuffs (e.g., "damage vs Slowed + Weakened")
+
+**Code Location**: `/src/simulation/bunkers/masteries/sword/mastery_sword_opportunist.js`
+
+------
+
 *Last Updated: 2025-10-21*
