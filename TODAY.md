@@ -1,4 +1,181 @@
-# Roadmap — Today (October 22, 2025)
+# Roadmap — Today (October 23, 2025)
+
+## ✅ TODAY: Two New Flail Perks + Critical Bug Fixes
+
+### What We Built
+Implemented **2 new weapon perks** with critical double-application bug fixes that will prevent future issues.
+
+**Perks Implemented:**
+1. **Mending Vortex II** - Arcane Vortex hits 2 & 4 heal self for 23% of damage dealt
+2. **Powerful Eruption II** - Arcane Eruption hits deal +10% damage per Impairment stack on target
+
+### Critical Bugs Fixed & Patterns Documented
+
+#### 1. **Effect Bunker Double-Application Bug** (Mending Vortex II)
+**Problem:** Effect bunkers run TWICE per event:
+- **First pass** (line 687-692): `effectRequests` is empty, bunkers create initial effects
+- **Second pass** (line 697-702): `effectRequests` contains first-pass effects, allows reactive bunkers (Healing Breeze) to respond
+
+**Impact:** Mending Vortex II was healing 46% instead of 23% (exactly double)
+
+**Solution:** Add guard to only trigger on first pass:
+```javascript
+function handler({ event, source, finalDamage, effectRequests }) {
+  // Only trigger on FIRST PASS (when effectRequests is undefined or empty)
+  // This prevents double-application since effect bunkers run twice
+  if (effectRequests && effectRequests.length > 0) return null;
+  
+  // Rest of handler logic...
+}
+```
+
+**When to use this pattern:**
+- ✅ Use for **primary effect creators** (damage heals, direct buffs/debuffs)
+- ❌ Skip for **reactive effects** that need to respond to other effects (Healing Breeze amplifying heals)
+
+---
+
+#### 2. **Modifier Bunker Double-Application Bug** (Powerful Eruption II)
+**Problem:** Modifier bunkers run TWICE for abilities with damage type splits:
+- **First pass** (line 509): No damageType set, general modifiers applied
+- **Second pass** (line 640): `damageType` explicitly set for split damage calculation (e.g., 130% Arcane on Eruption Hit 1)
+
+**Impact:** Powerful Eruption II was applying +40% damage instead of +20% (exactly double)
+
+**Solution:** Add guard to only trigger on damage type pass:
+```javascript
+function handler({ event, target, damageType }) {
+  // Only trigger on damage type pass (when damageType is explicitly set)
+  // This prevents double-application since modifier bunkers run twice for split damage
+  if (!damageType) return null;
+  
+  // Rest of handler logic...
+}
+```
+
+**When to use this pattern:**
+- ✅ Use for **ability-specific damage modifiers** that should apply once per hit
+- ❌ Skip for **passive always-on modifiers** (Leader of the Pack, Leadership) that don't care about damage splits
+
+---
+
+#### 3. **Impairment Stack Counting Bug** (Powerful Eruption II)
+**Problem:** Each Impairment "stack" creates 2 effects with unique IDs:
+- `arcane_eruption_impairment_weaken_1` (WEAKEN)
+- `arcane_eruption_impairment_dot_1` (DOT)
+
+Filter `effect.id.includes('impairment')` was counting 4 effects instead of 2 stacks.
+
+**Solution:** Count unique stack numbers by extracting from IDs:
+```javascript
+const impairmentStackNumbers = new Set();
+
+for (const effect of target.activeEffects) {
+  if (effect.id && effect.id.includes('impairment')) {
+    // Extract stack number from IDs like "arcane_eruption_impairment_weaken_1"
+    const match = effect.id.match(/_(\d+)$/);
+    if (match) {
+      impairmentStackNumbers.add(match[1]);  // Add the stack number
+    } else {
+      // For effects without numbers (like spiky_impairment), use the effect ID itself
+      impairmentStackNumbers.add(effect.id);
+    }
+  }
+}
+
+const impairmentStacks = impairmentStackNumbers.size;
+```
+
+---
+
+#### 4. **Base Damage vs Final Damage** (Arcane Eruption Heal)
+**Problem:** Arcane Eruption Hit 2 heal was using base weapon damage (35% × `calculateWeaponDamage()`), so it didn't scale with Powerful Eruption's damage increase.
+
+**Design Decision:** Heals should scale with **actual damage dealt** (`finalDamage`) for intuitive gameplay feel.
+
+**Solution:** Changed heal calculation:
+```javascript
+// BEFORE (didn't scale with modifiers)
+const weaponDamage = calculateWeaponDamage(source.weaponType, source.attributes);
+const healAmount = Math.round(weaponDamage * 0.35);
+
+// AFTER (scales with actual damage dealt)
+const healAmount = Math.round(finalDamage * 0.35);
+```
+
+**Standard Pattern Established:**
+- ✅ **Percentage-based heals/effects**: Use `finalDamage` (actual damage dealt)
+- ✅ **Damage-triggered effects**: Use `finalDamage` for reactive calculations
+- ❌ **Fixed-value heals**: Use `calculateWeaponDamage()` only when heal shouldn't scale
+
+---
+
+### Files Created
+
+**Perk Bunkers:**
+- `/src/simulation/bunkers/perks/weapon/perk_mending_vortex_ii.js`
+- `/src/simulation/bunkers/perks/weapon/perk_powerful_eruption_ii.js`
+
+**JSON Prefabs:**
+- `/src/simulation/bunkers/prefabs/perk_mending_vortex_ii.json`
+- `/src/simulation/bunkers/prefabs/perk_powerful_eruption_ii.json`
+
+### Files Modified
+- **bunkerManifest.js**: Registered both perks (Mending Vortex in effectBunkers, Powerful Eruption in modifierBunkers)
+- **arcaneEruption.js**: 
+  - Added first-pass guard to prevent double-application
+  - Changed heal from base weapon damage to `finalDamage * 0.35`
+
+### Validation Results
+
+**Mending Vortex II (23% of damage dealt):**
+- Vortex Hit 2: 531 damage → 122 heal (23.0%) ✅
+- Vortex Hit 4: 467 damage → 107 heal (22.9%) ✅
+
+**Powerful Eruption II (+10% per stack):**
+- Scenario 1 (raw): Hit 1 = 846, Hit 2 = 976 (baseline) ✅
+- Scenario 2 (2 stacks): Hit 1 = 846 (no stacks yet), Hit 2 = 1172 (+20%) ✅
+- Scenario 3 (with Spiky): Hit 1 = 1015 (+20%), Hit 2 = 1367 (+40%) ✅
+
+**Arcane Eruption Heal Scaling (35% of damage dealt):**
+- Scenario 1 (raw): 976 damage → 342 heal (35.0%) ✅
+- Scenario 2 (Powerful): 1172 damage → 410 heal (35.0%) ✅
+- Scenario 3 (Powerful + Spiky): 1367 damage → 478 heal (35.0%) ✅
+
+---
+
+### Key Patterns for Future Reference
+
+```javascript
+// EFFECT BUNKER - First pass guard (prevents double-application)
+function handler({ event, source, finalDamage, effectRequests }) {
+  if (effectRequests && effectRequests.length > 0) return null;  // Only first pass
+  // ... create effects
+}
+
+// MODIFIER BUNKER - Damage type pass guard (prevents double-application)
+function handler({ event, target, damageType }) {
+  if (!damageType) return null;  // Only on damage type split pass
+  // ... modify damage
+}
+
+// COUNTING MULTI-EFFECT STACKS - Extract unique identifiers
+const uniqueStacks = new Set();
+for (const effect of target.activeEffects) {
+  const match = effect.id.match(/_(\d+)$/);  // Extract stack number
+  if (match) uniqueStacks.add(match[1]);
+}
+const stackCount = uniqueStacks.size;
+
+// PERCENTAGE-BASED HEALS - Use finalDamage for scaling
+const healAmount = Math.round(finalDamage * 0.35);  // Scales with modifiers
+```
+
+---
+
+## ✅ YESTERDAY: Complete Attribute Bonus System (17 Bunkers)
+
+# Roadmap — Yesterday (October 22, 2025)
 
 ## ✅ TONIGHT: Complete Attribute Bonus System (17 Bunkers)
 

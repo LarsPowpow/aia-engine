@@ -1740,4 +1740,368 @@ function handler({ ... }) {
 
 ---
 
+## Effect Bunker Double-Pass Pattern 🔄🔄
+
+**Problem**: Effect bunkers run **TWICE** per event, causing heals/effects to apply double.
+
+**Why Two Passes Exist**:
+```javascript
+// In engine.js (lines 687-702):
+
+// PASS 1: Primary effect creation
+for (const bunker of activeEffectBunkers) {
+  const result = bunker.handler({ ...context, timestamp, finalDamage });
+  if (result && result.applyEffects) {
+    effectRequests.push(...result.applyEffects);
+  }
+}
+
+// PASS 2: Reactive effects (e.g., Healing Breeze amplifying heals)
+for (const bunker of activeEffectBunkers) {
+  const result = bunker.handler({ ...context, timestamp, finalDamage, effectRequests });
+  if (result && result.applyEffects) {
+    effectRequests.push(...result.applyEffects);  // ← Can respond to Pass 1 effects!
+  }
+}
+```
+
+**Symptoms**:
+- Mending Vortex II healing 46% instead of 23% (exactly double)
+- Arcane Eruption heal 70% instead of 35% (exactly double)
+- Any effect applying twice per hit
+
+**Solution - Primary Effect Bunkers (Guard Pass 2)**:
+```javascript
+function handler({ event, source, finalDamage, effectRequests }) {
+  // ✅ Only trigger on FIRST PASS (when effectRequests is undefined or empty)
+  // This prevents double-application since effect bunkers run twice
+  if (effectRequests && effectRequests.length > 0) return null;
+  
+  // Now safe to create effects (will only happen once)
+  return {
+    applyEffects: [{
+      id: 'my_effect',
+      category: 'HEAL',
+      value: Math.round(finalDamage * 0.23)
+    }]
+  };
+}
+```
+
+**Solution - Reactive Effect Bunkers (Guard Pass 1)**:
+```javascript
+function handler({ event, source, effectRequests }) {
+  // ✅ Only trigger on SECOND PASS (when effectRequests has data)
+  // This allows responding to effects created in Pass 1
+  if (!effectRequests || effectRequests.length === 0) return null;
+  
+  // Now check for heals to amplify
+  const hasHeal = effectRequests.some(eff => eff.category === 'HEAL');
+  if (hasHeal) {
+    // Create amplifying HoT
+  }
+}
+```
+
+**When to Use Which Guard**:
+
+| Bunker Type | Example | Guard Pattern |
+|-------------|---------|---------------|
+| **Primary Creator** | Mending Vortex, Arcane Eruption heal | `if (effectRequests?.length > 0) return null;` |
+| **Reactive Responder** | Healing Breeze II (HoT on heals) | `if (!effectRequests?.length) return null;` |
+
+**Debugging**:
+```javascript
+// Add to bunker to see which pass it's in:
+console.log('[BUNKER] Pass check:', {
+  hasEffectRequests: !!effectRequests,
+  effectCount: effectRequests?.length || 0,
+  passNumber: effectRequests?.length > 0 ? 2 : 1
+});
+```
+
+**Prevention**: Always add appropriate guard to new effect bunkers!
+
+---
+
+## Modifier Bunker Double-Pass Pattern (Damage Split) 🎯🎯
+
+**Problem**: Modifier bunkers run **TWICE** for abilities with damage type splits, causing +20% damage to become +40%.
+
+**Why Two Passes Exist**:
+```javascript
+// In engine.js:
+
+// PASS 1: General modifiers (line 509)
+for (const bunker of activeModifierBunkers) {
+  const result = bunker.handler({ ...context, timestamp });
+  // damageType is undefined here!
+}
+
+// PASS 2: Type-specific modifiers (line 640) 
+// Only when damage split by type (e.g., 130% Arcane on Eruption Hit 1)
+const typeEvent = { ...event, damageType: damageType.toUpperCase() };
+const typeContext = { ...context, event: typeEvent, damageType: damageType.toUpperCase() };
+
+for (const bunker of activeModifierBunkers) {
+  const result = bunker.handler({ ...typeContext, timestamp });
+  // damageType is explicitly set here!
+}
+```
+
+**Symptoms**:
+- Powerful Eruption II applying +40% instead of +20% (double)
+- Any ability-specific damage modifier applying twice
+
+**Solution - Ability-Specific Modifiers (Guard Pass 1)**:
+```javascript
+function handler({ event, target, damageType }) {
+  // ✅ Only trigger on damage type pass (when damageType is explicitly set)
+  // This prevents double-application since modifier bunkers run twice for split damage
+  if (!damageType) return null;
+  
+  // Only trigger on Arcane Eruption hits
+  if (event.abilityId !== 'ability_flail_arcane_eruption') return null;
+  
+  // Count Impairment stacks and apply bonus
+  const damageBonus = impairmentStacks * 0.10;
+  return {
+    modifyDamage: [{
+      category: 'MISC_DAMAGE',
+      value: damageBonus
+    }]
+  };
+}
+```
+
+**Solution - Passive Always-On Modifiers (No Guard Needed)**:
+```javascript
+function handler({ event, source }) {
+  // ❌ NO damageType guard needed for passive modifiers!
+  // These apply globally to ALL damage types
+  
+  if (source.weaponType !== 'Flail') return null;
+  
+  return {
+    modifyDamage: [{
+      category: 'MISC_DAMAGE',
+      value: 0.15  // +15% base damage (Leader of the Pack)
+    }]
+  };
+}
+```
+
+**When to Use damageType Guard**:
+
+| Modifier Type | Example | Needs Guard? |
+|---------------|---------|--------------|
+| **Ability-specific** | Powerful Eruption II | ✅ YES - `if (!damageType) return null;` |
+| **Conditional on ability** | Empowering Leap (+10% on Leap) | ✅ YES |
+| **Passive always-on** | Leader of the Pack, Leadership | ❌ NO - applies to all |
+| **Attribute bonuses** | STR 300 (+3% base damage) | ❌ NO - applies to all |
+
+**Debugging**:
+```javascript
+// Add to modifier bunker to see both passes:
+console.log('[MODIFIER] Pass check:', {
+  damageType: damageType || 'undefined',
+  passNumber: damageType ? 2 : 1,
+  abilityId: event.abilityId
+});
+
+// Should see TWO calls for split damage abilities:
+// Pass 1: damageType: 'undefined', passNumber: 1
+// Pass 2: damageType: 'ARCANE',    passNumber: 2
+```
+
+---
+
+## Counting Multi-Effect Stacks 📚
+
+**Problem**: Counting Impairment "stacks" returns 4 instead of 2 (counting weaken + DoT as separate stacks).
+
+**Why It Happens**: Each Impairment "stack" creates **2 effect objects** with unique IDs:
+```javascript
+// Arcane Eruption applies 2 "stacks":
+effects.push({
+  id: 'arcane_eruption_impairment_weaken_1',  // Stack 1 - Weaken
+  category: 'WEAKEN'
+});
+effects.push({
+  id: 'arcane_eruption_impairment_dot_1',     // Stack 1 - DoT
+  category: 'DOT'
+});
+effects.push({
+  id: 'arcane_eruption_impairment_weaken_2',  // Stack 2 - Weaken
+  category: 'WEAKEN'
+});
+effects.push({
+  id: 'arcane_eruption_impairment_dot_2',     // Stack 2 - DoT
+  category: 'DOT'
+});
+```
+
+**Wrong Approach**:
+```javascript
+// ❌ WRONG: Counts all effects with 'impairment' in ID
+const impairmentStacks = target.activeEffects.filter(effect => 
+  effect.id && effect.id.includes('impairment')
+).length;
+// Result: 4 (counts weaken + DoT separately!)
+```
+
+**Correct Approach**: Extract unique stack numbers:
+```javascript
+// ✅ CORRECT: Count unique stack identifiers
+const impairmentStackNumbers = new Set();
+
+for (const effect of target.activeEffects) {
+  if (effect.id && effect.id.includes('impairment')) {
+    // Extract stack number from IDs like "arcane_eruption_impairment_weaken_1"
+    const match = effect.id.match(/_(\d+)$/);
+    if (match) {
+      impairmentStackNumbers.add(match[1]);  // Add the stack number ("1", "2")
+    } else {
+      // For effects without numbers (like spiky_impairment_weaken), use the effect ID itself
+      impairmentStackNumbers.add(effect.id);
+    }
+  }
+}
+
+const impairmentStacks = impairmentStackNumbers.size;
+// Result: 2 (correct!)
+```
+
+**Pattern Breakdown**:
+```javascript
+// ID patterns this handles:
+'arcane_eruption_impairment_weaken_1'  → Stack "1"
+'arcane_eruption_impairment_dot_1'     → Stack "1" (same as above!)
+'arcane_eruption_impairment_weaken_2'  → Stack "2"
+'arcane_eruption_impairment_dot_2'     → Stack "2" (same as above!)
+'spiky_impairment_weaken'              → Stack "spiky_impairment_weaken" (no number)
+'spiky_impairment_dot'                 → Stack "spiky_impairment_dot" (counts separately!)
+
+// Using Set deduplicates:
+Set(['1', '1', '2', '2']) → size = 2 ✓
+```
+
+**Alternative for Effects Without Numbers** (better approach):
+```javascript
+// For Spiky Impairment, use base ID pattern instead:
+const match = effect.id.match(/^(.+?)(?:_weaken|_dot)/);
+if (match) {
+  impairmentStackNumbers.add(match[1]);  // "spiky_impairment" for both weaken and DoT
+} else {
+  impairmentStackNumbers.add(effect.id);
+}
+```
+
+**Debugging**:
+```javascript
+console.log('[STACK COUNT] Effect IDs:', 
+  target.activeEffects
+    .filter(e => e.id.includes('impairment'))
+    .map(e => e.id)
+);
+// Should show: 
+// ["arcane_eruption_impairment_weaken_1", "arcane_eruption_impairment_dot_1", 
+//  "arcane_eruption_impairment_weaken_2", "arcane_eruption_impairment_dot_2"]
+
+console.log('[STACK COUNT] Unique stacks:', impairmentStackNumbers);
+// Should show: Set(2) {"1", "2"}
+
+console.log('[STACK COUNT] Stack count:', impairmentStacks);
+// Should show: 2
+```
+
+---
+
+## Base Damage vs Final Damage for Heals 💚
+
+**Problem**: Heals not scaling with damage modifiers (e.g., Powerful Eruption increases damage but heal stays same).
+
+**Design Decision**: Percentage-based heals should scale with **actual damage dealt** (`finalDamage`) for intuitive gameplay feel.
+
+**Wrong Pattern (base weapon damage)**:
+```javascript
+// ❌ WRONG: Uses base weapon damage (doesn't scale with modifiers)
+const weaponDamage = calculateWeaponDamage(source.weaponType, source.attributes);
+const healAmount = Math.round(weaponDamage * 0.35);
+
+// Example:
+// Base weapon damage: 1130
+// Heal: 1130 × 0.35 = 395 (always 395, even if damage is boosted!)
+```
+
+**Correct Pattern (final damage)**:
+```javascript
+// ✅ CORRECT: Uses finalDamage (actual damage dealt)
+function handler({ event, source, finalDamage, effectRequests }) {
+  // Guard for double-pass
+  if (effectRequests && effectRequests.length > 0) return null;
+  
+  const healAmount = Math.round(finalDamage * 0.35);
+  
+  return {
+    applyEffects: [{
+      id: 'arcane_eruption_heal',
+      category: 'HEAL',
+      value: healAmount,  // Scales with damage!
+      metadata: {
+        sourceName: 'Arcane Eruption',
+        healType: 'ability'
+      }
+    }]
+  };
+}
+
+// Example:
+// Raw damage: 976 → Heal: 976 × 0.35 = 342
+// With Powerful Eruption (+20%): 1172 → Heal: 1172 × 0.35 = 410
+// Heal scales intuitively with damage increase! ✓
+```
+
+**When to Use Each**:
+
+| Heal Type | Use Base Weapon Damage | Use Final Damage |
+|-----------|----------------------|------------------|
+| **Damage-triggered heals** | ❌ NO | ✅ YES - Arcane Eruption, Mending Vortex |
+| **Percentage-based heals** | ❌ NO | ✅ YES - "Heal 23% of damage dealt" |
+| **Fixed-value heals** | ✅ YES | ❌ NO - "Heal 35% of weapon damage" (intended as base) |
+| **Lifesteal** | ❌ NO | ✅ YES - Percentage of damage dealt |
+
+**Effect Bunker finalDamage Access**:
+```javascript
+// Engine passes finalDamage to effect bunkers (line 689):
+for (const bunker of activeEffectBunkers) {
+  const result = bunker.handler({ ...context, timestamp, finalDamage });
+  //                                                       ↑
+  //                                            finalDamage available!
+}
+```
+
+**Standard Pattern to Follow**:
+```javascript
+// All percentage-based damage-triggered heals:
+const healAmount = Math.round(finalDamage * percentage);
+
+// Examples:
+Math.round(finalDamage * 0.23);  // Mending Vortex II (23%)
+Math.round(finalDamage * 0.35);  // Arcane Eruption (35%)
+Math.round(finalDamage * 0.055); // Lifestealing II (5.5%)
+Math.round(finalDamage * 0.04);  // Leeching II (4%)
+```
+
+**Consistency Check**:
+```bash
+# Search for healing calculations in codebase:
+grep -r "Math.round.*\* 0\." src/simulation/bunkers/perks/
+grep -r "Math.round.*\* 0\." src/simulation/bunkers/abilities/
+
+# Should all use finalDamage for percentage heals!
+```
+
+---
+
 *Last Updated: 2025-10-22*
