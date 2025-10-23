@@ -24,7 +24,7 @@
 - **50 perks total** (weapon + jewelry + armor)
 - **~20 weapon perks** (realistic filtered pool)
 - **6 runeglass** types
-- **3 weapon perk slots** as variables (test full combos for synergy discovery!)
+- **3 weapon perk slots** as variables (test full combos for synergy discovery!). Let's discuss this, there are exceptions that have more than 3 slots. Need flexibility/extensibility here.
 - **Attribute distributions** as separate independent variable
 - **Budget**: $0 (browser-based simulations)
 
