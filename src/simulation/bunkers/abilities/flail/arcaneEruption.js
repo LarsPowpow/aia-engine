@@ -68,7 +68,11 @@ const EFFECT_METADATA = {
   stroke: 2
 };
 
-function effectHandler({ event, source, target, timestamp }) {
+function effectHandler({ event, source, target, timestamp, finalDamage, effectRequests }) {
+  // Only trigger on FIRST PASS (when effectRequests is undefined or empty)
+  // This prevents double-application since effect bunkers run twice
+  if (effectRequests && effectRequests.length > 0) return null;
+  
   // Only trigger on Arcane Eruption hits
   if (event.abilityId !== 'ability_flail_arcane_eruption') return null;
   if (event.action !== 'ABILITY_HIT') return null;
@@ -135,21 +139,21 @@ function effectHandler({ event, source, target, timestamp }) {
     }
   }
   
-  // Hit 2: Heal self for 35% of weapon damage
+  // Hit 2: Heal self for 35% of weapon damage dealt
   if (event.hitCount === 2) {
-    // Calculate weapon damage for the heal
-    const weaponDamage = calculateWeaponDamage(source.weaponType, source.attributes);
-    const healAmount = Math.round(weaponDamage * 0.35);
+    // Use finalDamage (the actual damage dealt) instead of base weapon damage
+    // This makes the heal scale with damage modifiers (Powerful Eruption, Leader of the Pack, etc.)
+    const healAmount = Math.round(finalDamage * 0.35);
     
-    console.log('[Arcane Eruption] 💚 Hit 2 detected, healing self for 35% of weapon damage', {
-      weaponDamage,
+    console.log('[Arcane Eruption] 💚 Hit 2 detected, healing self for 35% of damage dealt', {
+      finalDamage,
       healAmount
     });
     
     effects.push({
       id: 'ability_flail_arcane_eruption_heal',
       category: 'HEAL',
-      value: healAmount,  // 35% of weapon damage (calculated)
+      value: healAmount,  // 35% of actual damage dealt
       sourceId: source.id,
       targetId: source.id,  // Apply to self
       metadata: {
