@@ -67,8 +67,9 @@ const handler = (context) => {
   // Update cooldown
   source.cooldowns[cooldownKey] = timestamp;
   
-  // HoT always heals self at 5.25% weapon damage per tick
-  const potency = 0.0525;  // 5.25% per tick
+  // HoT heals self at 9.75% weapon damage per tick
+  // Base: 15% per tick, reduced by 35% for self = 15% × 0.65 = 9.75%
+  const potency = 0.0975;  // 9.75% per tick (15% × 0.65)
   
   console.log('[Healing Breeze II] ✅ Applying HoT to SELF!', {
     healTarget: target.name,
