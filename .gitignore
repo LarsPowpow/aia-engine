@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 *.zip
 *.tar.gz
+
+# Sensitive credentials
+server/gcloud-credentials.json
+gcloud-credentials.json
+**/gcloud-credentials.json

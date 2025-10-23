@@ -1,6 +1,7 @@
 import React from 'react';
 import PromptInjector from './PromptInjector.jsx';
 import ManualUpsertPanel from './ManualUpsertPanel.jsx';
+import EmergencyBackup from './EmergencyBackup.jsx';
 
 const SysAdminPanel = ({
     db,
@@ -20,6 +21,7 @@ const SysAdminPanel = ({
     <div className="bg-gray-800 text-white p-4 rounded-lg shadow-lg">
       <h2 className="text-xl font-bold mb-4">System Administration</h2>
       <div className="space-y-8">
+        <EmergencyBackup />
         <PromptInjector
             db={db}
             prompts={prompts}
