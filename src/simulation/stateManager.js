@@ -96,10 +96,11 @@ const applyEffect = (target, effectData, context) => {
             ...effectData,
             appliedAt: now,
             expiresAt: now + effectData.duration,
+            nextTickAt: effectData.nextTickAt || (now + (effectData.tickInterval || 1)),  // Preserve or calculate nextTickAt
             sourceName: context.source && context.source.name ? context.source.name : (context.sourceId || 'Unknown'),
         };
         target.activeEffects.push(newDoT);
-        console.log(`[STATE MANAGER] Applied new ${effectData.category} ${effectData.id} to ${target.id}, expires at ${newDoT.expiresAt.toFixed(2)}s`);
+        console.log(`[STATE MANAGER] Applied new ${effectData.category} ${effectData.id} to ${target.id}, expires at ${newDoT.expiresAt.toFixed(2)}s, nextTickAt: ${newDoT.nextTickAt?.toFixed(2)}s`);
         return;
     }
 

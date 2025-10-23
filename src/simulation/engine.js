@@ -1127,7 +1127,7 @@ const twoStrokeProcessEvent = (event, currentCombatants, allSources, addRawLog, 
         const eventAnalysis = {
             timestamp: event.timestamp,
             source: source.name,
-            action: event.notes || 'Bleed Tick',
+            action: event.notes || 'DoT Tick',
             target: target.name,
             isCrit: false,
             damage: finalDamage,
@@ -1285,11 +1285,11 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
                 nextTickAt: effect.nextTickAt?.toFixed(2),
                 currentTime: currentTime.toFixed(2),
                 difference: effect.nextTickAt ? Math.abs(effect.nextTickAt - currentTime).toFixed(3) : 'N/A',
-                shouldTick: effect.nextTickAt && Math.abs(effect.nextTickAt - currentTime) < 0.01
+                shouldTick: effect.nextTickAt && effect.nextTickAt <= currentTime
             });
             
-            // Check if a tick should happen at this time
-            if (effect.nextTickAt && Math.abs(effect.nextTickAt - currentTime) < 0.01) {
+            // Check if a tick should happen at or before this time (tick if nextTickAt <= currentTime)
+            if (effect.nextTickAt && effect.nextTickAt <= currentTime) {
                 const isHOT = effect.category === 'HOT';
                 console.log(`[DOT/HOT] ✅ Injecting ${isHOT ? 'HOT' : 'DOT'} tick for ${effect.id} at ${currentTime.toFixed(2)}s`);
                 
@@ -1304,7 +1304,7 @@ const injectDOTTickEvents = (choreography, combatants, currentTime) => {
                     healPercent: effect.healPercent,      // For HOTs
                     damageType: effect.damageType, // ✅ Pass through damageType for modifier bunkers
                     metadata: effect.metadata,
-                    notes: isHOT ? `HoT Tick (${effect.metadata?.sourceName || 'Unknown'})` : `Bleed Tick (${effect.metadata?.sourceName || 'Unknown'})`
+                    notes: isHOT ? `HoT Tick (${effect.metadata?.sourceName || 'Unknown'})` : (effect.metadata?.sourceName || 'DoT Tick')
                 });
                 
                 // Update next tick time (if not expired)

@@ -75,9 +75,9 @@ function effectHandler({ event, source, target, timestamp }) {
   
   const effects = [];
   
-  // Hit 1: Apply Slow (3s)
+  // Hit 1: Apply Slow (3s) + 2 stacks of Impairment (6s)
   if (event.hitCount === 1) {
-    console.log('[Arcane Eruption] ❄️ Hit 1 detected, applying Slow (3s)');
+    console.log('[Arcane Eruption] ❄️ Hit 1 detected, applying Slow (3s) + 2 stacks of Impairment (6s)');
     
     effects.push({
       id: 'ability_flail_arcane_eruption_slow',
@@ -90,6 +90,49 @@ function effectHandler({ event, source, target, timestamp }) {
         sourceName: 'Arcane Eruption'
       }
     });
+    
+    // Apply 2 stacks of Impairment (Weaken + DoT)
+    // Each stack needs unique IDs to prevent deduplication
+    for (let stackNum = 1; stackNum <= 2; stackNum++) {
+      effects.push({
+        id: `arcane_eruption_impairment_weaken_${stackNum}`,
+        category: 'WEAKEN',
+        sourceId: source.id,
+        targetId: target.id,
+        value: 0.10,  // 10% Weaken per stack
+        duration: 6,
+        stackable: true,
+        maxStacks: 3,
+        appliedAt: timestamp,
+        expiresAt: timestamp + 6,
+        metadata: {
+          sourceName: 'Impairment - Weaken (Arcane Eruption)'
+        }
+      });
+      
+      effects.push({
+        id: `arcane_eruption_impairment_dot_${stackNum}`,
+        category: 'DOT',
+        subtype: 'BLEED',
+        sourceId: source.id,
+        targetId: target.id,
+        damagePercent: 0.10,  // 10% weapon damage per tick per stack
+        duration: 6,
+        tickInterval: 1,
+        damageType: 'ARCANE',
+        stackable: true,
+        maxStacks: 3,
+        appliedAt: timestamp,
+        nextTickAt: timestamp + 1,
+        expiresAt: timestamp + 6,
+        metadata: {
+          sourceName: 'Impairment (Arcane Eruption)',
+          weaponType: source.weaponType,
+          attributes: { ...source.attributes },
+          damageType: 'ARCANE'
+        }
+      });
+    }
   }
   
   // Hit 2: Heal self for 35% of weapon damage
