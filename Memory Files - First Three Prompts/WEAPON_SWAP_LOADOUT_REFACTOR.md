@@ -319,7 +319,6 @@ export const LoadoutSchema = {
   },
   jewelry: {
     ring1: [],           // Array of perk IDs (usually 1)
-    ring2: [],
     earring: [],
     amulet: []
   },
@@ -355,7 +354,6 @@ export const exampleLoadout = {
   },
   jewelry: {
     ring1: ['perk_healing_breeze_ii'],
-    ring2: ['perk_refreshing'],
     earring: [],
     amulet: []
   },
@@ -881,8 +879,9 @@ loadout = {
 };
 
 // Result: 6 stacks of Empowered Jasper
-// Effect: Each adds +10% damage to next hit after ability
+// Effect: Each adds +12% damage to next hit after ability
 // Expected: 6 × 10% = +60% damage
+// Note: these numbers are illustrative but not game-accurate. Consult the DB for proper numbers.
 ```
 
 ### Implementation Options Considered
