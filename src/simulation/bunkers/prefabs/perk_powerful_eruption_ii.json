@@ -1,0 +1,8 @@
+{
+  "id": "perk_powerful_eruption_ii",
+  "name": "Powerful Eruption II",
+  "type": "PERK",
+  "description": "Arcane Eruption hits deal 10% increased damage per stack of Impairment on the target.",
+  "weapon": "Flail",
+  "effect": "Eruption damage scales with Impairment stacks on target"
+}

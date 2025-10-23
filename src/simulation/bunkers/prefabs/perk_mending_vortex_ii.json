@@ -1,0 +1,8 @@
+{
+  "id": "perk_mending_vortex_ii",
+  "name": "Mending Vortex II",
+  "type": "PERK",
+  "description": "Every 2nd hit with Arcane Vortex heals you for 23% of the base weapon damage dealt.",
+  "weapon": "Flail",
+  "effect": "Heal self for 23% of weapon damage on Vortex hits 2 and 4"
+}

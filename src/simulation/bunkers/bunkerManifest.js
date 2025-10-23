@@ -79,6 +79,8 @@ import mastery_sword_defensive_training from './masteries/sword/mastery_sword_de
 import mastery_flail_vital_embrace from './masteries/flail/mastery_flail_vital_embrace.js';
 import mastery_flail_leader_of_the_pack from './masteries/flail/mastery_flail_leader_of_the_pack.js';
 import mastery_flail_spiky_impairment from './masteries/flail/mastery_flail_spiky_impairment.js';
+import perk_mending_vortex_ii from './perks/weapon/perk_mending_vortex_ii.js';
+import perk_powerful_eruption_ii from './perks/weapon/perk_powerful_eruption_ii.js';
 
 export const modifierBunkers = [
     perk_disdained_infliction_ii,
@@ -97,6 +99,7 @@ export const modifierBunkers = [
     mastery_sword_leadership,  // Sword mastery: Always-on 10% Empower
     mastery_flail_vital_embrace,  // Flail mastery: DoTs +7% damage (stacks)
     mastery_flail_leader_of_the_pack,  // Flail mastery: Base damage +15%
+    perk_powerful_eruption_ii,  // Flail perk: Eruption +10% damage per Impairment stack
     runeglass_empowered_sapphire_weapon,
     runeglass_empowered_sapphire_armor,
     runeglass_punishing_sapphire_weapon,
@@ -126,6 +129,7 @@ export const effectBunkers = [
     mastery_sword_counter_attack,  // Sword mastery: On Block, 3% Empower (stacks 5x)
     mastery_sword_defensive_training,  // Sword mastery: On Block, 20% Fortify for 5s
     mastery_flail_spiky_impairment,  // Flail mastery: BLOCK_HIT applies Weaken + DoT (5s CD, 3 stacks)
+    perk_mending_vortex_ii,  // Flail perk: Heals 23% of weapon damage on Vortex hits 2 & 4
     perk_keenly_jagged_ii,
     perk_keenly_empowered_ii,
     runeglass_empowered_sapphire_weapon_hex,
