@@ -42,16 +42,33 @@ function interpolate(x, points) {
 }
 
 // --- DATA SOURCE: RAW WEAPON DAMAGE VALUES ---
+// Updated: 2025-10-23 - Validated against current game UI values
 const WEAPON_SCALING_DATA = {
     Sword: {
         baseDamage: 546,
-        primary: { attribute: 'STR', points: [ { x: 5, y: 546 }, { x: 50, y: 596 }, { x: 100, y: 649 }, { x: 150, y: 701 }, { x: 200, y: 750 }, { x: 250, y: 797 }, { x: 300, y: 841 }, { x: 350, y: 883 }, { x: 400, y: 924 }, { x: 450, y: 961 } ] },
-        secondary: { attribute: 'DEX', points: [ { x: 5, y: 546 }, { x: 50, y: 586 }, { x: 100, y: 635 }, { x: 150, y: 684 }, { x: 200, y: 730 }, { x: 250, y: 774 }, { x: 300, y: 816 }, { x: 350, y: 857 }, { x: 400, y: 897 }, { x: 450, y: 935 } ] }
+        primary: { attribute: 'STR', points: [ 
+            { x: 5, y: 546 }, { x: 25, y: 590 }, { x: 50, y: 646 }, { x: 100, y: 753 }, 
+            { x: 150, y: 856 }, { x: 200, y: 954 }, { x: 250, y: 1047 }, { x: 300, y: 1136 }, 
+            { x: 350, y: 1221 }, { x: 400, y: 1301 }, { x: 450, y: 1377 }, { x: 465, y: 1399 } 
+        ] },
+        secondary: { attribute: 'DEX', points: [ 
+            { x: 5, y: 546 }, { x: 25, y: 580 }, { x: 50, y: 622 }, { x: 100, y: 704 }, 
+            { x: 150, y: 783 }, { x: 200, y: 858 }, { x: 250, y: 929 }, { x: 300, y: 997 }, 
+            { x: 350, y: 1062 }, { x: 400, y: 1124 }, { x: 450, y: 1182 }, { x: 465, y: 1198 } 
+        ] }
     },
     Flail: {
-        baseDamage: 566,
-        primary: { attribute: 'STR', points: [ { x: 5, y: 566 }, { x: 50, y: 671 }, { x: 100, y: 782 }, { x: 150, y: 888 }, { x: 200, y: 990 }, { x: 250, y: 1087 }, { x: 300, y: 1180 }, { x: 350, y: 1268 }, { x: 400, y: 1351 }, { x: 450, y: 1429 } ] },
-        secondary: { attribute: 'FOC', points: [ { x: 5, y: 566 }, { x: 50, y: 646 }, { x: 100, y: 731 }, { x: 150, y: 812 }, { x: 200, y: 890 }, { x: 250, y: 965 }, { x: 300, y: 1035 }, { x: 350, y: 1103 }, { x: 400, y: 1166 }, { x: 450, y: 1226 } ] }
+        baseDamage: 546,
+        primary: { attribute: 'STR', points: [ 
+            { x: 5, y: 546 }, { x: 25, y: 590 }, { x: 50, y: 646 }, { x: 100, y: 753 }, 
+            { x: 150, y: 856 }, { x: 200, y: 954 }, { x: 250, y: 1047 }, { x: 300, y: 1136 }, 
+            { x: 350, y: 1221 }, { x: 400, y: 1301 }, { x: 450, y: 1377 }, { x: 465, y: 1399 } 
+        ] },
+        secondary: { attribute: 'FOC', points: [ 
+            { x: 5, y: 546 }, { x: 25, y: 580 }, { x: 50, y: 622 }, { x: 100, y: 704 }, 
+            { x: 150, y: 783 }, { x: 200, y: 858 }, { x: 250, y: 929 }, { x: 300, y: 997 }, 
+            { x: 350, y: 1062 }, { x: 400, y: 1124 }, { x: 450, y: 1182 }, { x: 465, y: 1198 } 
+        ] }
     }
 };
 
